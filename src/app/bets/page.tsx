@@ -25,7 +25,7 @@ type BetRow = {
   stavnica: string;
 };
 
-const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "BALKAN"] as const;
+const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"] as const;
 
 const SPORTI = [
   "NOGOMET",
