@@ -587,7 +587,14 @@ export default function StatsPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip formatter={(v: number) => eur(Math.round(v * 100) / 100)} />
+                <Tooltip
+  formatter={(value) => {
+    const n = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(n)) return "";
+    return eur(Math.round(n * 100) / 100);
+  }}
+/>
+
                 <Bar dataKey="profit" fill="#22c55e" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -610,7 +617,14 @@ export default function StatsPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip formatter={(v: number) => eur(Math.round(v * 100) / 100)} />
+<Tooltip
+  formatter={(value) => {
+    const n = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(n)) return "";
+    return eur(Math.round(n * 100) / 100);
+  }}
+/>
+
                 <Line type="monotone" dataKey="cum" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
@@ -635,7 +649,14 @@ export default function StatsPage() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" />
               <YAxis type="category" dataKey="sport" width={120} />
-              <Tooltip formatter={(v: number) => eur(Math.round(v * 100) / 100)} />
+<Tooltip
+  formatter={(value) => {
+    const n = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(n)) return "";
+    return eur(Math.round(n * 100) / 100);
+  }}
+/>
+
               <Bar dataKey="profit" radius={[0, 8, 8, 0]} />
             </BarChart>
           </ResponsiveContainer>
