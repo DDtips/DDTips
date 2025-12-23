@@ -30,15 +30,25 @@ export default function Header() {
   };
 
   return (
-    <header
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 50,
-        backdropFilter: "blur(12px)",
-        background: "rgba(255,255,255,0.75)",
-        borderBottom: "1px solid rgba(0,0,0,0.08)",
-      }}
+<header
+  style={{
+    position: "sticky",
+    top: 0,
+    zIndex: 50,
+    backgroundImage: `
+      linear-gradient(
+        rgba(255,255,255,0.75),
+        rgba(255,255,255,0.75)
+      ),
+      url("/header-bg.jpg")
+    `,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backdropFilter: "blur(10px)",
+    borderBottom: "1px solid rgba(0,0,0,0.08)",
+  }}
+>
+
     >
       <div
         style={{
