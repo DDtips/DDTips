@@ -1,97 +1,74 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
 
 export default function Header() {
   const pathname = usePathname();
-  const router = useRouter();
 
-  const linkStyle = (href: string) => ({
-    padding: "10px 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.22)",
-    background: pathname === href ? "rgba(168,85,247,0.18)" : "transparent",
-    color: "white",
-    textDecoration: "none",
-    fontWeight: 700 as const,
-  });
-
-  async function logout() {
-    await supabase.auth.signOut();
-    router.push("/login");
-  }
+  const navBtn = (href: string, label: string) => {
+    const active = pathname === href;
+    return (
+      <Link
+        href={href}
+        style={{
+          padding: "10px 16px",
+          borderRadius: 14,
+          textDecoration: "none",
+          fontWeight: 700,
+          color: active ? "#fff" : "#111",
+          background: active
+            ? "linear-gradient(135deg, #7c3aed, #a855f7)"
+            : "rgba(255,255,255,0.8)",
+          border: "1px solid rgba(0,0,0,0.1)",
+        }}
+      >
+        {label}
+      </Link>
+    );
+  };
 
   return (
     <header
       style={{
-        height: 72,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 24px",
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
-        background: "rgba(15, 15, 26, 0.75)",
-        backdropFilter: "blur(10px)",
         position: "sticky",
         top: 0,
         zIndex: 50,
+        backdropFilter: "blur(12px)",
+        background: "rgba(255,255,255,0.75)",
+        borderBottom: "1px solid rgba(0,0,0,0.08)",
       }}
     >
-      {/* LEFT: LOGO */}
-      <Link
-        href="/bets"
+      <div
         style={{
+          maxWidth: 1400,
+          margin: "0 auto",
+          padding: "12px 18px",
           display: "flex",
           alignItems: "center",
-          gap: 12,
-          textDecoration: "none",
+          justifyContent: "space-between",
         }}
       >
-        <Image
-          src="/logo.svg" // če je pri tebi logo.svg -> zamenjaj v "/logo.svg"
-          alt="DD Tips"
-          width={44}
-          height={44}
-          priority
-        />
-        <div style={{ lineHeight: 1.05 }}>
-          <div style={{ fontWeight: 900, color: "#a855f7", fontSize: 18 }}>
-            DD
-          </div>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>
-            Tips
-          </div>
-        </div>
-      </Link>
+        {/* LOGO */}
+        <Link href="/bets" style={{ display: "flex", alignItems: "center" }}>
+          <Image
+            src="/logo.svg"
+            alt="DD Tips"
+            width={40}
+            height={40}
+            priority
+          />
+        </Link>
 
-      {/* RIGHT: NAV */}
-      <nav style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <Link href="/bets" style={linkStyle("/bets")}>
-          Stave
-        </Link>
-        <Link href="/stats" style={linkStyle("/stats")}>
-          Statistika
-        </Link>
-        <button
-          onClick={logout}
-          style={{
-            padding: "10px 14px",
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.22)",
-            background: "transparent",
-            color: "white",
-            fontWeight: 800,
-            cursor: "pointer",
-          }}
-        >
-          Odjava
-        </button>
-      </nav>
+        {/* NAV */}
+        <nav style={{ display: "flex", gap: 12 }}>
+          {navBtn("/bets", "Stave")}
+          {navBtn("/stats", "Statistika")}
+          {navBtn("/login", "Odjava")}
+        </nav>
+      </div>
     </header>
   );
 }
-
 
