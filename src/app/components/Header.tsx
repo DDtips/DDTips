@@ -20,7 +20,7 @@ export default function Header() {
           color: active ? "#fff" : "#111",
           background: active
             ? "linear-gradient(135deg, #7c3aed, #a855f7)"
-            : "rgba(255,255,255,0.8)",
+            : "rgba(255,255,255,0.85)",
           border: "1px solid rgba(0,0,0,0.1)",
         }}
       >
@@ -30,25 +30,23 @@ export default function Header() {
   };
 
   return (
-<header
-  style={{
-    position: "sticky",
-    top: 0,
-    zIndex: 50,
-    backgroundImage: `
-      linear-gradient(
-        rgba(255,255,255,0.75),
-        rgba(255,255,255,0.75)
-      ),
-      url("/header-bg.jpg")
-    `,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    backdropFilter: "blur(10px)",
-    borderBottom: "1px solid rgba(0,0,0,0.08)",
-  }}
->
-
+    <header
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+        backgroundImage: `
+          linear-gradient(
+            rgba(255,255,255,0.75),
+            rgba(255,255,255,0.75)
+          ),
+          url("/header-bg.jpg")
+        `,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backdropFilter: "blur(10px)",
+        borderBottom: "1px solid rgba(0,0,0,0.08)",
+      }}
     >
       <div
         style={{
@@ -60,13 +58,13 @@ export default function Header() {
           justifyContent: "space-between",
         }}
       >
-        {/* LOGO */}
+        {/* LOGO – samo EN */}
         <Link href="/bets" style={{ display: "flex", alignItems: "center" }}>
           <Image
             src="/logo.svg"
             alt="DD Tips"
-            width={40}
-            height={40}
+            width={42}
+            height={42}
             priority
           />
         </Link>
@@ -81,4 +79,3 @@ export default function Header() {
     </header>
   );
 }
-
