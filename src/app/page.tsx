@@ -94,7 +94,7 @@ function buildStats(rows: Bet[]) {
   const avgOdds =
     n === 0 ? 0 : settled.reduce((acc, r) => acc + (Number(r.kvota1) || 0), 0) / n;
 
-  const roi = CAPITAL_TOTAL === 0 ? 0 : profit / CAPITAL_TOTAL;
+  const roi = profit / CAPITAL_TOTAL;
   const bankroll = CAPITAL_TOTAL + profit;
 
   // Profit po stavnicah
