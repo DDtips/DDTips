@@ -36,7 +36,7 @@ const BOOK_START: Record<string, number> = {
 
 const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"];
 const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"];
-const STAVNICE = ["SHARP", "PINNACLE", "BET365", "WINAMAX"];
+const STAVNICE = ["SHARP", "PINNACLE", "BET365", "WINAMAX", "WWIN", "BET AT HOME", "E - STAVE"];
 
 function normBook(x: string) {
   return (x || "").toUpperCase().replace(/\s+/g, "");
@@ -263,21 +263,12 @@ export default function StatsPage() {
       <div className="relative max-w-7xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="text-center mb-12">
-          <div className="inline-block">
-            <div className="absolute inset-0 bg-gradient-to-r from-green-500/30 to-yellow-500/30 blur-3xl"></div>
-            <h1 className="relative text-6xl font-black bg-gradient-to-r from-green-400 via-yellow-400 to-green-400 bg-clip-text text-transparent mb-3 animate-pulse">
+          <div className="relative inline-block">
+            <div className="absolute -inset-4 bg-gradient-to-r from-green-500/40 via-yellow-500/40 to-green-500/40 blur-3xl animate-pulse"></div>
+            <h1 className="relative text-7xl font-black bg-gradient-to-r from-green-400 via-yellow-300 to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
               STATISTIKA
             </h1>
           </div>
-          <div className="text-white/60 text-lg">Upošteva samo WIN/LOSS stave</div>
-          
-          <button
-            onClick={loadRows}
-            disabled={loading}
-            className="mt-6 px-8 py-3 bg-gradient-to-r from-green-600 to-yellow-500 text-white font-bold rounded-xl hover:from-green-500 hover:to-yellow-400 transition-all shadow-lg hover:scale-105"
-          >
-            Osveži podatke
-          </button>
         </div>
 
         {msg && <p className="text-red-400 mb-6 text-center">{msg}</p>}
