@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
-import { Calendar, TrendingUp, DollarSign, Trophy, Users, Building2, Clock, Target, Trash2, Plus } from "lucide-react";
+import { Calendar, TrendingUp, DollarSign, Trophy, Users, Building2, Clock, Target, Trash2, Plus, Filter } from "lucide-react";
 
 type WL = "OPEN" | "WIN" | "LOSS" | "VOID";
 type PreLive = "PREMATCH" | "LIVE";
@@ -28,7 +28,7 @@ type BetRow = {
 
 const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"] as const;
 const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"] as const;
-const STAVNICE = ["SHARP", "PINNACLE", "BET365", "WINAMAX"] as const;
+const STAVNICE = ["SHARP", "PINNACLE", "BET365", "WINAMAX", "WWIN", "E-STAVE", "BET AT HOME"] as const;
 const PRELIVE: PreLive[] = ["PREMATCH", "LIVE"];
 
 function eur(n: number) {
@@ -63,11 +63,20 @@ function calcProfit(b: BetRow) {
   return base - kom;
 }
 
+// Helper: dobi trenutni mesec v formatu YYYY-MM
+function getCurrentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export default function BetsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [rows, setRows] = useState<BetRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // Filter za mesec
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
 
   const [datum, setDatum] = useState(() => new Date().toISOString().slice(0, 10));
   const [wl, setWl] = useState<WL>("OPEN");
@@ -127,22 +136,22 @@ export default function BetsPage() {
       return;
     }
 
-   const payload = {
-  datum,
-  wl,
-  dogodek: dogodek.trim(),
-  tip: tip.trim(),
-  kvota1: parseNum(kvota1),
-  vplacilo1: parseNum(vplacilo1),
-  lay_kvota: layKvota.trim() !== "" ? parseNum(layKvota) : 0, // ✅ 0 namesto null
-  vplacilo2: vplacilo2.trim() !== "" ? parseNum(vplacilo2) : 0, // ✅ 0 namesto null
-  komisija: komisija.trim() !== "" ? parseNum(komisija) : 0,
-  sport,
-  cas_stave: casStave,
-  tipster,
-  stavnica,
-  created_by: user?.id || null,
-};
+    const payload = {
+      datum,
+      wl,
+      dogodek: dogodek.trim(),
+      tip: tip.trim(),
+      kvota1: parseNum(kvota1),
+      vplacilo1: parseNum(vplacilo1),
+      lay_kvota: layKvota.trim() !== "" ? parseNum(layKvota) : 0,
+      vplacilo2: vplacilo2.trim() !== "" ? parseNum(vplacilo2) : 0,
+      komisija: komisija.trim() !== "" ? parseNum(komisija) : 0,
+      sport,
+      cas_stave: casStave,
+      tipster,
+      stavnica,
+      created_by: user?.id || null,
+    };
 
     const { data, error } = await supabase
       .from("bets")
@@ -200,9 +209,20 @@ export default function BetsPage() {
     setEditId(null);
   }
 
+  // Filtrirane stave po mesecu
+  const filteredRows = useMemo(() => {
+    return rows.filter(r => r.datum.startsWith(selectedMonth));
+  }, [rows, selectedMonth]);
+
   const computed = useMemo(() => {
-    const withProfit = rows.map((r) => ({ ...r, profit: calcProfit(r) }));
+    const withProfit = filteredRows.map((r) => ({ ...r, profit: calcProfit(r) }));
     return { withProfit };
+  }, [filteredRows]);
+
+  // Pridobi unikalne mesece iz vseh stav
+  const availableMonths = useMemo(() => {
+    const months = new Set(rows.map(r => r.datum.slice(0, 7)));
+    return Array.from(months).sort().reverse(); // Najnovejši prvi
   }, [rows]);
 
   const getWlColor = (wl: WL) => {
@@ -437,6 +457,33 @@ export default function BetsPage() {
           </div>
         </div>
 
+        {/* Month Filter */}
+        <div className="mb-6 relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-2xl blur-lg"></div>
+          <div className="relative bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/20 shadow-lg flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="bg-gradient-to-br from-blue-500 to-purple-500 p-2 rounded-lg">
+                <Filter className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-white font-bold">Filter po mesecu:</span>
+            </div>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-4 py-2 bg-white/10 border-2 border-white/20 rounded-xl text-white font-semibold focus:outline-none focus:border-blue-400 transition-all"
+            >
+              {availableMonths.map(month => (
+                <option key={month} value={month}>
+                  {new Date(month + '-01').toLocaleDateString('sl-SI', { year: 'numeric', month: 'long' })}
+                </option>
+              ))}
+            </select>
+            <div className="text-white/60 ml-auto">
+              Prikazujem: <span className="text-white font-bold">{computed.withProfit.length}</span> stav
+            </div>
+          </div>
+        </div>
+
         {/* Table */}
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-green-600/10 to-yellow-600/10 rounded-3xl blur-xl"></div>
@@ -499,7 +546,7 @@ export default function BetsPage() {
                   {!computed.withProfit.length && (
                     <tr>
                       <td colSpan={11} className="py-8 text-center text-white/50">
-                        Ni še nobene stave.
+                        Ni stav za izbrani mesec.
                       </td>
                     </tr>
                   )}
