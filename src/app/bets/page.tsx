@@ -43,16 +43,43 @@ function parseNum(x: string) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// Format datum iz YYYY-MM-DD v DD.MM.YYYY
+function formatDateSlovenian(dateStr: string) {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-");
+  return `${day}.${month}.${year}`;
+}
+
 function calcProfit(b: BetRow) {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
 
+  const kom = Number(b.komisija ?? 0);
+  
+  // Preveri če je čista LAY stava (ni back stave)
+  const isPureLay = (!b.kvota1 || b.kvota1 === 0 || !b.vplacilo1 || b.vplacilo1 === 0) && 
+                     (b.lay_kvota ?? 0) > 0 && (b.vplacilo2 ?? 0) > 0;
+  
+  if (isPureLay) {
+    const layOdds = Number(b.lay_kvota || 0);
+    const layStake = Number(b.vplacilo2 || 0);
+    const liability = (layOdds - 1) * layStake;
+    
+    if (b.wl === "WIN") {
+      // LAY stava zmaga = drugi izgubi = mi obdržimo njihov stake
+      return layStake - kom;
+    } else {
+      // LAY stava izgubi = mi plačamo liability
+      return -liability - kom;
+    }
+  }
+
+  // Normalna back stava ali matched bet
   const stake = Number(b.vplacilo1 || 0);
   const odds = Number(b.kvota1 || 0);
   const hasLay = (b.lay_kvota ?? 0) > 0 && (b.vplacilo2 ?? 0) > 0;
   const layOdds = Number(b.lay_kvota || 0);
   const layStake = Number(b.vplacilo2 || 0);
   const layLiability = hasLay ? (layOdds - 1) * layStake : 0;
-  const kom = Number(b.komisija ?? 0);
 
   if (b.wl === "WIN") {
     const backProfit = (odds - 1) * stake;
@@ -84,8 +111,8 @@ export default function BetsPage() {
   const [casStave, setCasStave] = useState<PreLive>("PREMATCH");
   const [dogodek, setDogodek] = useState("");
   const [tip, setTip] = useState("");
-  const [kvota1, setKvota1] = useState("2.00");
-  const [vplacilo1, setVplacilo1] = useState("100");
+  const [kvota1, setKvota1] = useState("");
+  const [vplacilo1, setVplacilo1] = useState("");
   const [layKvota, setLayKvota] = useState("");
   const [vplacilo2, setVplacilo2] = useState("");
   const [komisija, setKomisija] = useState("0");
@@ -168,6 +195,11 @@ export default function BetsPage() {
     setWl("OPEN");
     setDogodek("");
     setTip("");
+    setKvota1("");
+    setVplacilo1("");
+    setLayKvota("");
+    setVplacilo2("");
+    setKomisija("0");
   }
 
   async function deleteBet(id: string) {
@@ -232,6 +264,17 @@ export default function BetsPage() {
     return "from-yellow-500 to-amber-500";
   };
 
+  // Prikaži kvoto in vplačilo glede na tip stave
+  function getDisplayOdds(r: BetRow) {
+    const isPureLay = (!r.kvota1 || r.kvota1 === 0) && (r.lay_kvota ?? 0) > 0;
+    return isPureLay ? r.lay_kvota : r.kvota1;
+  }
+
+  function getDisplayStake(r: BetRow) {
+    const isPureLay = (!r.kvota1 || r.kvota1 === 0 || !r.vplacilo1 || r.vplacilo1 === 0) && (r.vplacilo2 ?? 0) > 0;
+    return isPureLay ? r.vplacilo2 : r.vplacilo1;
+  }
+
   return (
     <main className="min-h-screen relative overflow-hidden">
       {/* Animated background */}
@@ -271,6 +314,7 @@ export default function BetsPage() {
             </div>
 
             <div className="grid grid-cols-4 gap-4">
+              {/* Vrstica 1 - Osnovno */}
               <div>
                 <label className="block text-white/80 text-sm font-semibold mb-2">
                   <Calendar className="w-4 h-4 inline mr-1" />
@@ -333,6 +377,7 @@ export default function BetsPage() {
                 </select>
               </div>
 
+              {/* Vrstica 2 - Dogodek in Tip */}
               <div className="col-span-2">
                 <label className="block text-white/80 text-sm font-semibold mb-2">Dogodek</label>
                 <input
@@ -353,8 +398,12 @@ export default function BetsPage() {
                 />
               </div>
 
+              {/* Vrstica 3 - BACK stava */}
               <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">Kvota 1</label>
+                <label className="block text-white/80 text-sm font-semibold mb-2">
+                  <TrendingUp className="w-4 h-4 inline mr-1" />
+                  Back Kvota
+                </label>
                 <input
                   value={kvota1}
                   onChange={(e) => setKvota1(e.target.value)}
@@ -366,7 +415,7 @@ export default function BetsPage() {
               <div>
                 <label className="block text-white/80 text-sm font-semibold mb-2">
                   <DollarSign className="w-4 h-4 inline mr-1" />
-                  Vplačilo 1
+                  Back Vplačilo
                 </label>
                 <input
                   value={vplacilo1}
@@ -376,18 +425,25 @@ export default function BetsPage() {
                 />
               </div>
 
+              {/* Vrstica 3 - LAY stava */}
               <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">Lay kvota</label>
+                <label className="block text-white/80 text-sm font-semibold mb-2">
+                  <TrendingUp className="w-4 h-4 inline mr-1" />
+                  Lay Kvota
+                </label>
                 <input
                   value={layKvota}
                   onChange={(e) => setLayKvota(e.target.value)}
-                  placeholder="1.10"
+                  placeholder="1.05"
                   className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-green-400 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">Vplačilo 2</label>
+                <label className="block text-white/80 text-sm font-semibold mb-2">
+                  <DollarSign className="w-4 h-4 inline mr-1" />
+                  Lay Vplačilo
+                </label>
                 <input
                   value={vplacilo2}
                   onChange={(e) => setVplacilo2(e.target.value)}
@@ -396,6 +452,7 @@ export default function BetsPage() {
                 />
               </div>
 
+              {/* Vrstica 4 - Ostalo */}
               <div>
                 <label className="block text-white/80 text-sm font-semibold mb-2">Komisija</label>
                 <input
@@ -513,7 +570,7 @@ export default function BetsPage() {
                 <tbody>
                   {computed.withProfit.map((r) => (
                     <tr key={r.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                      <td className="py-4 px-4 text-white/90 text-sm">{r.datum}</td>
+                      <td className="py-4 px-4 text-white/90 text-sm">{formatDateSlovenian(r.datum)}</td>
                       <td className="py-4 px-4">
                         <button
                           onClick={() => openEdit(r)}
@@ -524,8 +581,8 @@ export default function BetsPage() {
                       </td>
                       <td className="py-4 px-4 text-white/90 text-sm">{r.dogodek}</td>
                       <td className="py-4 px-4 text-white/70 text-sm">{r.tip}</td>
-                      <td className="py-4 px-4 text-white/90 font-semibold text-sm">{r.kvota1}</td>
-                      <td className="py-4 px-4 text-white/90 text-sm">{eur(r.vplacilo1)}</td>
+                      <td className="py-4 px-4 text-white/90 font-semibold text-sm">{getDisplayOdds(r) || '-'}</td>
+                      <td className="py-4 px-4 text-white/90 text-sm">{eur(getDisplayStake(r) || 0)}</td>
                       <td className={`py-4 px-4 font-bold text-sm ${(r as any).profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {eur((r as any).profit)}
                       </td>
