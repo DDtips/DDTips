@@ -128,20 +128,21 @@ export default function BetsPage() {
     }
 
     const payload = {
-      datum,
-      wl,
-      dogodek: dogodek.trim(),
-      tip: tip.trim(),
-      kvota1: parseNum(kvota1),
-      vplacilo1: parseNum(vplacilo1),
-      lay_kvota: layKvota.trim() ? parseNum(layKvota) : null,
-      vplacilo2: vplacilo2.trim() ? parseNum(vplacilo2) : null,
-      komisija: komisija.trim() ? parseNum(komisija) : 0,
-      sport,
-      cas_stave: casStave,
-      tipster,
-      stavnica,
-    };
+  datum,
+  wl,
+  dogodek: dogodek.trim(),
+  tip: tip.trim(),
+  kvota1: parseNum(kvota1),
+  vplacilo1: parseNum(vplacilo1),
+  lay_kvota: layKvota.trim() ? parseNum(layKvota) : null,
+  vplacilo2: vplacilo2.trim() ? parseNum(vplacilo2) : null,
+  komisija: komisija.trim() ? parseNum(komisija) : 0,
+  sport,
+  cas_stave: casStave,
+  tipster,
+  stavnica,
+  created_by: user?.id || null, // ✅ Dodaj user ID
+};
 
     const { data, error } = await supabase
       .from("bets")
