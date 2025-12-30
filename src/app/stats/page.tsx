@@ -3,17 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts";
 import { TrendingUp, DollarSign, Target, Trophy, Calendar, Filter, BarChart3, Users, Building2, Clock, TrendingDown } from "lucide-react";
 
 type WL = "OPEN" | "WIN" | "LOSS" | "VOID";
@@ -55,10 +44,6 @@ function normBook(x: string) {
 
 function eur(n: number) {
   return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR" });
-}
-
-function monthKey(d: string) {
-  return d.slice(0, 7);
 }
 
 function hasLay(b: Bet) {
@@ -230,38 +215,6 @@ export default function StatsPage() {
   const statsByTipster = useMemo(() => buildStatsByCategory(filteredRows, 'tipster'), [filteredRows]);
   const statsBySport = useMemo(() => buildStatsByCategory(filteredRows, 'sport'), [filteredRows]);
   const statsByCas = useMemo(() => buildStatsByCategory(filteredRows, 'cas_stave'), [filteredRows]);
-
-  const chartMonthly = useMemo(() => {
-    const settled = filteredRows.filter((r) => r.wl === "WIN" || r.wl === "LOSS");
-    const map = new Map<string, number>();
-    settled.forEach((r) => {
-      const key = monthKey(r.datum);
-      map.set(key, (map.get(key) ?? 0) + calcProfit(r));
-    });
-
-    const arr = Array.from(map.entries())
-      .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([m, profit]) => ({ month: m, profit }));
-
-    let cum = 0;
-    return arr.map((x) => {
-      cum += x.profit;
-      return { ...x, cum };
-    });
-  }, [filteredRows]);
-
-  const chartBySport = useMemo(() => {
-    const settled = filteredRows.filter((r) => r.wl === "WIN" || r.wl === "LOSS");
-    const map = new Map<string, number>();
-    settled.forEach((r) => {
-      const key = r.sport || "OSTALO";
-      map.set(key, (map.get(key) ?? 0) + calcProfit(r));
-    });
-
-    return Array.from(map.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([sport, profit]) => ({ sport, profit }));
-  }, [filteredRows]);
 
   const handleApplyFilters = () => {
     setAppliedFilters({
@@ -529,118 +482,7 @@ export default function StatsPage() {
           </div>
         </div>
 
-        {/* Grafi */}
-        <div className="grid grid-cols-2 gap-6 mb-8">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-emerald-600/20 rounded-3xl blur-xl"></div>
-            <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-              <h3 className="text-xl font-bold text-white mb-4">Profit po mesecih</h3>
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartMonthly}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="month" stroke="#fff" fontSize={12} />
-                    <YAxis stroke="#fff" fontSize={12} />
-                    <Tooltip
-                      formatter={(value) => {
-                        const n = typeof value === "number" ? value : Number(value);
-                        if (!Number.isFinite(n)) return "";
-                        return eur(Math.round(n * 100) / 100);
-                      }}
-                      contentStyle={{
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        borderRadius: '8px',
-                        color: '#fff'
-                      }}
-                    />
-                    <Bar dataKey="profit" fill="url(#colorProfit)" radius={[8, 8, 0, 0]} />
-                    <defs>
-                      <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" />
-                        <stop offset="100%" stopColor="#059669" />
-                      </linearGradient>
-                    </defs>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
 
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-cyan-600/20 rounded-3xl blur-xl"></div>
-            <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-              <h3 className="text-xl font-bold text-white mb-4">Kumulativa po mesecih</h3>
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartMonthly}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="month" stroke="#fff" fontSize={12} />
-                    <YAxis stroke="#fff" fontSize={12} />
-                    <Tooltip
-                      formatter={(value) => {
-                        const n = typeof value === "number" ? value : Number(value);
-                        if (!Number.isFinite(n)) return "";
-                        return eur(Math.round(n * 100) / 100);
-                      }}
-                      contentStyle={{
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        borderRadius: '8px',
-                        color: '#fff'
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="cum"
-                      stroke="#3b82f6"
-                      strokeWidth={3}
-                      dot={{ fill: '#3b82f6', r: 4 }}
-                      activeDot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Profit po športih */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-3xl blur-xl"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <h3 className="text-xl font-bold text-white mb-4">Profit po športih</h3>
-            <div style={{ height: 400 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartBySport} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis type="number" stroke="#fff" fontSize={12} />
-                  <YAxis type="category" dataKey="sport" width={120} stroke="#fff" fontSize={12} />
-                  <Tooltip
-                    formatter={(value) => {
-                      const n = typeof value === "number" ? value : Number(value);
-                      if (!Number.isFinite(n)) return "";
-                      return eur(Math.round(n * 100) / 100);
-                    }}
-                    contentStyle={{
-                      backgroundColor: 'rgba(0,0,0,0.8)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      borderRadius: '8px',
-                      color: '#fff'
-                    }}
-                  />
-                  <Bar dataKey="profit" fill="url(#colorSport)" radius={[0, 8, 8, 0]} />
-                  <defs>
-                    <linearGradient id="colorSport" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#a855f7" />
-                      <stop offset="100%" stopColor="#ec4899" />
-                    </linearGradient>
-                  </defs>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
 
         {/* Stolpci - Tipsterji */}
         <div className="relative mb-8">
