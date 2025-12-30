@@ -162,7 +162,7 @@ const profitByBook = new Map<string, number>();
     profitPrematch,
     profitLive,
     prematchCount: prematch.length,
-    liveCount: live.length
+    liveCount: live.length,
     roiPercent, 
   donosNaKapital
   };
