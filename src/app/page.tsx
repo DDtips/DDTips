@@ -513,11 +513,14 @@ export default function HomePage() {
                     axisLine={false}
                     tickFormatter={(value) => `€${value}`}
                   />
-                  <Tooltip
-                    formatter={(value: number, name: string) => {
-                      const formatted = eur(Math.round(value * 100) / 100);
-                      return [formatted, name === "cumulative" ? "Kumulativno" : "Mesečno"];
-                    }}
+<Tooltip
+  formatter={(value: number | undefined, name: string) => {
+    const safe = typeof value === "number" ? value : 0;
+    const formatted = eur(Math.round(safe * 100) / 100);
+    return [formatted, name === "cumulative" ? "Kumulativno" : "Mesečno"] as const;
+  }}
+/>
+
                     contentStyle={{
                       backgroundColor: 'rgba(24, 24, 27, 0.95)',
                       border: '1px solid rgba(63, 63, 70, 0.5)',
