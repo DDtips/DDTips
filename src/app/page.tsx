@@ -7,8 +7,6 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -33,16 +31,20 @@ type Bet = {
   stavnica: string;
 };
 
-const CAPITAL_TOTAL = 7000;
+const CAPITAL_TOTAL = 9000;
 
 const BOOK_START: Record<string, number> = {
   SHARP: 2000,
   PINNACLE: 2000,
   BET365: 2000,
   WINAMAX: 1000,
-  WWIN: 0,
-  "E-STAVE": 0,
+  WWIN: 500,
+  "E-STAVE": 500,
+  "BET AT HOME": 1000,
 };
+
+const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"];
+const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"];
 
 function normBook(x: string) {
   return (x || "").toUpperCase().replace(/\s+/g, "");
@@ -94,18 +96,14 @@ function buildStats(rows: Bet[]) {
   const avgOdds =
     n === 0 ? 0 : settled.reduce((acc, r) => acc + (Number(r.kvota1) || 0), 0) / n;
 
-const roi = profit / CAPITAL_TOTAL;
-const bankroll = CAPITAL_TOTAL + profit;
+  const bankroll = CAPITAL_TOTAL + profit;
 
-// ROI = profit / total stakes
-const totalStakes = settled.reduce((acc, r) => acc + r.vplacilo1, 0);
-const roiPercent = totalStakes === 0 ? 0 : (profit / totalStakes) * 100;
+  // ROI = profit / total stakes
+  const totalStakes = settled.reduce((acc, r) => acc + r.vplacilo1, 0);
+  const roiPercent = totalStakes === 0 ? 0 : (profit / totalStakes) * 100;
 
-// Donos na kapital = (current - start) / start * 100
-const donosNaKapital = ((bankroll - CAPITAL_TOTAL) / CAPITAL_TOTAL) * 100;
-
-// Profit po stavnicah
-const profitByBook = new Map<string, number>();
+  // Donos na kapital = (current - start) / start * 100
+  const donosNaKapital = ((bankroll - CAPITAL_TOTAL) / CAPITAL_TOTAL) * 100;
 
   // Profit po stavnicah
   const profitByBook = new Map<string, number>();
@@ -127,15 +125,17 @@ const profitByBook = new Map<string, number>();
 
   balanceByBook.sort((a, b) => b.balance - a.balance);
 
-  // Profit po športih
+  // Profit po športih - VSI športi
   const profitBySport = new Map<string, number>();
+  SPORTI.forEach(sport => profitBySport.set(sport, 0));
   settled.forEach((r) => {
     const key = r.sport || "OSTALO";
     profitBySport.set(key, (profitBySport.get(key) ?? 0) + calcProfit(r));
   });
 
-  // Profit po tipsterjih
+  // Profit po tipsterjih - VSI tipsterji
   const profitByTipster = new Map<string, number>();
+  TIPSTERJI.forEach(tipster => profitByTipster.set(tipster, 0));
   settled.forEach((r) => {
     const key = r.tipster || "NEZNANO";
     profitByTipster.set(key, (profitByTipster.get(key) ?? 0) + calcProfit(r));
@@ -154,7 +154,6 @@ const profitByBook = new Map<string, number>();
     wins, 
     losses, 
     avgOdds, 
-    roi, 
     bankroll, 
     balanceByBook,
     profitBySport,
@@ -164,7 +163,7 @@ const profitByBook = new Map<string, number>();
     prematchCount: prematch.length,
     liveCount: live.length,
     roiPercent, 
-  donosNaKapital
+    donosNaKapital
   };
 }
 
@@ -184,7 +183,7 @@ function StatCard({
   return (
     <div className="relative group h-full">
       <div className={`absolute inset-0 bg-gradient-to-br ${bgGradient} rounded-2xl blur-xl group-hover:blur-2xl transition-all`}></div>
-<div className="relative bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl rounded-2xl p-5 border border-white/20 hover:border-green-500/50 transition-all hover:scale-105 shadow-xl h-full flex flex-col justify-between">
+      <div className="relative bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl rounded-2xl p-5 border border-white/20 hover:border-green-500/50 transition-all hover:scale-105 shadow-xl h-full flex flex-col justify-between">
         <div className="flex items-center gap-3 text-white/70 text-sm font-semibold mb-3">
           {icon && <div className="bg-gradient-to-br from-green-500 to-yellow-500 p-2 rounded-lg">{icon}</div>}
           {title}
@@ -267,11 +266,7 @@ export default function HomePage() {
       .sort(([a], [b]) => (a < b ? -1 : 1))
       .map(([m, profit]) => ({ month: m, profit }));
 
-    let cum = 0;
-    return arr.map((x) => {
-      cum += x.profit;
-      return { ...x, cum };
-    });
+    return arr;
   }, [rows]);
 
   if (loading) {
@@ -283,21 +278,23 @@ export default function HomePage() {
   }
 
   // Pripravi podatke za tabele
-  const sportData = Array.from(stats.profitBySport.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([sport, profit]) => ({
+  const sportData = SPORTI.map(sport => {
+    const profit = stats.profitBySport.get(sport) ?? 0;
+    return {
       label: sport,
       value: eur(profit),
       color: profit >= 0 ? "#22c55e" : "#ef4444"
-    }));
+    };
+  });
 
-  const tipsterData = Array.from(stats.profitByTipster.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([tipster, profit]) => ({
+  const tipsterData = TIPSTERJI.map(tipster => {
+    const profit = stats.profitByTipster.get(tipster) ?? 0;
+    return {
       label: tipster,
       value: eur(profit),
       color: profit >= 0 ? "#22c55e" : "#ef4444"
-    }));
+    };
+  });
 
   const prematchLiveData = [
     {
@@ -322,69 +319,68 @@ export default function HomePage() {
       </div>
 
       <div className="relative max-w-7xl mx-auto px-6 py-8">
-
-
         {/* Glavni KPI */}
-<div className="relative mb-8">
-  <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 to-yellow-600/20 rounded-3xl blur-xl"></div>
-  <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-    <div className="flex justify-between items-center mb-6">
-      <h2 className="text-2xl font-black text-white">Skupna statistika</h2>
-      <div className="text-xl font-bold text-white/80">
-        Začetni kapital: <span className="text-green-400">{eur(CAPITAL_TOTAL)}</span>
-      </div>
-    </div>
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 to-yellow-600/20 rounded-3xl blur-xl"></div>
+          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-black text-white">Skupna statistika</h2>
+              <div className="text-xl font-bold text-white/80">
+                Začetni kapital: <span className="text-green-400">{eur(CAPITAL_TOTAL)}</span>
+              </div>
+            </div>
 
-    {/* Prva vrsta - 3 kartice */}
-    <div className="grid grid-cols-3 gap-4 items-stretch mb-4">
-      <StatCard
-        title="CELOTEN PROFIT"
-        value={eur(stats.profit)}
-        color={stats.profit >= 0 ? "#22c55e" : "#ef4444"}
-        icon={<TrendingUp className="w-5 h-5 text-white" />}
-      />
-      <StatCard
-        title="BANKROLL"
-        value={eur(stats.bankroll)}
-        color={stats.bankroll >= CAPITAL_TOTAL ? "#22c55e" : "#ef4444"}
-        icon={<DollarSign className="w-5 h-5 text-white" />}
-      />
-      <StatCard
-        title="DONOS NA KAPITAL"
-        value={`${stats.donosNaKapital.toFixed(2)}%`}
-        color={stats.donosNaKapital >= 0 ? "#22c55e" : "#ef4444"}
-        icon={<Target className="w-5 h-5 text-white" />}
-      />
-    </div>
+            {/* Prva vrsta - 3 kartice */}
+            <div className="grid grid-cols-3 gap-4 items-stretch mb-4">
+              <StatCard
+                title="CELOTEN PROFIT"
+                value={eur(stats.profit)}
+                color={stats.profit >= 0 ? "#22c55e" : "#ef4444"}
+                icon={<TrendingUp className="w-5 h-5 text-white" />}
+              />
+              <StatCard
+                title="BANKROLL"
+                value={eur(stats.bankroll)}
+                color={stats.bankroll >= CAPITAL_TOTAL ? "#22c55e" : "#ef4444"}
+                icon={<DollarSign className="w-5 h-5 text-white" />}
+              />
+              <StatCard
+                title="DONOS NA KAPITAL"
+                value={`${stats.donosNaKapital.toFixed(2)}%`}
+                color={stats.donosNaKapital >= 0 ? "#22c55e" : "#ef4444"}
+                icon={<Target className="w-5 h-5 text-white" />}
+              />
+            </div>
 
-    {/* Druga vrsta - 4 kartice */}
-    <div className="grid grid-cols-4 gap-4 items-stretch">
-      <StatCard
-        title="ROI"
-        value={`${stats.roiPercent.toFixed(2)}%`}
-        color="#fbbf24"
-        icon={<Target className="w-5 h-5 text-white" />}
-      />
-      <StatCard
-        title="VSEH STAV"
-        value={`${stats.n}`}
-        color="#ffffff"
-        icon={<BarChart3 className="w-5 h-5 text-white" />}
-      />
-      <StatCard
-        title="WIN / LOSS"
-        value={`${stats.wins} / ${stats.losses}`}
-        color="#10b981"
-        icon={<Trophy className="w-5 h-5 text-white" />}
-      />
-      <StatCard
-        title="POVP. KVOTA"
-        value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"}
-        color="#60a5fa"
-      />
-    </div>
-  </div>
-</div>
+            {/* Druga vrsta - 4 kartice */}
+            <div className="grid grid-cols-4 gap-4 items-stretch">
+              <StatCard
+                title="ROI"
+                value={`${stats.roiPercent.toFixed(2)}%`}
+                color="#fbbf24"
+                icon={<Target className="w-5 h-5 text-white" />}
+              />
+              <StatCard
+                title="VSEH STAV"
+                value={`${stats.n}`}
+                color="#ffffff"
+                icon={<BarChart3 className="w-5 h-5 text-white" />}
+              />
+              <StatCard
+                title="WIN / LOSS"
+                value={`${stats.wins} / ${stats.losses}`}
+                color="#10b981"
+                icon={<Trophy className="w-5 h-5 text-white" />}
+              />
+              <StatCard
+                title="POVP. KVOTA"
+                value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"}
+                color="#60a5fa"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Stavnice */}
         <div className="relative mb-8">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-cyan-600/20 rounded-3xl blur-xl"></div>
@@ -396,7 +392,7 @@ export default function HomePage() {
               Stanje na stavnicah
             </h3>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               {stats.balanceByBook.map((x) => (
                 <div key={x.name} className="relative group">
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-xl blur-lg group-hover:blur-xl transition-all"></div>
@@ -429,90 +425,52 @@ export default function HomePage() {
           />
 
           <TableCard
-            title="Statistika"
-            data={prematchLiveData}
-            icon={<BarChart3 className="w-5 h-5 text-white" />}
-          />
-
-          <TableCard
             title="Statistika po tipsterjih"
             data={tipsterData}
             icon={<Users className="w-5 h-5 text-white" />}
           />
+
+          <TableCard
+            title="Statistika"
+            data={prematchLiveData}
+            icon={<BarChart3 className="w-5 h-5 text-white" />}
+          />
         </div>
 
-        {/* Grafi */}
-        <div className="grid grid-cols-2 gap-6">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-emerald-600/20 rounded-3xl blur-xl"></div>
-            <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-              <h3 className="text-xl font-bold text-white mb-4">Profit po mesecih</h3>
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartMonthly}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="month" stroke="#fff" fontSize={12} />
-                    <YAxis stroke="#fff" fontSize={12} />
-                    <Tooltip
-                      formatter={(value) => {
-                        const n = typeof value === "number" ? value : Number(value);
-                        if (!Number.isFinite(n)) return "";
-                        return eur(Math.round(n * 100) / 100);
-                      }}
-                      contentStyle={{
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        borderRadius: '8px',
-                        color: '#fff'
-                      }}
-                    />
-                    <Bar dataKey="profit" fill="url(#colorProfit)" radius={[8, 8, 0, 0]} />
-                    <defs>
-                      <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" />
-                        <stop offset="100%" stopColor="#059669" />
-                      </linearGradient>
-                    </defs>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-cyan-600/20 rounded-3xl blur-xl"></div>
-            <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-              <h3 className="text-xl font-bold text-white mb-4">Kumulativa po mesecih</h3>
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartMonthly}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="month" stroke="#fff" fontSize={12} />
-                    <YAxis stroke="#fff" fontSize={12} />
-                    <Tooltip
-                      formatter={(value) => {
-                        const n = typeof value === "number" ? value : Number(value);
-                        if (!Number.isFinite(n)) return "";
-                        return eur(Math.round(n * 100) / 100);
-                      }}
-                      contentStyle={{
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        borderRadius: '8px',
-                        color: '#fff'
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="cum"
-                      stroke="#3b82f6"
-                      strokeWidth={3}
-                      dot={{ fill: '#3b82f6', r: 4 }}
-                      activeDot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+        {/* Graf - samo profit po mesecih */}
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-emerald-600/20 rounded-3xl blur-xl"></div>
+          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-4">Profit po mesecih</h3>
+            <div style={{ height: 400 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartMonthly}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <XAxis dataKey="month" stroke="#fff" fontSize={12} />
+                  <YAxis stroke="#fff" fontSize={12} />
+                  <Tooltip
+                    formatter={(value) => {
+                      const n = typeof value === "number" ? value : Number(value);
+                      if (!Number.isFinite(n)) return "";
+                      return eur(Math.round(n * 100) / 100);
+                    }}
+                    contentStyle={{
+                      backgroundColor: 'rgba(0,0,0,0.8)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: '8px',
+                      color: '#fff'
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="profit"
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    dot={{ fill: '#10b981', r: 5 }}
+                    activeDot={{ r: 7 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
