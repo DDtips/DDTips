@@ -94,8 +94,18 @@ function buildStats(rows: Bet[]) {
   const avgOdds =
     n === 0 ? 0 : settled.reduce((acc, r) => acc + (Number(r.kvota1) || 0), 0) / n;
 
-  const roi = profit / CAPITAL_TOTAL;
-  const bankroll = CAPITAL_TOTAL + profit;
+const roi = profit / CAPITAL_TOTAL;
+const bankroll = CAPITAL_TOTAL + profit;
+
+// ROI = profit / total stakes
+const totalStakes = settled.reduce((acc, r) => acc + r.vplacilo1, 0);
+const roiPercent = totalStakes === 0 ? 0 : (profit / totalStakes) * 100;
+
+// Donos na kapital = (current - start) / start * 100
+const donosNaKapital = ((bankroll - CAPITAL_TOTAL) / CAPITAL_TOTAL) * 100;
+
+// Profit po stavnicah
+const profitByBook = new Map<string, number>();
 
   // Profit po stavnicah
   const profitByBook = new Map<string, number>();
@@ -153,6 +163,8 @@ function buildStats(rows: Bet[]) {
     profitLive,
     prematchCount: prematch.length,
     liveCount: live.length
+    roiPercent, 
+  donosNaKapital
   };
 }
 
@@ -313,62 +325,66 @@ export default function HomePage() {
 
 
         {/* Glavni KPI */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 to-yellow-600/20 rounded-3xl blur-xl"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-black text-white">Skupna statistika</h2>
-              <div className="text-xl font-bold text-white/80">
-                Začetni kapital: <span className="text-green-400">{eur(CAPITAL_TOTAL)}</span>
-              </div>
-            </div>
+<div className="relative mb-8">
+  <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 to-yellow-600/20 rounded-3xl blur-xl"></div>
+  <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
+    <div className="flex justify-between items-center mb-6">
+      <h2 className="text-2xl font-black text-white">Skupna statistika</h2>
+      <div className="text-xl font-bold text-white/80">
+        Začetni kapital: <span className="text-green-400">{eur(CAPITAL_TOTAL)}</span>
+      </div>
+    </div>
 
-            <div className="grid grid-cols-7 gap-4 items-stretch">
-  <StatCard
-    title="CELOTEN PROFIT"
-    value={eur(stats.profit)}
-    color={stats.profit >= 0 ? "#22c55e" : "#ef4444"}
-    icon={<TrendingUp className="w-5 h-5 text-white" />}
-  />
-  <StatCard
-    title="BANKROLL"
-    value={eur(stats.bankroll)}
-    color={stats.bankroll >= CAPITAL_TOTAL ? "#22c55e" : "#ef4444"}
-    icon={<DollarSign className="w-5 h-5 text-white" />}
-  />
-  <StatCard
-    title="DONOS NA KAPITAL"
-    value={`${((stats.profit / CAPITAL_TOTAL) * 100).toFixed(2)}%`}
-    color="#fbbf24"
-    icon={<Target className="w-5 h-5 text-white" />}
-  />
-  <StatCard
-    title="ROI"
-    value={`${(stats.roi * 100).toFixed(2)}%`}
-    color="#fbbf24"
-    icon={<Target className="w-5 h-5 text-white" />}
-  />
-  <StatCard
-    title="STAV (WIN/LOSS)"
-    value={`${stats.n}`}
-    color="#ffffff"
-    icon={<BarChart3 className="w-5 h-5 text-white" />}
-  />
-  <StatCard
-    title="WIN / LOSS"
-    value={`${stats.wins} / ${stats.losses}`}
-    color="#10b981"
-    icon={<Trophy className="w-5 h-5 text-white" />}
-  />
-  <StatCard
-    title="POVP. KVOTA"
-    value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"}
-    color="#60a5fa"
-  />
+    {/* Prva vrsta - 3 kartice */}
+    <div className="grid grid-cols-3 gap-4 items-stretch mb-4">
+      <StatCard
+        title="CELOTEN PROFIT"
+        value={eur(stats.profit)}
+        color={stats.profit >= 0 ? "#22c55e" : "#ef4444"}
+        icon={<TrendingUp className="w-5 h-5 text-white" />}
+      />
+      <StatCard
+        title="BANKROLL"
+        value={eur(stats.bankroll)}
+        color={stats.bankroll >= CAPITAL_TOTAL ? "#22c55e" : "#ef4444"}
+        icon={<DollarSign className="w-5 h-5 text-white" />}
+      />
+      <StatCard
+        title="DONOS NA KAPITAL"
+        value={`${stats.donosNaKapital.toFixed(2)}%`}
+        color={stats.donosNaKapital >= 0 ? "#22c55e" : "#ef4444"}
+        icon={<Target className="w-5 h-5 text-white" />}
+      />
+    </div>
+
+    {/* Druga vrsta - 4 kartice */}
+    <div className="grid grid-cols-4 gap-4 items-stretch">
+      <StatCard
+        title="ROI"
+        value={`${stats.roiPercent.toFixed(2)}%`}
+        color="#fbbf24"
+        icon={<Target className="w-5 h-5 text-white" />}
+      />
+      <StatCard
+        title="VSEH STAV"
+        value={`${stats.n}`}
+        color="#ffffff"
+        icon={<BarChart3 className="w-5 h-5 text-white" />}
+      />
+      <StatCard
+        title="WIN / LOSS"
+        value={`${stats.wins} / ${stats.losses}`}
+        color="#10b981"
+        icon={<Trophy className="w-5 h-5 text-white" />}
+      />
+      <StatCard
+        title="POVP. KVOTA"
+        value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"}
+        color="#60a5fa"
+      />
+    </div>
+  </div>
 </div>
-          </div>
-        </div>
-
         {/* Stavnice */}
         <div className="relative mb-8">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-cyan-600/20 rounded-3xl blur-xl"></div>
