@@ -14,7 +14,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { TrendingUp, DollarSign, Target, Trophy, Calendar, Filter, BarChart3, Users, Building2, Clock } from "lucide-react";
+import { TrendingUp, DollarSign, Target, Trophy, Calendar, Filter, BarChart3, Users, Building2, Clock, TrendingDown } from "lucide-react";
 
 type WL = "OPEN" | "WIN" | "LOSS" | "VOID";
 type Cas = "PREMATCH" | "LIVE";
@@ -124,6 +124,21 @@ function buildStats(rows: Bet[]) {
   return { profit, n, wins, losses, avgOdds, roi, bankroll, balanceByBook };
 }
 
+function buildStatsByCategory(rows: Bet[], category: 'tipster' | 'sport' | 'cas_stave') {
+  const map = new Map<string, Bet[]>();
+  
+  rows.forEach((r) => {
+    const key = r[category] || "NEZNANO";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(r);
+  });
+
+  return Array.from(map.entries()).map(([name, bets]) => {
+    const stats = buildStats(bets);
+    return { name, ...stats };
+  }).sort((a, b) => b.profit - a.profit);
+}
+
 function Kpi({ title, value, color = "inherit", icon }: { title: string; value: string; color?: string; icon?: React.ReactNode }) {
   return (
     <div className="relative">
@@ -145,12 +160,27 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // Filter states
   const [sport, setSport] = useState("ALL");
   const [tipster, setTipster] = useState("ALL");
   const [stavnica, setStavnica] = useState("ALL");
   const [cas, setCas] = useState<"ALL" | Cas>("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [oddsFilter, setOddsFilter] = useState<"ALL" | "OVER" | "UNDER">("ALL");
+  const [oddsValue, setOddsValue] = useState("2");
+
+  // Applied filters (after clicking "Potrdi")
+  const [appliedFilters, setAppliedFilters] = useState({
+    sport: "ALL",
+    tipster: "ALL",
+    stavnica: "ALL",
+    cas: "ALL" as "ALL" | Cas,
+    fromDate: "",
+    toDate: "",
+    oddsFilter: "ALL" as "ALL" | "OVER" | "UNDER",
+    oddsValue: "2",
+  });
 
   useEffect(() => {
     (async () => {
@@ -175,21 +205,31 @@ export default function StatsPage() {
     setRows((data ?? []) as Bet[]);
   }
 
-  const overall = useMemo(() => buildStats(rows), [rows]);
-
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
-      if (sport !== "ALL" && r.sport !== sport) return false;
-      if (tipster !== "ALL" && r.tipster !== tipster) return false;
-      if (stavnica !== "ALL" && r.stavnica !== stavnica) return false;
-      if (cas !== "ALL" && r.cas_stave !== cas) return false;
-      if (fromDate && r.datum < fromDate) return false;
-      if (toDate && r.datum > toDate) return false;
+      if (appliedFilters.sport !== "ALL" && r.sport !== appliedFilters.sport) return false;
+      if (appliedFilters.tipster !== "ALL" && r.tipster !== appliedFilters.tipster) return false;
+      if (appliedFilters.stavnica !== "ALL" && r.stavnica !== appliedFilters.stavnica) return false;
+      if (appliedFilters.cas !== "ALL" && r.cas_stave !== appliedFilters.cas) return false;
+      if (appliedFilters.fromDate && r.datum < appliedFilters.fromDate) return false;
+      if (appliedFilters.toDate && r.datum > appliedFilters.toDate) return false;
+      
+      // Odds filter
+      if (appliedFilters.oddsFilter !== "ALL") {
+        const threshold = parseFloat(appliedFilters.oddsValue);
+        if (appliedFilters.oddsFilter === "OVER" && r.kvota1 <= threshold) return false;
+        if (appliedFilters.oddsFilter === "UNDER" && r.kvota1 >= threshold) return false;
+      }
+      
       return true;
     });
-  }, [rows, sport, tipster, stavnica, cas, fromDate, toDate]);
+  }, [rows, appliedFilters]);
 
   const filtered = useMemo(() => buildStats(filteredRows), [filteredRows]);
+
+  const statsByTipster = useMemo(() => buildStatsByCategory(filteredRows, 'tipster'), [filteredRows]);
+  const statsBySport = useMemo(() => buildStatsByCategory(filteredRows, 'sport'), [filteredRows]);
+  const statsByCas = useMemo(() => buildStatsByCategory(filteredRows, 'cas_stave'), [filteredRows]);
 
   const chartMonthly = useMemo(() => {
     const settled = filteredRows.filter((r) => r.wl === "WIN" || r.wl === "LOSS");
@@ -223,6 +263,40 @@ export default function StatsPage() {
       .map(([sport, profit]) => ({ sport, profit }));
   }, [filteredRows]);
 
+  const handleApplyFilters = () => {
+    setAppliedFilters({
+      sport,
+      tipster,
+      stavnica,
+      cas,
+      fromDate,
+      toDate,
+      oddsFilter,
+      oddsValue,
+    });
+  };
+
+  const handleClearFilters = () => {
+    setSport("ALL");
+    setTipster("ALL");
+    setStavnica("ALL");
+    setCas("ALL");
+    setFromDate("");
+    setToDate("");
+    setOddsFilter("ALL");
+    setOddsValue("2");
+    setAppliedFilters({
+      sport: "ALL",
+      tipster: "ALL",
+      stavnica: "ALL",
+      cas: "ALL",
+      fromDate: "",
+      toDate: "",
+      oddsFilter: "ALL",
+      oddsValue: "2",
+    });
+  };
+
   return (
     <main className="min-h-screen relative overflow-hidden">
       {/* Animated background */}
@@ -235,97 +309,25 @@ export default function StatsPage() {
 
       <div className="relative max-w-7xl mx-auto px-6 py-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-black text-white mb-2">Statistika</h1>
-            <div className="text-white/60">Upošteva samo WIN/LOSS</div>
+        <div className="text-center mb-12">
+          <div className="inline-block">
+            <div className="absolute inset-0 bg-gradient-to-r from-green-500/30 to-yellow-500/30 blur-3xl"></div>
+            <h1 className="relative text-6xl font-black bg-gradient-to-r from-green-400 via-yellow-400 to-green-400 bg-clip-text text-transparent mb-3 animate-pulse">
+              STATISTIKA
+            </h1>
           </div>
-
+          <div className="text-white/60 text-lg">Upošteva samo WIN/LOSS stave</div>
+          
           <button
             onClick={loadRows}
             disabled={loading}
-            className="px-6 py-3 bg-gradient-to-r from-green-600 to-yellow-500 text-white font-bold rounded-xl hover:from-green-500 hover:to-yellow-400 transition-all shadow-lg hover:scale-105"
+            className="mt-6 px-8 py-3 bg-gradient-to-r from-green-600 to-yellow-500 text-white font-bold rounded-xl hover:from-green-500 hover:to-yellow-400 transition-all shadow-lg hover:scale-105"
           >
-            Osveži
+            Osveži podatke
           </button>
         </div>
 
-        {msg && <p className="text-red-400 mb-6">{msg}</p>}
-
-        {/* Skupna statistika */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 to-yellow-600/20 rounded-3xl blur-xl"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-black text-white">Skupna statistika</h2>
-              <div className="text-white/60">Kapital: {eur(CAPITAL_TOTAL)}</div>
-            </div>
-
-            <div className="grid grid-cols-6 gap-4 mb-6">
-              <Kpi
-                title="Profit"
-                value={eur(overall.profit)}
-                color={overall.profit >= 0 ? "#22c55e" : "#ef4444"}
-                icon={<TrendingUp className="w-4 h-4" />}
-              />
-              <Kpi
-                title="Bankroll"
-                value={eur(overall.bankroll)}
-                color={overall.bankroll >= CAPITAL_TOTAL ? "#22c55e" : "#ef4444"}
-                icon={<DollarSign className="w-4 h-4" />}
-              />
-              <Kpi
-                title="ROI"
-                value={`${(overall.roi * 100).toFixed(2)}%`}
-                color="#fbbf24"
-                icon={<Target className="w-4 h-4" />}
-              />
-              <Kpi
-                title="Stav (WIN/LOSS)"
-                value={`${overall.n}`}
-                color="#ffffff"
-                icon={<BarChart3 className="w-4 h-4" />}
-              />
-              <Kpi
-                title="WIN / LOSS"
-                value={`${overall.wins} / ${overall.losses}`}
-                color="#10b981"
-                icon={<Trophy className="w-4 h-4" />}
-              />
-              <Kpi
-                title="Povp. kvota"
-                value={overall.avgOdds ? overall.avgOdds.toFixed(2) : "-"}
-                color="#60a5fa"
-              />
-            </div>
-
-            <div>
-              <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-                <Building2 className="w-5 h-5" />
-                Stanje na stavnicah
-              </h3>
-
-              <div className="grid grid-cols-4 gap-4">
-                {overall.balanceByBook.map((x) => (
-                  <div key={x.name} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all">
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="text-white font-bold">{x.name}</div>
-                      <div className={`text-lg font-black ${x.balance >= x.start ? 'text-green-400' : 'text-red-400'}`}>
-                        {eur(x.balance)}
-                      </div>
-                    </div>
-                    <div className="flex justify-between text-sm text-white/60">
-                      <span>Start: {eur(x.start)}</span>
-                      <span className={x.profit >= 0 ? 'text-green-400' : 'text-red-400'}>
-                        {x.profit >= 0 ? '+' : ''}{eur(x.profit)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        {msg && <p className="text-red-400 mb-6 text-center">{msg}</p>}
 
         {/* Filtri */}
         <div className="relative mb-8">
@@ -338,7 +340,7 @@ export default function StatsPage() {
               <h2 className="text-2xl font-black text-white">Filtri</h2>
             </div>
 
-            <div className="grid grid-cols-6 gap-4">
+            <div className="grid grid-cols-4 gap-4 mb-4">
               <div>
                 <label className="block text-white/80 text-sm font-semibold mb-2">
                   <Calendar className="w-4 h-4 inline mr-1" />
@@ -431,18 +433,49 @@ export default function StatsPage() {
                   <option value="LIVE">LIVE</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-white/80 text-sm font-semibold mb-2">
+                  <TrendingUp className="w-4 h-4 inline mr-1" />
+                  Kvota
+                </label>
+                <select
+                  value={oddsFilter}
+                  onChange={(e) => setOddsFilter(e.target.value as any)}
+                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400 transition-all"
+                >
+                  <option value="ALL">ALL</option>
+                  <option value="OVER">OVER</option>
+                  <option value="UNDER">UNDER</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-white/80 text-sm font-semibold mb-2">
+                  <TrendingDown className="w-4 h-4 inline mr-1" />
+                  Vrednost kvote
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={oddsValue}
+                  onChange={(e) => setOddsValue(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400 transition-all"
+                  placeholder="2.0"
+                />
+              </div>
             </div>
 
-            <div className="mt-4">
+            <div className="flex gap-4">
               <button
-                onClick={() => {
-                  setSport("ALL");
-                  setTipster("ALL");
-                  setStavnica("ALL");
-                  setCas("ALL");
-                  setFromDate("");
-                  setToDate("");
-                }}
+                onClick={handleApplyFilters}
+                className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-500 text-white font-bold rounded-xl hover:from-green-500 hover:to-emerald-400 transition-all shadow-lg hover:scale-105"
+              >
+                Potrdi
+              </button>
+              
+              <button
+                onClick={handleClearFilters}
                 className="px-6 py-3 bg-white/10 border-2 border-white/20 text-white font-bold rounded-xl hover:bg-white/20 transition-all"
               >
                 Počisti filtre
@@ -573,7 +606,7 @@ export default function StatsPage() {
         </div>
 
         {/* Profit po športih */}
-        <div className="relative">
+        <div className="relative mb-8">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-3xl blur-xl"></div>
           <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
             <h3 className="text-xl font-bold text-white mb-4">Profit po športih</h3>
@@ -605,6 +638,141 @@ export default function StatsPage() {
                   </defs>
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Stolpci - Tipsterji */}
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-600/20 to-red-600/20 rounded-3xl blur-xl"></div>
+          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
+            <div className="flex items-center gap-3 mb-6">
+              <Users className="w-6 h-6 text-orange-400" />
+              <h3 className="text-2xl font-bold text-white">Statistika po tipsterjih</h3>
+            </div>
+            
+            <div className="grid grid-cols-4 gap-4">
+              {statsByTipster.map((stat) => (
+                <div key={stat.name} className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-all">
+                  <div className="text-orange-400 font-black text-lg mb-3">{stat.name}</div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Profit:</span>
+                      <span className={`font-bold ${stat.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {eur(stat.profit)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Stav:</span>
+                      <span className="text-white font-semibold">{stat.n}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">WIN/LOSS:</span>
+                      <span className="text-white font-semibold">{stat.wins}/{stat.losses}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Povp. kvota:</span>
+                      <span className="text-blue-400 font-semibold">{stat.avgOdds.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">ROI:</span>
+                      <span className={`font-bold ${stat.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {(stat.roi * 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Stolpci - Športi */}
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-3xl blur-xl"></div>
+          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
+            <div className="flex items-center gap-3 mb-6">
+              <Target className="w-6 h-6 text-cyan-400" />
+              <h3 className="text-2xl font-bold text-white">Statistika po športih</h3>
+            </div>
+            
+            <div className="grid grid-cols-4 gap-4">
+              {statsBySport.map((stat) => (
+                <div key={stat.name} className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-all">
+                  <div className="text-cyan-400 font-black text-lg mb-3">{stat.name}</div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Profit:</span>
+                      <span className={`font-bold ${stat.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {eur(stat.profit)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Stav:</span>
+                      <span className="text-white font-semibold">{stat.n}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">WIN/LOSS:</span>
+                      <span className="text-white font-semibold">{stat.wins}/{stat.losses}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Povp. kvota:</span>
+                      <span className="text-blue-400 font-semibold">{stat.avgOdds.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">ROI:</span>
+                      <span className={`font-bold ${stat.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {(stat.roi * 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Stolpci - Prematch/Live */}
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 to-fuchsia-600/20 rounded-3xl blur-xl"></div>
+          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
+            <div className="flex items-center gap-3 mb-6">
+              <Clock className="w-6 h-6 text-violet-400" />
+              <h3 className="text-2xl font-bold text-white">Statistika po času stave</h3>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              {statsByCas.map((stat) => (
+                <div key={stat.name} className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-all">
+                  <div className="text-violet-400 font-black text-lg mb-3">{stat.name}</div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Profit:</span>
+                      <span className={`font-bold ${stat.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {eur(stat.profit)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Stav:</span>
+                      <span className="text-white font-semibold">{stat.n}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">WIN/LOSS:</span>
+                      <span className="text-white font-semibold">{stat.wins}/{stat.losses}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Povp. kvota:</span>
+                      <span className="text-blue-400 font-semibold">{stat.avgOdds.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">ROI:</span>
+                      <span className={`font-bold ${stat.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {(stat.roi * 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
