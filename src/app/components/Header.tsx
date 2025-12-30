@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, BarChart3, TrendingUp } from "lucide-react";
+import { LogOut, BarChart3, TrendingUp, Home } from "lucide-react";
 
 export default function Header() {
   const pathname = usePathname();
@@ -15,7 +15,7 @@ export default function Header() {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Link 
-            href="/bets" 
+            href="/" 
             className="flex items-center group"
           >
             <div className="relative group-hover:scale-105 transition-all duration-300">
@@ -33,6 +33,22 @@ export default function Header() {
 
           {/* Navigation */}
           <nav className="flex items-center gap-3">
+            {/* HOME */}
+            <Link
+              href="/"
+              className={`
+                flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm
+                transition-all duration-200 hover:scale-105 active:scale-95
+                ${isActive("/")
+                  ? "bg-gradient-to-r from-green-600 to-yellow-500 text-white shadow-lg shadow-green-500/40"
+                  : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white border border-green-500/20 hover:border-green-500/40"
+                }
+              `}
+            >
+              <Home className="w-4 h-4" />
+              <span className="hidden sm:inline">Home</span>
+            </Link>
+
             {/* Stave */}
             <Link
               href="/bets"
