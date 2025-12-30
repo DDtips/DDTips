@@ -327,7 +327,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-6 gap-4">
+            <div className="grid grid-cols-6 gap-4 items-stretch">
               <StatCard
                 title="SKUPAJ 2025"
                 value={eur(stats.profit)}
