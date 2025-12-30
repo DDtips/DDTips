@@ -506,40 +506,51 @@ export default function HomePage() {
                     tickLine={false}
                     axisLine={false}
                   />
-                  <YAxis 
-                    stroke="#52525b" 
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `€${value}`}
-                  />
+                  <YAxis
+  stroke="#52525b"
+  fontSize={11}
+  tickLine={false}
+  axisLine={false}
+  tickFormatter={(value) => `€${value}`}
+/>
+
 <Tooltip
-  formatter={(value: number | undefined, name: string) => {
+  formatter={(value: number | undefined, name: string | undefined) => {
     const safe = typeof value === "number" ? value : 0;
     const formatted = eur(Math.round(safe * 100) / 100);
-    return [formatted, name === "cumulative" ? "Kumulativno" : "Mesečno"] as const;
+
+    const label =
+      name === "cumulative" ? "Kumulativno" : name === "monthly" ? "Mesečno" : "Mesečno";
+
+    return [formatted, label] as const;
+  }}
+  contentStyle={{
+    backgroundColor: "rgba(24, 24, 27, 0.95)",
+    border: "1px solid rgba(63, 63, 70, 0.5)",
+    borderRadius: "12px",
+    padding: "12px 16px",
+    boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+  }}
+  labelStyle={{ color: "#a1a1aa", fontSize: 11, marginBottom: 4 }}
+  itemStyle={{ color: "#fff", fontSize: 13 }}
+/>
+
+
+<Area
+  type="monotone"
+  dataKey="cumulative"
+  stroke="#10b981"
+  strokeWidth={2}
+  fill="url(#profitGradient)"
+  dot={{ fill: "#10b981", strokeWidth: 0, r: 3 }}
+  activeDot={{
+    r: 5,
+    fill: "#10b981",
+    stroke: "#fff",
+    strokeWidth: 2,
   }}
 />
 
-                    contentStyle={{
-                      backgroundColor: 'rgba(24, 24, 27, 0.95)',
-                      border: '1px solid rgba(63, 63, 70, 0.5)',
-                      borderRadius: '12px',
-                      padding: '12px 16px',
-                      boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
-                    }}
-                    labelStyle={{ color: '#a1a1aa', fontSize: 11, marginBottom: 4 }}
-                    itemStyle={{ color: '#fff', fontSize: 13 }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="cumulative"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    fill="url(#profitGradient)"
-                    dot={{ fill: '#10b981', strokeWidth: 0, r: 3 }}
-                    activeDot={{ r: 5, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
-                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
