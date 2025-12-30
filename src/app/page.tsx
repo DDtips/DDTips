@@ -316,7 +316,7 @@ export default function HomePage() {
     src="/ddtips-logo.png"
     alt="DD Tips"
     style={{ 
-      height: 100, 
+      height: 150, 
       width: "auto",
       filter: "drop-shadow(0 8px 20px rgba(16, 185, 129, 0.4)) brightness(1.1) contrast(1.15)"
     }}
