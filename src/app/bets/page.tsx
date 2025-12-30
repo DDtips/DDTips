@@ -127,21 +127,21 @@ export default function BetsPage() {
       return;
     }
 
-    const payload = {
+   const payload = {
   datum,
   wl,
   dogodek: dogodek.trim(),
   tip: tip.trim(),
   kvota1: parseNum(kvota1),
   vplacilo1: parseNum(vplacilo1),
-  lay_kvota: layKvota.trim() ? parseNum(layKvota) : null,
-  vplacilo2: vplacilo2.trim() ? parseNum(vplacilo2) : null,
-  komisija: komisija.trim() ? parseNum(komisija) : 0,
+  lay_kvota: layKvota.trim() !== "" ? parseNum(layKvota) : 0, // ✅ 0 namesto null
+  vplacilo2: vplacilo2.trim() !== "" ? parseNum(vplacilo2) : 0, // ✅ 0 namesto null
+  komisija: komisija.trim() !== "" ? parseNum(komisija) : 0,
   sport,
   cas_stave: casStave,
   tipster,
   stavnica,
-  created_by: user?.id || null, // ✅ Dodaj user ID
+  created_by: user?.id || null,
 };
 
     const { data, error } = await supabase

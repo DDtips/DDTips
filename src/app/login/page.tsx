@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 import { Mail, Lock, LogIn, UserPlus, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
+  const router = useRouter();
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,12 +36,32 @@ export default function LoginPage() {
     setLoading(true);
     setMsg(null);
 
-    // Simulacija API klica
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail(email),
+      password,
+    });
+
     setLoading(false);
-    setMsg("Registracija uspešna ✅ Preveri email in potrdi račun, nato se prijavi.");
+
+    if (error) {
+      console.log("SIGNUP ERROR:", error);
+      setMsg(error.message);
+      setMsgType("error");
+      return;
+    }
+
+    if (!data.session) {
+      setMsg("Registracija uspešna ✅ Preveri email in potrdi račun, nato se prijavi.");
+      setMsgType("success");
+      return;
+    }
+
+    setMsg("Registracija uspešna! 🎉");
     setMsgType("success");
+    
+    setTimeout(() => {
+      router.replace("/");
+    }, 500);
   }
 
   async function signIn() {
@@ -51,12 +75,32 @@ export default function LoginPage() {
     setLoading(true);
     setMsg(null);
 
-    // Simulacija API klica
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail(email),
+      password,
+    });
+
     setLoading(false);
+
+    if (error) {
+      console.log("SIGNIN ERROR:", error);
+      setMsg("Napačen email ali geslo.");
+      setMsgType("error");
+      return;
+    }
+
+    if (!data.session) {
+      setMsg("Prijava neuspešna. Preveri email in geslo.");
+      setMsgType("error");
+      return;
+    }
+
     setMsg("Prijava uspešna! 🎉");
     setMsgType("success");
+    
+    setTimeout(() => {
+      router.replace("/");
+    }, 500);
   }
 
   return (
