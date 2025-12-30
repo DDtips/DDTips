@@ -170,9 +170,9 @@ function StatCard({
   bgGradient?: string;
 }) {
   return (
-    <div className="relative group">
+    <div className="relative group h-full">
       <div className={`absolute inset-0 bg-gradient-to-br ${bgGradient} rounded-2xl blur-xl group-hover:blur-2xl transition-all`}></div>
-      <div className="relative bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl rounded-2xl p-5 border border-white/20 hover:border-green-500/50 transition-all hover:scale-105 shadow-xl">
+<div className="relative bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl rounded-2xl p-5 border border-white/20 hover:border-green-500/50 transition-all hover:scale-105 shadow-xl h-full flex flex-col justify-between">
         <div className="flex items-center gap-3 text-white/70 text-sm font-semibold mb-3">
           {icon && <div className="bg-gradient-to-br from-green-500 to-yellow-500 p-2 rounded-lg">{icon}</div>}
           {title}
