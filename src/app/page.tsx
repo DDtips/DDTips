@@ -310,17 +310,40 @@ export default function HomePage() {
       </div>
 
       <div className="relative max-w-7xl mx-auto px-6 py-8">
-{/* Header - Logo */}
-<div className="mb-8 flex justify-center">
- <img
-  src="/ddtips-logo-wide.png"
-  alt="DD Tips"
-  style={{ 
-    width: 600,
-    height: "auto",
-    filter: "drop-shadow(0 12px 30px rgba(16, 185, 129, 0.5)) brightness(1.15) contrast(1.2)"
-  }}
-/>
+{/* Header - 3 Logo Elements */}
+<div className="mb-8 flex items-center justify-between max-w-7xl mx-auto px-6">
+  {/* Left - Sports Betting Icon */}
+  <img
+    src="/logo-left.png"
+    alt="Sports Betting"
+    style={{ 
+      height: 120,
+      width: "auto",
+      filter: "drop-shadow(0 8px 20px rgba(16, 185, 129, 0.4)) brightness(1.1) contrast(1.15)"
+    }}
+  />
+
+  {/* Center - DD TIPS Logo */}
+  <img
+    src="/logo-center.png"
+    alt="DD Tips"
+    style={{ 
+      height: 100,
+      width: "auto",
+      filter: "drop-shadow(0 12px 30px rgba(16, 185, 129, 0.5)) brightness(1.15) contrast(1.2)"
+    }}
+  />
+
+  {/* Right - Bar Chart Icon */}
+  <img
+    src="/logo-right.png"
+    alt="Statistics"
+    style={{ 
+      height: 120,
+      width: "auto",
+      filter: "drop-shadow(0 8px 20px rgba(16, 185, 129, 0.4)) brightness(1.1) contrast(1.15)"
+    }}
+  />
 </div>
 
         {/* Glavni KPI */}
