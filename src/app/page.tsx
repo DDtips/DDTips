@@ -310,11 +310,18 @@ export default function HomePage() {
       </div>
 
       <div className="relative max-w-7xl mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-black text-white mb-2">Dashboard 2025</h1>
-          <div className="text-white/60">Celotna statistika vseh stav</div>
-        </div>
+{/* Header - Logo */}
+<div className="mb-8 flex justify-center">
+  <img
+    src="/ddtips-logo.png"
+    alt="DD Tips"
+    style={{ 
+      height: 100, 
+      width: "auto",
+      filter: "drop-shadow(0 8px 20px rgba(16, 185, 129, 0.4)) brightness(1.1) contrast(1.15)"
+    }}
+  />
+</div>
 
         {/* Glavni KPI */}
         <div className="relative mb-8">
@@ -327,43 +334,49 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-6 gap-4 items-stretch">
-              <StatCard
-                title="SKUPAJ 2025"
-                value={eur(stats.profit)}
-                color={stats.profit >= 0 ? "#22c55e" : "#ef4444"}
-                icon={<TrendingUp className="w-5 h-5 text-white" />}
-              />
-              <StatCard
-                title="Bankroll"
-                value={eur(stats.bankroll)}
-                color={stats.bankroll >= CAPITAL_TOTAL ? "#22c55e" : "#ef4444"}
-                icon={<DollarSign className="w-5 h-5 text-white" />}
-              />
-              <StatCard
-                title="Donos na kapital"
-                value={`${((stats.profit / CAPITAL_TOTAL) * 100).toFixed(2)}%`}
-                color="#fbbf24"
-                icon={<Target className="w-5 h-5 text-white" />}
-              />
-              <StatCard
-                title="Stav (WIN/LOSS)"
-                value={`${stats.n}`}
-                color="#ffffff"
-                icon={<BarChart3 className="w-5 h-5 text-white" />}
-              />
-              <StatCard
-                title="WIN / LOSS"
-                value={`${stats.wins} / ${stats.losses}`}
-                color="#10b981"
-                icon={<Trophy className="w-5 h-5 text-white" />}
-              />
-              <StatCard
-                title="Povp. kvota"
-                value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"}
-                color="#60a5fa"
-              />
-            </div>
+            <div className="grid grid-cols-7 gap-4 items-stretch">
+  <StatCard
+    title="CELOTEN PROFIT"
+    value={eur(stats.profit)}
+    color={stats.profit >= 0 ? "#22c55e" : "#ef4444"}
+    icon={<TrendingUp className="w-5 h-5 text-white" />}
+  />
+  <StatCard
+    title="BANKROLL"
+    value={eur(stats.bankroll)}
+    color={stats.bankroll >= CAPITAL_TOTAL ? "#22c55e" : "#ef4444"}
+    icon={<DollarSign className="w-5 h-5 text-white" />}
+  />
+  <StatCard
+    title="DONOS NA KAPITAL"
+    value={`${((stats.profit / CAPITAL_TOTAL) * 100).toFixed(2)}%`}
+    color="#fbbf24"
+    icon={<Target className="w-5 h-5 text-white" />}
+  />
+  <StatCard
+    title="ROI"
+    value={`${(stats.roi * 100).toFixed(2)}%`}
+    color="#fbbf24"
+    icon={<Target className="w-5 h-5 text-white" />}
+  />
+  <StatCard
+    title="STAV (WIN/LOSS)"
+    value={`${stats.n}`}
+    color="#ffffff"
+    icon={<BarChart3 className="w-5 h-5 text-white" />}
+  />
+  <StatCard
+    title="WIN / LOSS"
+    value={`${stats.wins} / ${stats.losses}`}
+    color="#10b981"
+    icon={<Trophy className="w-5 h-5 text-white" />}
+  />
+  <StatCard
+    title="POVP. KVOTA"
+    value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"}
+    color="#60a5fa"
+  />
+</div>
           </div>
         </div>
 
