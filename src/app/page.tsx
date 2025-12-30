@@ -312,15 +312,15 @@ export default function HomePage() {
       <div className="relative max-w-7xl mx-auto px-6 py-8">
 {/* Header - Logo */}
 <div className="mb-8 flex justify-center">
-  <img
-    src="/ddtips-logo.png"
-    alt="DD Tips"
-    style={{ 
-      height: 150, 
-      width: "auto",
-      filter: "drop-shadow(0 8px 20px rgba(16, 185, 129, 0.4)) brightness(1.1) contrast(1.15)"
-    }}
-  />
+ <img
+  src="/ddtips-logo-wide.png"
+  alt="DD Tips"
+  style={{ 
+    width: 600,
+    height: "auto",
+    filter: "drop-shadow(0 12px 30px rgba(16, 185, 129, 0.5)) brightness(1.15) contrast(1.2)"
+  }}
+/>
 </div>
 
         {/* Glavni KPI */}
