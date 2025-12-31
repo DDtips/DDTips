@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { Mail, Lock, LogIn, UserPlus, AlertCircle } from "lucide-react";
+import { Mail, Lock, LogIn, UserPlus, AlertCircle, TrendingUp } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -104,68 +104,61 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-purple-950 to-blue-950">
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse" style={{ animationDelay: "1s" }}></div>
-          <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse" style={{ animationDelay: "2s" }}></div>
-        </div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-zinc-950 antialiased">
+      {/* Background - enako kot home stran */}
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-black" />
+      <div className="fixed inset-0 opacity-30" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E\")" }} />
 
       {/* Login Card */}
       <div className="relative w-full max-w-md">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl blur-xl opacity-50"></div>
-        
-        <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20">
+        <div className="relative rounded-2xl bg-zinc-900/90 border border-zinc-800 backdrop-blur-sm p-8 shadow-2xl">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
-              <Lock className="w-8 h-8 text-white" />
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30 rounded-2xl mb-4">
+              <TrendingUp className="w-8 h-8 text-emerald-400" />
             </div>
-            <h1 className="text-4xl font-black text-white mb-2 tracking-tight">
-              Dobrodošli
+            <h1 className="text-3xl font-light tracking-tight text-white mb-2">
+              DDTips
             </h1>
-            <p className="text-blue-200 text-sm">
-              Prijavite se za dostop do svoje aplikacije
+            <p className="text-zinc-500 text-sm">
+              Match Analysis & Picks
             </p>
           </div>
 
           {/* Form */}
           <div className="space-y-5">
             {/* Email Input */}
-            <div>
-              <label className="block text-white font-semibold mb-2 text-sm">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">
                 Email naslov
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-300" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   type="email"
                   autoComplete="email"
                   placeholder="ime@domena.com"
-                  className="w-full pl-12 pr-4 py-3.5 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-blue-200/50 focus:outline-none focus:border-blue-400 focus:bg-white/15 transition-all duration-200"
+                  className="w-full pl-11 pr-4 py-3 bg-zinc-800/80 border border-zinc-700/50 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-800 transition-all duration-300"
                 />
               </div>
             </div>
 
             {/* Password Input */}
-            <div>
-              <label className="block text-white font-semibold mb-2 text-sm">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">
                 Geslo
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-300" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   type="password"
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className="w-full pl-12 pr-4 py-3.5 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-blue-200/50 focus:outline-none focus:border-blue-400 focus:bg-white/15 transition-all duration-200"
+                  className="w-full pl-11 pr-4 py-3 bg-zinc-800/80 border border-zinc-700/50 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-800 transition-all duration-300"
                 />
               </div>
             </div>
@@ -174,14 +167,14 @@ export default function LoginPage() {
             {msg && (
               <div className={`flex items-start gap-3 p-4 rounded-xl ${
                 msgType === "error" 
-                  ? "bg-red-500/20 border border-red-500/30" 
-                  : "bg-green-500/20 border border-green-500/30"
+                  ? "bg-rose-500/10 border border-rose-500/30" 
+                  : "bg-emerald-500/10 border border-emerald-500/30"
               }`}>
-                <AlertCircle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
-                  msgType === "error" ? "text-red-300" : "text-green-300"
+                <AlertCircle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                  msgType === "error" ? "text-rose-400" : "text-emerald-400"
                 }`} />
                 <p className={`text-sm ${
-                  msgType === "error" ? "text-red-100" : "text-green-100"
+                  msgType === "error" ? "text-rose-400" : "text-emerald-400"
                 }`}>
                   {msg}
                 </p>
@@ -194,9 +187,9 @@ export default function LoginPage() {
                 type="button"
                 onClick={signIn}
                 disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl hover:from-blue-500 hover:to-purple-500 focus:outline-none focus:ring-4 focus:ring-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-emerald-600/20 hover:shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98]"
               >
-                <LogIn className="w-5 h-5" />
+                <LogIn className="w-4 h-4" />
                 {loading ? "Prijavljam..." : "Prijava"}
               </button>
 
@@ -204,24 +197,27 @@ export default function LoginPage() {
                 type="button"
                 onClick={signUp}
                 disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-white/10 border-2 border-white/20 text-white font-bold rounded-xl hover:bg-white/20 hover:border-white/30 focus:outline-none focus:ring-4 focus:ring-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 active:scale-95"
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-zinc-800 border border-zinc-700/50 text-zinc-300 font-semibold rounded-xl hover:bg-zinc-700 hover:text-white hover:border-zinc-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
               >
-                <UserPlus className="w-5 h-5" />
+                <UserPlus className="w-4 h-4" />
                 Registracija
               </button>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="mt-8 pt-6 border-t border-white/10">
-            <p className="text-center text-blue-200 text-sm">
+          <div className="mt-8 pt-6 border-t border-zinc-800">
+            <p className="text-center text-zinc-600 text-sm">
               Imate težave s prijavo?{" "}
-              <button className="text-white font-semibold hover:underline">
+              <button className="text-zinc-400 font-medium hover:text-emerald-400 transition-colors">
                 Ponastavite geslo
               </button>
             </p>
           </div>
         </div>
+
+        {/* Subtle glow effect */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600/10 via-transparent to-emerald-600/10 rounded-2xl blur-xl -z-10" />
       </div>
     </div>
   );
