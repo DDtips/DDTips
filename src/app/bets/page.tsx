@@ -3,7 +3,23 @@
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
-import { Calendar, TrendingUp, DollarSign, Trophy, Users, Building2, Clock, Target, Trash2, Plus, Filter } from "lucide-react";
+import { 
+  Calendar, 
+  TrendingUp, 
+  DollarSign, 
+  Trophy, 
+  Users, 
+  Building2, 
+  Clock, 
+  Target, 
+  Trash2, 
+  Plus, 
+  Filter,
+  RefreshCw,
+  Activity,
+  X,
+  Check
+} from "lucide-react";
 
 type WL = "OPEN" | "WIN" | "LOSS" | "VOID";
 type PreLive = "PREMATCH" | "LIVE";
@@ -43,7 +59,6 @@ function parseNum(x: string) {
   return Number.isFinite(n) ? n : 0;
 }
 
-// Format datum iz YYYY-MM-DD v DD.MM.YYYY
 function formatDateSlovenian(dateStr: string) {
   if (!dateStr) return "";
   const [year, month, day] = dateStr.split("-");
@@ -55,7 +70,6 @@ function calcProfit(b: BetRow) {
 
   const kom = Number(b.komisija ?? 0);
   
-  // Preveri če je čista LAY stava (ni back stave)
   const isPureLay = (!b.kvota1 || b.kvota1 === 0 || !b.vplacilo1 || b.vplacilo1 === 0) && 
                      (b.lay_kvota ?? 0) > 0 && (b.vplacilo2 ?? 0) > 0;
   
@@ -65,15 +79,12 @@ function calcProfit(b: BetRow) {
     const liability = (layOdds - 1) * layStake;
     
     if (b.wl === "WIN") {
-      // LAY stava zmaga = drugi izgubi = mi obdržimo njihov stake
       return layStake - kom;
     } else {
-      // LAY stava izgubi = mi plačamo liability
       return -liability - kom;
     }
   }
 
-  // Normalna back stava ali matched bet
   const stake = Number(b.vplacilo1 || 0);
   const odds = Number(b.kvota1 || 0);
   const hasLay = (b.lay_kvota ?? 0) > 0 && (b.vplacilo2 ?? 0) > 0;
@@ -90,10 +101,91 @@ function calcProfit(b: BetRow) {
   return base - kom;
 }
 
-// Helper: dobi trenutni mesec v formatu YYYY-MM
 function getCurrentMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function InputField({ 
+  label, 
+  value, 
+  onChange, 
+  placeholder, 
+  type = "text",
+  icon
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (v: string) => void; 
+  placeholder?: string;
+  type?: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">
+        {icon}
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-800/50 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-900 transition-all duration-300"
+      />
+    </div>
+  );
+}
+
+function SelectField({ 
+  label, 
+  value, 
+  onChange, 
+  options,
+  icon
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (v: string) => void; 
+  options: readonly string[];
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">
+        {icon}
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-800/50 rounded-xl text-white focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-900 transition-all duration-300 cursor-pointer"
+      >
+        {options.map((opt) => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function StatusBadge({ wl, onClick }: { wl: WL; onClick?: () => void }) {
+  const styles = {
+    WIN: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    LOSS: "bg-rose-500/20 text-rose-400 border-rose-500/30",
+    VOID: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
+    OPEN: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${styles[wl]} transition-all duration-300 hover:scale-105 cursor-pointer`}
+    >
+      {wl}
+    </button>
+  );
 }
 
 export default function BetsPage() {
@@ -102,7 +194,6 @@ export default function BetsPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // Filter za mesec
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
 
   const [datum, setDatum] = useState(() => new Date().toISOString().slice(0, 10));
@@ -241,7 +332,6 @@ export default function BetsPage() {
     setEditId(null);
   }
 
-  // Filtrirane stave po mesecu
   const filteredRows = useMemo(() => {
     return rows.filter(r => r.datum.startsWith(selectedMonth));
   }, [rows, selectedMonth]);
@@ -251,20 +341,11 @@ export default function BetsPage() {
     return { withProfit };
   }, [filteredRows]);
 
-  // Pridobi unikalne mesece iz vseh stav
   const availableMonths = useMemo(() => {
     const months = new Set(rows.map(r => r.datum.slice(0, 7)));
-    return Array.from(months).sort().reverse(); // Najnovejši prvi
+    return Array.from(months).sort().reverse();
   }, [rows]);
 
-  const getWlColor = (wl: WL) => {
-    if (wl === "WIN") return "from-green-500 to-emerald-500";
-    if (wl === "LOSS") return "from-red-500 to-rose-500";
-    if (wl === "VOID") return "from-gray-500 to-slate-500";
-    return "from-yellow-500 to-amber-500";
-  };
-
-  // Prikaži kvoto in vplačilo glede na tip stave
   function getDisplayOdds(r: BetRow) {
     const isPureLay = (!r.kvota1 || r.kvota1 === 0) && (r.lay_kvota ?? 0) > 0;
     return isPureLay ? r.lay_kvota : r.kvota1;
@@ -275,259 +356,191 @@ export default function BetsPage() {
     return isPureLay ? r.vplacilo2 : r.vplacilo1;
   }
 
-  return (
-    <main className="min-h-screen relative overflow-hidden">
-      {/* Animated background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-gray-900 to-slate-950">
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-yellow-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse" style={{animationDelay: "1s"}}></div>
+  // Calculate monthly stats
+  const monthlyStats = useMemo(() => {
+    const settled = computed.withProfit.filter(r => r.wl === "WIN" || r.wl === "LOSS");
+    const profit = settled.reduce((acc, r) => acc + r.profit, 0);
+    const wins = settled.filter(r => r.wl === "WIN").length;
+    const losses = settled.filter(r => r.wl === "LOSS").length;
+    const openCount = computed.withProfit.filter(r => r.wl === "OPEN").length;
+    return { profit, wins, losses, openCount, total: settled.length };
+  }, [computed.withProfit]);
+
+  if (loading && rows.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+          <span className="text-zinc-500 text-sm tracking-widest uppercase">Nalagam...</span>
         </div>
       </div>
+    );
+  }
 
-      <div className="relative max-w-7xl mx-auto px-6 py-8">
+  return (
+    <main className="min-h-screen bg-zinc-950 text-white antialiased">
+      {/* Background */}
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-black" />
+      <div className="fixed inset-0 opacity-30" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E\")" }} />
+      
+      <div className="relative max-w-7xl mx-auto px-8 py-12">
         {/* Header */}
-        <div className="flex justify-between items-start mb-8">
+        <header className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-black text-white mb-2">Stave</h1>
-            <div className="text-green-400 font-semibold">
-              Prijavljen kot: {user?.email || "-"}
-            </div>
+            <h1 className="text-3xl font-light tracking-tight text-white mb-1">Stave</h1>
+            <p className="text-sm text-zinc-500">Prijavljen kot: {user?.email || "-"}</p>
           </div>
-        </div>
+          <button
+            onClick={loadBets}
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 border border-zinc-800/50 rounded-xl text-zinc-400 hover:text-white hover:border-zinc-700 transition-all duration-300"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            <span className="text-sm font-medium">Osveži</span>
+          </button>
+        </header>
 
+        {/* Error message */}
         {msg && (
-          <div className="mb-6 p-4 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200">
+          <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
             {msg}
           </div>
         )}
 
         {/* Add Bet Form */}
-        <div className="mb-8 relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 to-yellow-600/20 rounded-3xl blur-xl"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-gradient-to-br from-green-500 to-yellow-500 p-3 rounded-xl">
-                <Plus className="w-6 h-6 text-white" />
+        <section className="mb-8">
+          <div className="rounded-2xl bg-gradient-to-br from-zinc-900/80 to-zinc-950/80 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center gap-3">
+              <div className="p-2 bg-emerald-500/20 rounded-lg">
+                <Plus className="w-4 h-4 text-emerald-400" />
               </div>
-              <h2 className="text-2xl font-black text-white">Dodaj stavo</h2>
+              <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-zinc-300">Dodaj stavo</h2>
             </div>
-
-            <div className="grid grid-cols-4 gap-4">
-              {/* Vrstica 1 - Osnovno */}
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Calendar className="w-4 h-4 inline mr-1" />
-                  Datum
-                </label>
-                <input
-                  type="date"
+            
+            <div className="p-6">
+              <div className="grid grid-cols-4 gap-4 mb-4">
+                <InputField
+                  label="Datum"
                   value={datum}
-                  onChange={(e) => setDatum(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-green-400 transition-all"
+                  onChange={setDatum}
+                  type="date"
+                  icon={<Calendar className="w-3 h-3" />}
                 />
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Trophy className="w-4 h-4 inline mr-1" />
-                  W/L
-                </label>
-                <select
+                <SelectField
+                  label="Status"
                   value={wl}
-                  onChange={(e) => setWl(e.target.value as WL)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-green-400 transition-all"
-                >
-                  <option value="OPEN">OPEN</option>
-                  <option value="WIN">WIN</option>
-                  <option value="LOSS">LOSS</option>
-                  <option value="VOID">VOID</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Target className="w-4 h-4 inline mr-1" />
-                  Šport
-                </label>
-                <select
+                  onChange={(v) => setWl(v as WL)}
+                  options={["OPEN", "WIN", "LOSS", "VOID"]}
+                  icon={<Trophy className="w-3 h-3" />}
+                />
+                <SelectField
+                  label="Šport"
                   value={sport}
-                  onChange={(e) => setSport(e.target.value as any)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-green-400 transition-all"
-                >
-                  {SPORTI.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Clock className="w-4 h-4 inline mr-1" />
-                  Prematch/Live
-                </label>
-                <select
+                  onChange={(v) => setSport(v as typeof sport)}
+                  options={SPORTI}
+                  icon={<Target className="w-3 h-3" />}
+                />
+                <SelectField
+                  label="Čas"
                   value={casStave}
-                  onChange={(e) => setCasStave(e.target.value as PreLive)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-green-400 transition-all"
-                >
-                  {PRELIVE.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setCasStave(v as PreLive)}
+                  options={PRELIVE}
+                  icon={<Clock className="w-3 h-3" />}
+                />
               </div>
 
-              {/* Vrstica 2 - Dogodek in Tip */}
-              <div className="col-span-2">
-                <label className="block text-white/80 text-sm font-semibold mb-2">Dogodek</label>
-                <input
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <InputField
+                  label="Dogodek"
                   value={dogodek}
-                  onChange={(e) => setDogodek(e.target.value)}
+                  onChange={setDogodek}
                   placeholder="npr. Dinamo : Hajduk"
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-green-400 transition-all"
                 />
-              </div>
-
-              <div className="col-span-2">
-                <label className="block text-white/80 text-sm font-semibold mb-2">Tip</label>
-                <input
+                <InputField
+                  label="Tip"
                   value={tip}
-                  onChange={(e) => setTip(e.target.value)}
+                  onChange={setTip}
                   placeholder="npr. Dinamo to win"
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-green-400 transition-all"
                 />
               </div>
 
-              {/* Vrstica 3 - BACK stava */}
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <TrendingUp className="w-4 h-4 inline mr-1" />
-                  Back Kvota
-                </label>
-                <input
+              <div className="grid grid-cols-4 gap-4 mb-4">
+                <InputField
+                  label="Back Kvota"
                   value={kvota1}
-                  onChange={(e) => setKvota1(e.target.value)}
+                  onChange={setKvota1}
                   placeholder="2.00"
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-green-400 transition-all"
+                  icon={<TrendingUp className="w-3 h-3" />}
                 />
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <DollarSign className="w-4 h-4 inline mr-1" />
-                  Back Vplačilo
-                </label>
-                <input
+                <InputField
+                  label="Back Vplačilo"
                   value={vplacilo1}
-                  onChange={(e) => setVplacilo1(e.target.value)}
+                  onChange={setVplacilo1}
                   placeholder="100"
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-green-400 transition-all"
+                  icon={<DollarSign className="w-3 h-3" />}
                 />
-              </div>
-
-              {/* Vrstica 3 - LAY stava */}
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <TrendingUp className="w-4 h-4 inline mr-1" />
-                  Lay Kvota
-                </label>
-                <input
+                <InputField
+                  label="Lay Kvota"
                   value={layKvota}
-                  onChange={(e) => setLayKvota(e.target.value)}
+                  onChange={setLayKvota}
                   placeholder="1.05"
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-green-400 transition-all"
+                  icon={<TrendingUp className="w-3 h-3" />}
                 />
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <DollarSign className="w-4 h-4 inline mr-1" />
-                  Lay Vplačilo
-                </label>
-                <input
+                <InputField
+                  label="Lay Vplačilo"
                   value={vplacilo2}
-                  onChange={(e) => setVplacilo2(e.target.value)}
+                  onChange={setVplacilo2}
                   placeholder="100"
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-green-400 transition-all"
+                  icon={<DollarSign className="w-3 h-3" />}
                 />
               </div>
 
-              {/* Vrstica 4 - Ostalo */}
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">Komisija</label>
-                <input
+              <div className="grid grid-cols-4 gap-4">
+                <InputField
+                  label="Komisija"
                   value={komisija}
-                  onChange={(e) => setKomisija(e.target.value)}
+                  onChange={setKomisija}
                   placeholder="0"
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-green-400 transition-all"
                 />
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Users className="w-4 h-4 inline mr-1" />
-                  Tipster
-                </label>
-                <select
+                <SelectField
+                  label="Tipster"
                   value={tipster}
-                  onChange={(e) => setTipster(e.target.value as any)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-green-400 transition-all"
-                >
-                  {TIPSTERJI.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Building2 className="w-4 h-4 inline mr-1" />
-                  Stavnica
-                </label>
-                <select
+                  onChange={(v) => setTipster(v as typeof tipster)}
+                  options={TIPSTERJI}
+                  icon={<Users className="w-3 h-3" />}
+                />
+                <SelectField
+                  label="Stavnica"
                   value={stavnica}
-                  onChange={(e) => setStavnica(e.target.value as any)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-green-400 transition-all"
-                >
-                  {STAVNICE.map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-end gap-3">
-                <button
-                  onClick={addBet}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-yellow-500 text-white font-bold rounded-xl hover:from-green-500 hover:to-yellow-400 transition-all shadow-lg hover:shadow-xl hover:scale-105"
-                >
-                  <Plus className="w-5 h-5" />
-                  Dodaj
-                </button>
-                <button
-                  onClick={loadBets}
-                  className="px-6 py-3 bg-white/10 border-2 border-white/20 text-white font-bold rounded-xl hover:bg-white/20 transition-all"
-                >
-                  Osveži
-                </button>
+                  onChange={(v) => setStavnica(v as typeof stavnica)}
+                  options={STAVNICE}
+                  icon={<Building2 className="w-3 h-3" />}
+                />
+                <div className="flex items-end">
+                  <button
+                    onClick={addBet}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold rounded-xl hover:from-emerald-500 hover:to-emerald-400 transition-all duration-300 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:scale-[1.02]"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Dodaj stavo
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Month Filter */}
-        <div className="mb-6 relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-2xl blur-lg"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/20 shadow-lg flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="bg-gradient-to-br from-blue-500 to-purple-500 p-2 rounded-lg">
-                <Filter className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-white font-bold">Filter po mesecu:</span>
+        {/* Month Filter & Stats */}
+        <section className="mb-6 grid grid-cols-5 gap-4">
+          {/* Filter */}
+          <div className="col-span-2 rounded-2xl bg-gradient-to-br from-zinc-900/80 to-zinc-950/80 border border-zinc-800/50 backdrop-blur-sm p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <Filter className="w-4 h-4 text-zinc-400" />
+              <span className="text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">Filter po mesecu</span>
             </div>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-4 py-2 bg-white/10 border-2 border-white/20 rounded-xl text-white font-semibold focus:outline-none focus:border-blue-400 transition-all"
+              className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-800/50 rounded-xl text-white font-medium focus:outline-none focus:border-emerald-500/50 transition-all duration-300 cursor-pointer"
             >
               {availableMonths.map(month => (
                 <option key={month} value={month}>
@@ -535,122 +548,164 @@ export default function BetsPage() {
                 </option>
               ))}
             </select>
-            <div className="text-white/60 ml-auto">
-              Prikazujem: <span className="text-white font-bold">{computed.withProfit.length}</span> stav
-            </div>
           </div>
-        </div>
+
+          {/* Monthly Stats */}
+          <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 backdrop-blur-sm p-5">
+            <span className="text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400 block mb-2">Profit</span>
+            <span className={`text-2xl font-light ${monthlyStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              {eur(monthlyStats.profit)}
+            </span>
+          </div>
+
+          <div className="rounded-2xl bg-gradient-to-br from-zinc-900/80 to-zinc-950/80 border border-zinc-800/50 backdrop-blur-sm p-5">
+            <span className="text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400 block mb-2">Win / Loss</span>
+            <span className="text-2xl font-light text-white">
+              <span className="text-emerald-400">{monthlyStats.wins}</span>
+              <span className="text-zinc-600 mx-1">/</span>
+              <span className="text-rose-400">{monthlyStats.losses}</span>
+            </span>
+          </div>
+
+          <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/20 backdrop-blur-sm p-5">
+            <span className="text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400 block mb-2">Odprte</span>
+            <span className="text-2xl font-light text-amber-400">{monthlyStats.openCount}</span>
+          </div>
+        </section>
 
         {/* Table */}
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-green-600/10 to-yellow-600/10 rounded-3xl blur-xl"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-black text-white">Vse stave</h2>
-              <div className="text-white/60">{computed.withProfit.length} vrstic</div>
+        <section className="rounded-2xl bg-gradient-to-br from-zinc-900/80 to-zinc-950/80 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Activity className="w-4 h-4 text-zinc-400" />
+              <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-zinc-300">Vse stave</h2>
             </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left py-4 px-4 text-white/80 font-bold text-sm">Datum</th>
-                    <th className="text-left py-4 px-4 text-white/80 font-bold text-sm">Status</th>
-                    <th className="text-left py-4 px-4 text-white/80 font-bold text-sm">Dogodek</th>
-                    <th className="text-left py-4 px-4 text-white/80 font-bold text-sm">Tip</th>
-                    <th className="text-left py-4 px-4 text-white/80 font-bold text-sm">Kvota</th>
-                    <th className="text-left py-4 px-4 text-white/80 font-bold text-sm">Vplačilo</th>
-                    <th className="text-left py-4 px-4 text-white/80 font-bold text-sm">Dobiček</th>
-                    <th className="text-left py-4 px-4 text-white/80 font-bold text-sm">Šport</th>
-                    <th className="text-left py-4 px-4 text-white/80 font-bold text-sm">Tipster</th>
-                    <th className="text-left py-4 px-4 text-white/80 font-bold text-sm">Stavnica</th>
-                    <th className="text-right py-4 px-4 text-white/80 font-bold text-sm">Akcije</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {computed.withProfit.map((r) => (
-                    <tr key={r.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                      <td className="py-4 px-4 text-white/90 text-sm">{formatDateSlovenian(r.datum)}</td>
-                      <td className="py-4 px-4">
-                        <button
-                          onClick={() => openEdit(r)}
-                          className={`inline-flex px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${getWlColor(r.wl)} hover:scale-105 transition-transform cursor-pointer`}
-                        >
-                          {r.wl}
-                        </button>
-                      </td>
-                      <td className="py-4 px-4 text-white/90 text-sm">{r.dogodek}</td>
-                      <td className="py-4 px-4 text-white/70 text-sm">{r.tip}</td>
-                      <td className="py-4 px-4 text-white/90 font-semibold text-sm">{getDisplayOdds(r) || '-'}</td>
-                      <td className="py-4 px-4 text-white/90 text-sm">{eur(getDisplayStake(r) || 0)}</td>
-                      <td className={`py-4 px-4 font-bold text-sm ${(r as any).profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {eur((r as any).profit)}
-                      </td>
-                      <td className="py-4 px-4 text-white/70 text-sm">{r.sport}</td>
-                      <td className="py-4 px-4 text-white/90 text-sm">{r.tipster}</td>
-                      <td className="py-4 px-4 text-white/90 text-sm">{r.stavnica}</td>
-                      <td className="py-4 px-4 text-right">
-                        <button
-                          onClick={() => deleteBet(r.id)}
-                          className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-400" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {!computed.withProfit.length && (
-                    <tr>
-                      <td colSpan={11} className="py-8 text-center text-white/50">
-                        Ni stav za izbrani mesec.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <span className="text-xs text-zinc-500">{computed.withProfit.length} vrstic</span>
           </div>
-        </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-zinc-800/50">
+                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Datum</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Status</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Dogodek</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Tip</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Kvota</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Vplačilo</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Profit</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Šport</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Tipster</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Stavnica</th>
+                  <th className="text-right py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {computed.withProfit.map((r) => (
+                  <tr key={r.id} className="border-b border-zinc-800/30 hover:bg-white/[0.02] transition-colors group">
+                    <td className="py-4 px-5 text-sm text-zinc-300">{formatDateSlovenian(r.datum)}</td>
+                    <td className="py-4 px-5">
+                      <StatusBadge wl={r.wl} onClick={() => openEdit(r)} />
+                    </td>
+                    <td className="py-4 px-5 text-sm text-white font-medium">{r.dogodek}</td>
+                    <td className="py-4 px-5 text-sm text-zinc-400">{r.tip}</td>
+                    <td className="py-4 px-5 text-sm text-white font-semibold tabular-nums">{getDisplayOdds(r) || '-'}</td>
+                    <td className="py-4 px-5 text-sm text-zinc-300 tabular-nums">{eur(getDisplayStake(r) || 0)}</td>
+                    <td className={`py-4 px-5 text-sm font-semibold tabular-nums ${r.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {eur(r.profit)}
+                    </td>
+                    <td className="py-4 px-5 text-sm text-zinc-500">{r.sport}</td>
+                    <td className="py-4 px-5 text-sm text-zinc-300">{r.tipster}</td>
+                    <td className="py-4 px-5 text-sm text-zinc-300">{r.stavnica}</td>
+                    <td className="py-4 px-5 text-right">
+                      <button
+                        onClick={() => deleteBet(r.id)}
+                        className="p-2 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all duration-300"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+
+                {!computed.withProfit.length && (
+                  <tr>
+                    <td colSpan={11} className="py-12 text-center text-zinc-600">
+                      Ni stav za izbrani mesec.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="mt-16 pt-8 border-t border-zinc-800/50">
+          <div className="flex items-center justify-between text-xs text-zinc-600">
+            <span>DDTips Match Analysis & Picks</span>
+            <span>Zadnja posodobitev: {new Date().toLocaleDateString("sl-SI")}</span>
+          </div>
+        </footer>
       </div>
 
       {/* Edit Modal */}
       {editOpen && (
         <div
           onClick={() => setEditOpen(false)}
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-slate-900 border-2 border-white/20 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
           >
-            <h3 className="text-2xl font-bold text-white mb-4">Zapri stavo</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-white">Zapri stavo</h3>
+              <button 
+                onClick={() => setEditOpen(false)}
+                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 text-zinc-400" />
+              </button>
+            </div>
             
             <div className="mb-6">
-              <label className="block text-white/80 text-sm font-semibold mb-2">Rezultat</label>
-              <select
-                value={editWl}
-                onChange={(e) => setEditWl(e.target.value as WL)}
-                className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-green-400 transition-all"
-              >
-                <option value="OPEN">OPEN</option>
-                <option value="WIN">WIN</option>
-                <option value="LOSS">LOSS</option>
-                <option value="VOID">VOID</option>
-              </select>
+              <label className="block text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400 mb-3">Rezultat</label>
+              <div className="grid grid-cols-4 gap-2">
+                {(["OPEN", "WIN", "LOSS", "VOID"] as WL[]).map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setEditWl(status)}
+                    className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                      editWl === status 
+                        ? status === "WIN" 
+                          ? "bg-emerald-500 text-white" 
+                          : status === "LOSS" 
+                          ? "bg-rose-500 text-white"
+                          : status === "VOID"
+                          ? "bg-zinc-500 text-white"
+                          : "bg-amber-500 text-white"
+                        : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex gap-3">
               <button
                 onClick={() => setEditOpen(false)}
-                className="flex-1 px-6 py-3 bg-white/10 border-2 border-white/20 text-white font-bold rounded-xl hover:bg-white/20 transition-all"
+                className="flex-1 px-6 py-3 bg-zinc-800 text-zinc-300 font-semibold rounded-xl hover:bg-zinc-700 transition-all duration-300"
               >
                 Prekliči
               </button>
               <button
                 onClick={saveEdit}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-yellow-500 text-white font-bold rounded-xl hover:from-green-500 hover:to-yellow-400 transition-all shadow-lg"
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-500 transition-all duration-300"
               >
+                <Check className="w-4 h-4" />
                 Shrani
               </button>
             </div>
