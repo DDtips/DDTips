@@ -3,7 +3,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { TrendingUp, DollarSign, Target, Trophy, Calendar, Filter, BarChart3, Users, Building2, Clock, TrendingDown } from "lucide-react";
+import { 
+  TrendingUp, 
+  DollarSign, 
+  Target, 
+  Trophy, 
+  Calendar, 
+  Filter, 
+  BarChart3, 
+  Users, 
+  Building2, 
+  Clock, 
+  TrendingDown,
+  Activity,
+  Percent,
+  Zap,
+  RefreshCw,
+  X
+} from "lucide-react";
 
 type WL = "OPEN" | "WIN" | "LOSS" | "VOID";
 type Cas = "PREMATCH" | "LIVE";
@@ -86,6 +103,7 @@ function buildStats(rows: Bet[]) {
 
   const roi = CAPITAL_TOTAL === 0 ? 0 : profit / CAPITAL_TOTAL;
   const bankroll = CAPITAL_TOTAL + profit;
+  const winRate = n > 0 ? (wins / n) * 100 : 0;
 
   const profitByBook = new Map<string, number>();
   settled.forEach((r) => {
@@ -106,7 +124,7 @@ function buildStats(rows: Bet[]) {
 
   balanceByBook.sort((a, b) => b.balance - a.balance);
 
-  return { profit, n, wins, losses, avgOdds, roi, bankroll, balanceByBook };
+  return { profit, n, wins, losses, avgOdds, roi, bankroll, balanceByBook, winRate };
 }
 
 function buildStatsByCategory(rows: Bet[], category: 'tipster' | 'sport' | 'cas_stave') {
@@ -124,17 +142,209 @@ function buildStatsByCategory(rows: Bet[], category: 'tipster' | 'sport' | 'cas_
   }).sort((a, b) => b.profit - a.profit);
 }
 
-function Kpi({ title, value, color = "inherit", icon }: { title: string; value: string; color?: string; icon?: React.ReactNode }) {
+// Metric Card komponenta
+function MetricCard({ 
+  title, 
+  value, 
+  subtitle,
+  trend,
+  icon,
+  accentColor = "emerald"
+}: { 
+  title: string; 
+  value: string; 
+  subtitle?: string;
+  trend?: "up" | "down" | "neutral";
+  icon?: React.ReactNode;
+  accentColor?: "emerald" | "amber" | "rose" | "sky" | "violet";
+}) {
+  const colors = {
+    emerald: "from-emerald-500/20 via-emerald-500/5 to-transparent border-emerald-500/30",
+    amber: "from-amber-500/20 via-amber-500/5 to-transparent border-amber-500/30",
+    rose: "from-rose-500/20 via-rose-500/5 to-transparent border-rose-500/30",
+    sky: "from-sky-500/20 via-sky-500/5 to-transparent border-sky-500/30",
+    violet: "from-violet-500/20 via-violet-500/5 to-transparent border-violet-500/30",
+  };
+
+  const iconColors = {
+    emerald: "text-emerald-400",
+    amber: "text-amber-400",
+    rose: "text-rose-400",
+    sky: "text-sky-400",
+    violet: "text-violet-400",
+  };
+
   return (
-    <div className="relative">
-      <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-yellow-500/10 rounded-2xl blur-lg"></div>
-      <div className="relative bg-white/10 backdrop-blur-xl rounded-2xl p-5 border border-white/20 hover:border-green-500/40 transition-all hover:scale-105">
-        <div className="flex items-center gap-2 text-white/60 text-sm font-semibold mb-2">
-          {icon}
-          {title}
+    <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${colors[accentColor]} border backdrop-blur-sm p-5 transition-all duration-500 hover:scale-[1.02] group`}>
+      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-700" />
+      
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-semibold tracking-[0.15em] uppercase text-zinc-400">{title}</span>
+          {icon && <div className={`${iconColors[accentColor]} opacity-70`}>{icon}</div>}
         </div>
-        <div className="text-2xl font-black" style={{ color }}>{value}</div>
+        
+        <div className="flex items-end gap-2">
+          <span className={`text-2xl font-light tracking-tight ${trend === "up" ? "text-emerald-400" : trend === "down" ? "text-rose-400" : "text-white"}`}>
+            {value}
+          </span>
+          {trend && trend !== "neutral" && (
+            <span className={`text-sm font-medium pb-1 ${trend === "up" ? "text-emerald-400" : "text-rose-400"}`}>
+              {trend === "up" ? "↑" : "↓"}
+            </span>
+          )}
+        </div>
+        
+        {subtitle && (
+          <p className="mt-1 text-xs text-zinc-500">{subtitle}</p>
+        )}
       </div>
+    </div>
+  );
+}
+
+// Stat Card komponenta za kategorije
+function StatCard({ 
+  name, 
+  profit, 
+  n, 
+  wins, 
+  losses, 
+  avgOdds, 
+  roi,
+  winRate,
+  accentColor = "emerald"
+}: { 
+  name: string;
+  profit: number;
+  n: number;
+  wins: number;
+  losses: number;
+  avgOdds: number;
+  roi: number;
+  winRate: number;
+  accentColor?: "emerald" | "amber" | "sky" | "violet" | "rose";
+}) {
+  const colors = {
+    emerald: "text-emerald-400 border-emerald-500/30",
+    amber: "text-amber-400 border-amber-500/30",
+    sky: "text-sky-400 border-sky-500/30",
+    violet: "text-violet-400 border-violet-500/30",
+    rose: "text-rose-400 border-rose-500/30",
+  };
+
+  return (
+    <div className="group relative overflow-hidden rounded-2xl bg-zinc-900/60 border border-zinc-800 p-5 transition-all duration-300 hover:bg-zinc-900/80 hover:border-zinc-700">
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-white/[0.02] to-transparent" />
+      
+      <div className="relative z-10">
+        <div className={`text-lg font-bold mb-4 ${colors[accentColor].split(' ')[0]}`}>{name}</div>
+        
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-zinc-500 uppercase tracking-wide">Profit</span>
+            <span className={`text-sm font-semibold tabular-nums ${profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {eur(profit)}
+            </span>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-zinc-500 uppercase tracking-wide">Stave</span>
+            <span className="text-sm font-medium text-white tabular-nums">{n}</span>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-zinc-500 uppercase tracking-wide">W / L</span>
+            <span className="text-sm font-medium tabular-nums">
+              <span className="text-emerald-400">{wins}</span>
+              <span className="text-zinc-600 mx-1">/</span>
+              <span className="text-rose-400">{losses}</span>
+            </span>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-zinc-500 uppercase tracking-wide">Win Rate</span>
+            <span className="text-sm font-medium text-sky-400 tabular-nums">{winRate.toFixed(1)}%</span>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-zinc-500 uppercase tracking-wide">Avg Kvota</span>
+            <span className="text-sm font-medium text-amber-400 tabular-nums">{avgOdds.toFixed(2)}</span>
+          </div>
+          
+          <div className="pt-2 mt-2 border-t border-zinc-800">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-zinc-500 uppercase tracking-wide">ROI</span>
+              <span className={`text-sm font-bold tabular-nums ${roi >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {(roi * 100).toFixed(2)}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Input Field komponenta
+function InputField({ 
+  label, 
+  value, 
+  onChange, 
+  type = "text",
+  icon
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (v: string) => void; 
+  type?: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">
+        {icon}
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-2.5 bg-zinc-800/80 border border-zinc-700/50 rounded-xl text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-800 transition-all duration-300"
+      />
+    </div>
+  );
+}
+
+// Select Field komponenta
+function SelectField({ 
+  label, 
+  value, 
+  onChange, 
+  options,
+  icon
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (v: string) => void; 
+  options: string[];
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">
+        {icon}
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-2.5 bg-zinc-800/80 border border-zinc-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-800 transition-all duration-300 cursor-pointer"
+      >
+        {options.map((opt) => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -155,7 +365,7 @@ export default function StatsPage() {
   const [oddsFilter, setOddsFilter] = useState<"ALL" | "OVER" | "UNDER">("ALL");
   const [oddsValue, setOddsValue] = useState("2");
 
-  // Applied filters (after clicking "Potrdi")
+  // Applied filters
   const [appliedFilters, setAppliedFilters] = useState({
     sport: "ALL",
     tipster: "ALL",
@@ -166,6 +376,8 @@ export default function StatsPage() {
     oddsFilter: "ALL" as "ALL" | "OVER" | "UNDER",
     oddsValue: "2",
   });
+
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -199,7 +411,6 @@ export default function StatsPage() {
       if (appliedFilters.fromDate && r.datum < appliedFilters.fromDate) return false;
       if (appliedFilters.toDate && r.datum > appliedFilters.toDate) return false;
       
-      // Odds filter
       if (appliedFilters.oddsFilter !== "ALL") {
         const threshold = parseFloat(appliedFilters.oddsValue);
         if (appliedFilters.oddsFilter === "OVER" && r.kvota1 <= threshold) return false;
@@ -250,365 +461,296 @@ export default function StatsPage() {
     });
   };
 
-  return (
-    <main className="min-h-screen relative overflow-hidden">
-      {/* Animated background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-gray-900 to-slate-950">
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-yellow-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse" style={{animationDelay: "1s"}}></div>
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (appliedFilters.sport !== "ALL") count++;
+    if (appliedFilters.tipster !== "ALL") count++;
+    if (appliedFilters.stavnica !== "ALL") count++;
+    if (appliedFilters.cas !== "ALL") count++;
+    if (appliedFilters.fromDate) count++;
+    if (appliedFilters.toDate) count++;
+    if (appliedFilters.oddsFilter !== "ALL") count++;
+    return count;
+  }, [appliedFilters]);
+
+  if (loading && rows.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+          <span className="text-zinc-500 text-sm tracking-widest uppercase">Nalagam...</span>
         </div>
       </div>
+    );
+  }
 
-      <div className="relative max-w-7xl mx-auto px-6 py-8">
+  return (
+    <main className="min-h-screen bg-zinc-950 text-white antialiased">
+      {/* Background */}
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-black" />
+      <div className="fixed inset-0 opacity-30" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E\")" }} />
+      
+      <div className="relative max-w-7xl mx-auto px-8 py-12">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="relative inline-block">
-            <div className="absolute -inset-4 bg-gradient-to-r from-green-500/40 via-yellow-500/40 to-green-500/40 blur-3xl animate-pulse"></div>
-            <h1 className="relative text-7xl font-black bg-gradient-to-r from-green-400 via-yellow-300 to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
-              STATISTIKA
-            </h1>
+        <header className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-light tracking-tight text-white mb-1">Statistika</h1>
+            <p className="text-sm text-zinc-500">Analiza stav in rezultatov</p>
           </div>
-        </div>
+          <button
+            onClick={loadRows}
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 hover:border-zinc-600 transition-all duration-300"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            <span className="text-sm font-medium">Osveži</span>
+          </button>
+        </header>
 
-        {msg && <p className="text-red-400 mb-6 text-center">{msg}</p>}
+        {msg && (
+          <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
+            {msg}
+          </div>
+        )}
 
         {/* Filtri */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-3xl blur-xl"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-gradient-to-br from-blue-500 to-purple-500 p-3 rounded-xl">
-                <Filter className="w-6 h-6 text-white" />
-              </div>
-              <h2 className="text-2xl font-black text-white">Filtri</h2>
-            </div>
-
-            <div className="grid grid-cols-4 gap-4 mb-4">
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Calendar className="w-4 h-4 inline mr-1" />
-                  Od (datum)
-                </label>
-                <input
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  type="date"
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Calendar className="w-4 h-4 inline mr-1" />
-                  Do (datum)
-                </label>
-                <input
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  type="date"
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Target className="w-4 h-4 inline mr-1" />
-                  Šport
-                </label>
-                <select
-                  value={sport}
-                  onChange={(e) => setSport(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400 transition-all"
-                >
-                  <option value="ALL">ALL</option>
-                  {SPORTI.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Users className="w-4 h-4 inline mr-1" />
-                  Tipster
-                </label>
-                <select
-                  value={tipster}
-                  onChange={(e) => setTipster(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400 transition-all"
-                >
-                  <option value="ALL">ALL</option>
-                  {TIPSTERJI.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Building2 className="w-4 h-4 inline mr-1" />
-                  Stavnica
-                </label>
-                <select
-                  value={stavnica}
-                  onChange={(e) => setStavnica(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400 transition-all"
-                >
-                  <option value="ALL">ALL</option>
-                  {STAVNICE.map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <Clock className="w-4 h-4 inline mr-1" />
-                  Prematch/Live
-                </label>
-                <select
-                  value={cas}
-                  onChange={(e) => setCas(e.target.value as any)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400 transition-all"
-                >
-                  <option value="ALL">ALL</option>
-                  <option value="PREMATCH">PREMATCH</option>
-                  <option value="LIVE">LIVE</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <TrendingUp className="w-4 h-4 inline mr-1" />
-                  Kvota
-                </label>
-                <select
-                  value={oddsFilter}
-                  onChange={(e) => setOddsFilter(e.target.value as any)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400 transition-all"
-                >
-                  <option value="ALL">ALL</option>
-                  <option value="OVER">OVER</option>
-                  <option value="UNDER">UNDER</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-white/80 text-sm font-semibold mb-2">
-                  <TrendingDown className="w-4 h-4 inline mr-1" />
-                  Vrednost kvote
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={oddsValue}
-                  onChange={(e) => setOddsValue(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400 transition-all"
-                  placeholder="2.0"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <button
-                onClick={handleApplyFilters}
-                className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-500 text-white font-bold rounded-xl hover:from-green-500 hover:to-emerald-400 transition-all shadow-lg hover:scale-105"
-              >
-                Potrdi
-              </button>
-              
-              <button
-                onClick={handleClearFilters}
-                className="px-6 py-3 bg-white/10 border-2 border-white/20 text-white font-bold rounded-xl hover:bg-white/20 transition-all"
-              >
-                Počisti filtre
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Statistika po filtrih */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 to-yellow-600/20 rounded-3xl blur-xl"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <h2 className="text-2xl font-black text-white mb-6">Statistika po filtrih</h2>
-
-            <div className="grid grid-cols-6 gap-4">
-              <Kpi
-                title="Profit"
-                value={eur(filtered.profit)}
-                color={filtered.profit >= 0 ? "#22c55e" : "#ef4444"}
-                icon={<TrendingUp className="w-4 h-4" />}
-              />
-              <Kpi
-                title="Stav"
-                value={`${filtered.n}`}
-                color="#ffffff"
-                icon={<BarChart3 className="w-4 h-4" />}
-              />
-              <Kpi
-                title="WIN"
-                value={`${filtered.wins}`}
-                color="#22c55e"
-                icon={<Trophy className="w-4 h-4" />}
-              />
-              <Kpi
-                title="LOSS"
-                value={`${filtered.losses}`}
-                color="#ef4444"
-              />
-              <Kpi
-                title="Povp. kvota"
-                value={filtered.avgOdds ? filtered.avgOdds.toFixed(2) : "-"}
-                color="#60a5fa"
-              />
-              <Kpi
-                title="ROI"
-                value={`${(filtered.roi * 100).toFixed(2)}%`}
-                color="#fbbf24"
-                icon={<Target className="w-4 h-4" />}
-              />
-            </div>
-          </div>
-        </div>
-
-
-
-        {/* Stolpci - Tipsterji */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-600/20 to-red-600/20 rounded-3xl blur-xl"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <Users className="w-6 h-6 text-orange-400" />
-              <h3 className="text-2xl font-bold text-white">Statistika po tipsterjih</h3>
-            </div>
-            
-            <div className="grid grid-cols-4 gap-4">
-              {statsByTipster.map((stat) => (
-                <div key={stat.name} className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-all">
-                  <div className="text-orange-400 font-black text-lg mb-3">{stat.name}</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Profit:</span>
-                      <span className={`font-bold ${stat.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {eur(stat.profit)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Stav:</span>
-                      <span className="text-white font-semibold">{stat.n}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">WIN/LOSS:</span>
-                      <span className="text-white font-semibold">{stat.wins}/{stat.losses}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Povp. kvota:</span>
-                      <span className="text-blue-400 font-semibold">{stat.avgOdds.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">ROI:</span>
-                      <span className={`font-bold ${stat.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {(stat.roi * 100).toFixed(2)}%
-                      </span>
-                    </div>
-                  </div>
+        <section className="mb-8">
+          <div className="rounded-2xl bg-zinc-900/90 border border-zinc-800 backdrop-blur-sm overflow-hidden">
+            <button
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className="w-full px-6 py-4 flex items-center justify-between hover:bg-zinc-800/30 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-sky-500/20 rounded-lg">
+                  <Filter className="w-4 h-4 text-sky-400" />
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Stolpci - Športi */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/20 to-blue-600/20 rounded-3xl blur-xl"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <Target className="w-6 h-6 text-cyan-400" />
-              <h3 className="text-2xl font-bold text-white">Statistika po športih</h3>
-            </div>
+                <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-zinc-300">Filtri</h2>
+                {activeFilterCount > 0 && (
+                  <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500/20 text-emerald-400 rounded-full">
+                    {activeFilterCount} aktivnih
+                  </span>
+                )}
+              </div>
+              <div className={`transform transition-transform ${filtersOpen ? 'rotate-180' : ''}`}>
+                <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
             
-            <div className="grid grid-cols-4 gap-4">
-              {statsBySport.map((stat) => (
-                <div key={stat.name} className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-all">
-                  <div className="text-cyan-400 font-black text-lg mb-3">{stat.name}</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Profit:</span>
-                      <span className={`font-bold ${stat.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {eur(stat.profit)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Stav:</span>
-                      <span className="text-white font-semibold">{stat.n}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">WIN/LOSS:</span>
-                      <span className="text-white font-semibold">{stat.wins}/{stat.losses}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Povp. kvota:</span>
-                      <span className="text-blue-400 font-semibold">{stat.avgOdds.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">ROI:</span>
-                      <span className={`font-bold ${stat.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {(stat.roi * 100).toFixed(2)}%
-                      </span>
-                    </div>
-                  </div>
+            {filtersOpen && (
+              <div className="px-6 pb-6 border-t border-zinc-800 bg-zinc-900/50">
+                <div className="pt-5 grid grid-cols-4 gap-4 mb-4">
+                  <InputField
+                    label="Od datuma"
+                    value={fromDate}
+                    onChange={setFromDate}
+                    type="date"
+                    icon={<Calendar className="w-3 h-3" />}
+                  />
+                  <InputField
+                    label="Do datuma"
+                    value={toDate}
+                    onChange={setToDate}
+                    type="date"
+                    icon={<Calendar className="w-3 h-3" />}
+                  />
+                  <SelectField
+                    label="Šport"
+                    value={sport}
+                    onChange={setSport}
+                    options={["ALL", ...SPORTI]}
+                    icon={<Target className="w-3 h-3" />}
+                  />
+                  <SelectField
+                    label="Tipster"
+                    value={tipster}
+                    onChange={setTipster}
+                    options={["ALL", ...TIPSTERJI]}
+                    icon={<Users className="w-3 h-3" />}
+                  />
+                  <SelectField
+                    label="Stavnica"
+                    value={stavnica}
+                    onChange={setStavnica}
+                    options={["ALL", ...STAVNICE]}
+                    icon={<Building2 className="w-3 h-3" />}
+                  />
+                  <SelectField
+                    label="Prematch / Live"
+                    value={cas}
+                    onChange={(v) => setCas(v as "ALL" | Cas)}
+                    options={["ALL", "PREMATCH", "LIVE"]}
+                    icon={<Clock className="w-3 h-3" />}
+                  />
+                  <SelectField
+                    label="Kvota filter"
+                    value={oddsFilter}
+                    onChange={(v) => setOddsFilter(v as "ALL" | "OVER" | "UNDER")}
+                    options={["ALL", "OVER", "UNDER"]}
+                    icon={<TrendingUp className="w-3 h-3" />}
+                  />
+                  <InputField
+                    label="Vrednost kvote"
+                    value={oddsValue}
+                    onChange={setOddsValue}
+                    type="number"
+                    icon={<Zap className="w-3 h-3" />}
+                  />
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        {/* Stolpci - Prematch/Live */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 to-fuchsia-600/20 rounded-3xl blur-xl"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <Clock className="w-6 h-6 text-violet-400" />
-              <h3 className="text-2xl font-bold text-white">Statistika po času stave</h3>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              {statsByCas.map((stat) => (
-                <div key={stat.name} className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-all">
-                  <div className="text-violet-400 font-black text-lg mb-3">{stat.name}</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Profit:</span>
-                      <span className={`font-bold ${stat.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {eur(stat.profit)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Stav:</span>
-                      <span className="text-white font-semibold">{stat.n}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">WIN/LOSS:</span>
-                      <span className="text-white font-semibold">{stat.wins}/{stat.losses}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Povp. kvota:</span>
-                      <span className="text-blue-400 font-semibold">{stat.avgOdds.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">ROI:</span>
-                      <span className={`font-bold ${stat.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {(stat.roi * 100).toFixed(2)}%
-                      </span>
-                    </div>
-                  </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleApplyFilters}
+                    className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-500 transition-all duration-300 shadow-lg shadow-emerald-600/20"
+                  >
+                    Potrdi filtre
+                  </button>
+                  <button
+                    onClick={handleClearFilters}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-zinc-800 border border-zinc-700/50 text-zinc-300 text-sm font-medium rounded-xl hover:bg-zinc-700 hover:text-white transition-all duration-300"
+                  >
+                    <X className="w-4 h-4" />
+                    Počisti
+                  </button>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
-        </div>
+        </section>
+
+        {/* Glavne metrike */}
+        <section className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <BarChart3 className="w-5 h-5 text-zinc-400" />
+            <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-zinc-300">Pregled</h2>
+            <span className="text-xs text-zinc-600">• {filtered.n} stav</span>
+          </div>
+          
+          <div className="grid grid-cols-6 gap-4">
+            <MetricCard
+              title="Profit"
+              value={eur(filtered.profit)}
+              trend={filtered.profit >= 0 ? "up" : "down"}
+              icon={<TrendingUp className="w-4 h-4" />}
+              accentColor="emerald"
+            />
+            <MetricCard
+              title="ROI"
+              value={`${(filtered.roi * 100).toFixed(2)}%`}
+              trend={filtered.roi >= 0 ? "up" : "down"}
+              icon={<Percent className="w-4 h-4" />}
+              accentColor="amber"
+            />
+            <MetricCard
+              title="Win Rate"
+              value={`${filtered.winRate.toFixed(1)}%`}
+              subtitle={`${filtered.wins}W / ${filtered.losses}L`}
+              icon={<Trophy className="w-4 h-4" />}
+              accentColor="sky"
+            />
+            <MetricCard
+              title="Stave"
+              value={String(filtered.n)}
+              icon={<Activity className="w-4 h-4" />}
+              accentColor="violet"
+            />
+            <MetricCard
+              title="Zmage"
+              value={String(filtered.wins)}
+              icon={<Trophy className="w-4 h-4" />}
+              accentColor="emerald"
+            />
+            <MetricCard
+              title="Avg Kvota"
+              value={filtered.avgOdds ? filtered.avgOdds.toFixed(2) : "-"}
+              icon={<Zap className="w-4 h-4" />}
+              accentColor="amber"
+            />
+          </div>
+        </section>
+
+        {/* Statistika po tipsterjih */}
+        <section className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Users className="w-5 h-5 text-amber-400" />
+            <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-zinc-300">Po tipsterjih</h2>
+          </div>
+          
+          <div className="grid grid-cols-4 gap-4">
+            {statsByTipster.map((stat) => (
+              <StatCard
+                key={stat.name}
+                name={stat.name}
+                profit={stat.profit}
+                n={stat.n}
+                wins={stat.wins}
+                losses={stat.losses}
+                avgOdds={stat.avgOdds}
+                roi={stat.roi}
+                winRate={stat.winRate}
+                accentColor="amber"
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Statistika po športih */}
+        <section className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Target className="w-5 h-5 text-sky-400" />
+            <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-zinc-300">Po športih</h2>
+          </div>
+          
+          <div className="grid grid-cols-4 gap-4">
+            {statsBySport.map((stat) => (
+              <StatCard
+                key={stat.name}
+                name={stat.name}
+                profit={stat.profit}
+                n={stat.n}
+                wins={stat.wins}
+                losses={stat.losses}
+                avgOdds={stat.avgOdds}
+                roi={stat.roi}
+                winRate={stat.winRate}
+                accentColor="sky"
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Statistika po času */}
+        <section className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Clock className="w-5 h-5 text-violet-400" />
+            <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-zinc-300">Prematch vs Live</h2>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            {statsByCas.map((stat) => (
+              <StatCard
+                key={stat.name}
+                name={stat.name}
+                profit={stat.profit}
+                n={stat.n}
+                wins={stat.wins}
+                losses={stat.losses}
+                avgOdds={stat.avgOdds}
+                roi={stat.roi}
+                winRate={stat.winRate}
+                accentColor="violet"
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="mt-16 pt-8 border-t border-zinc-800/50">
+          <div className="flex items-center justify-between text-xs text-zinc-600">
+            <span>DDTips Match Analysis & Picks</span>
+            <span>Zadnja posodobitev: {new Date().toLocaleDateString("sl-SI")}</span>
+          </div>
+        </footer>
       </div>
     </main>
   );
