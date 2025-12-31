@@ -409,79 +409,80 @@ export default function HomePage() {
       <div className="fixed inset-0 opacity-30" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E\")" }} />
       
       <div className="relative max-w-7xl mx-auto px-8 py-12">
-        {/* Header */}
-        <header className="mb-12">
-          <div className="flex items-end justify-between">
-            <div>
-              <h1 className="text-4xl font-extralight tracking-tight text-white mb-2">
-                Portfolio <span className="text-emerald-400">Dashboard</span>
-              </h1>
-              <p className="text-zinc-500 text-sm tracking-wide">
-                Začetni kapital: <span className="text-zinc-300 font-medium">{eur(CAPITAL_TOTAL)}</span>
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-zinc-500 uppercase tracking-widest mb-1">Trenutno stanje</div>
-              <div className={`text-3xl font-light ${stats.bankroll >= CAPITAL_TOTAL ? "text-emerald-400" : "text-rose-400"}`}>
-                {eur(stats.bankroll)}
-              </div>
-            </div>
-          </div>
-        </header>
+<header className="mb-8" />
 
-        {/* Primary Metrics */}
-        <section className="grid grid-cols-4 gap-4 mb-8">
-          <MetricCard
-            title="Celoten profit"
-            value={eur(stats.profit)}
-            trend={stats.profit >= 0 ? "up" : "down"}
-            icon={<TrendingUp className="w-5 h-5" />}
-            accentColor="emerald"
-          />
-          <MetricCard
-            title="Donos na kapital"
-            value={`${stats.donosNaKapital.toFixed(2)}%`}
-            trend={stats.donosNaKapital >= 0 ? "up" : "down"}
-            icon={<Target className="w-5 h-5" />}
-            accentColor="amber"
-          />
-          <MetricCard
-            title="ROI"
-            value={`${stats.roiPercent.toFixed(2)}%`}
-            subtitle="Return on investment"
-            icon={<DollarSign className="w-5 h-5" />}
-            accentColor="sky"
-          />
-          <MetricCard
-            title="Win Rate"
-            value={`${winRate}%`}
-            subtitle={`${stats.wins}W / ${stats.losses}L`}
-            icon={<Trophy className="w-5 h-5" />}
-            accentColor="violet"
-          />
-        </section>
 
-        {/* Secondary Metrics */}
-        <section className="grid grid-cols-3 gap-4 mb-8">
-          <MetricCard
-            title="Skupaj stav"
-            value={String(stats.n)}
-            icon={<BarChart3 className="w-5 h-5" />}
-            accentColor="emerald"
-          />
-          <MetricCard
-            title="Povprečna kvota"
-            value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"}
-            icon={<Zap className="w-5 h-5" />}
-            accentColor="amber"
-          />
-          <MetricCard
-            title="Win / Loss"
-            value={`${stats.wins} / ${stats.losses}`}
-            icon={<Activity className="w-5 h-5" />}
-            accentColor="sky"
-          />
-        </section>
+{/* Row 1: Začetni kapital + Trenutno stanje */}
+<section className="grid grid-cols-2 gap-4 mb-8">
+  <MetricCard
+    title="Začetni kapital"
+    value={eur(CAPITAL_TOTAL)}
+    icon={<DollarSign className="w-5 h-5" />}
+    accentColor="violet"
+  />
+  <MetricCard
+    title="Trenutno stanje"
+    value={eur(stats.bankroll)}
+    trend={stats.bankroll >= CAPITAL_TOTAL ? "up" : "down"}
+    icon={<Building2 className="w-5 h-5" />}
+    accentColor={stats.bankroll >= CAPITAL_TOTAL ? "emerald" : "rose"}
+  />
+</section>
+
+{/* Row 2: Celoten profit + ROI + Donos na kapital */}
+<section className="grid grid-cols-3 gap-4 mb-8">
+  <MetricCard
+    title="Celoten profit"
+    value={eur(stats.profit)}
+    trend={stats.profit >= 0 ? "up" : "down"}
+    icon={<TrendingUp className="w-5 h-5" />}
+    accentColor="emerald"
+  />
+  <MetricCard
+    title="ROI"
+    value={`${stats.roiPercent.toFixed(2)}%`}
+    subtitle="Return on investment"
+    icon={<DollarSign className="w-5 h-5" />}
+    accentColor="sky"
+  />
+  <MetricCard
+    title="Donos na kapital"
+    value={`${stats.donosNaKapital.toFixed(2)}%`}
+    trend={stats.donosNaKapital >= 0 ? "up" : "down"}
+    icon={<Target className="w-5 h-5" />}
+    accentColor="amber"
+  />
+</section>
+
+{/* Row 3: Skupaj stav + Win/Loss + Win Rate + Povprečna kvota */}
+<section className="grid grid-cols-4 gap-4 mb-8">
+  <MetricCard
+    title="Skupaj stav"
+    value={String(stats.n)}
+    icon={<BarChart3 className="w-5 h-5" />}
+    accentColor="emerald"
+  />
+  <MetricCard
+    title="Win / Loss"
+    value={`${stats.wins} / ${stats.losses}`}
+    icon={<Activity className="w-5 h-5" />}
+    accentColor="sky"
+  />
+  <MetricCard
+    title="Win Rate"
+    value={`${winRate}%`}
+    subtitle={`${stats.wins}W / ${stats.losses}L`}
+    icon={<Trophy className="w-5 h-5" />}
+    accentColor="violet"
+  />
+  <MetricCard
+    title="Povprečna kvota"
+    value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"}
+    icon={<Zap className="w-5 h-5" />}
+    accentColor="amber"
+  />
+</section>
+
 
         {/* Chart */}
         <section className="mb-8">
