@@ -593,7 +593,7 @@ export default function HomePage() {
         {/* Footer */}
         <footer className="mt-16 pt-8 border-t border-zinc-800/50">
           <div className="flex items-center justify-between text-xs text-zinc-600">
-            <span>Betting Portfolio Dashboard</span>
+            <span>DDTips Match Analysis&Picks</span>
             <span>Zadnja posodobitev: {new Date().toLocaleDateString("sl-SI")}</span>
           </div>
         </footer>
