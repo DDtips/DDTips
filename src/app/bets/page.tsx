@@ -123,7 +123,7 @@ function InputField({
 }) {
   return (
     <div className="space-y-2">
-      <label className="flex items-center gap-2 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">
+      <label className="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-slate-600">
         {icon}
         {label}
       </label>
@@ -132,7 +132,7 @@ function InputField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-800/50 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-900 transition-all duration-300"
+        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300"
       />
     </div>
   );
@@ -153,14 +153,14 @@ function SelectField({
 }) {
   return (
     <div className="space-y-2">
-      <label className="flex items-center gap-2 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">
+      <label className="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-slate-600">
         {icon}
         {label}
       </label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-800/50 rounded-xl text-white focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-900 transition-all duration-300 cursor-pointer"
+        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 cursor-pointer"
       >
         {options.map((opt) => (
           <option key={opt} value={opt}>{opt}</option>
@@ -172,16 +172,16 @@ function SelectField({
 
 function StatusBadge({ wl, onClick }: { wl: WL; onClick?: () => void }) {
   const styles = {
-    WIN: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    LOSS: "bg-rose-500/20 text-rose-400 border-rose-500/30",
-    VOID: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
-    OPEN: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    WIN: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    LOSS: "bg-rose-100 text-rose-700 border-rose-200",
+    VOID: "bg-slate-100 text-slate-600 border-slate-200",
+    OPEN: "bg-amber-100 text-amber-700 border-amber-200",
   };
 
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${styles[wl]} transition-all duration-300 hover:scale-105 cursor-pointer`}
+      className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${styles[wl]} transition-all duration-300 hover:scale-105 cursor-pointer shadow-sm`}
     >
       {wl}
     </button>
@@ -356,7 +356,6 @@ export default function BetsPage() {
     return isPureLay ? r.vplacilo2 : r.vplacilo1;
   }
 
-  // Calculate monthly stats
   const monthlyStats = useMemo(() => {
     const settled = computed.withProfit.filter(r => r.wl === "WIN" || r.wl === "LOSS");
     const profit = settled.reduce((acc, r) => acc + r.profit, 0);
@@ -368,52 +367,48 @@ export default function BetsPage() {
 
   if (loading && rows.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-          <span className="text-zinc-500 text-sm tracking-widest uppercase">Nalagam...</span>
+          <div className="w-10 h-10 border-3 border-emerald-200 border-t-emerald-500 rounded-full animate-spin" />
+          <span className="text-slate-500 text-sm font-medium">Nalagam...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white antialiased">
-      {/* Background */}
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-black" />
-      <div className="fixed inset-0 opacity-30" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E\")" }} />
-      
-      <div className="relative max-w-7xl mx-auto px-8 py-12">
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 text-slate-800 antialiased">
+      <div className="max-w-7xl mx-auto px-8 py-10">
         {/* Header */}
         <header className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-light tracking-tight text-white mb-1">Stave</h1>
-            <p className="text-sm text-zinc-500">Prijavljen kot: {user?.email || "-"}</p>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-800 mb-1">Stave</h1>
+            <p className="text-sm text-slate-500">Prijavljen kot: {user?.email || "-"}</p>
           </div>
           <button
             onClick={loadBets}
-            className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 border border-zinc-800/50 rounded-xl text-zinc-400 hover:text-white hover:border-zinc-700 transition-all duration-300"
+            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-800 hover:border-slate-300 hover:shadow-md transition-all duration-300"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            <span className="text-sm font-medium">Osveži</span>
+            <span className="text-sm font-semibold">Osveži</span>
           </button>
         </header>
 
         {/* Error message */}
         {msg && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
+          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium">
             {msg}
           </div>
         )}
 
         {/* Add Bet Form */}
         <section className="mb-8">
-          <div className="rounded-2xl bg-gradient-to-br from-zinc-900/80 to-zinc-950/80 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center gap-3">
-              <div className="p-2 bg-emerald-500/20 rounded-lg">
-                <Plus className="w-4 h-4 text-emerald-400" />
+          <div className="rounded-2xl bg-white border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3 bg-gradient-to-r from-emerald-50 to-teal-50">
+              <div className="p-2 bg-emerald-500 rounded-lg shadow-md">
+                <Plus className="w-4 h-4 text-white" />
               </div>
-              <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-zinc-300">Dodaj stavo</h2>
+              <h2 className="text-base font-bold text-slate-700">Dodaj stavo</h2>
             </div>
             
             <div className="p-6">
@@ -518,7 +513,7 @@ export default function BetsPage() {
                 <div className="flex items-end">
                   <button
                     onClick={addBet}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold rounded-xl hover:from-emerald-500 hover:to-emerald-400 transition-all duration-300 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:scale-[1.02]"
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 hover:scale-[1.02]"
                   >
                     <Plus className="w-4 h-4" />
                     Dodaj stavo
@@ -532,15 +527,15 @@ export default function BetsPage() {
         {/* Month Filter & Stats */}
         <section className="mb-6 grid grid-cols-5 gap-4">
           {/* Filter */}
-          <div className="col-span-2 rounded-2xl bg-gradient-to-br from-zinc-900/80 to-zinc-950/80 border border-zinc-800/50 backdrop-blur-sm p-5">
+          <div className="col-span-2 rounded-2xl bg-white border border-slate-200 shadow-md p-5">
             <div className="flex items-center gap-3 mb-3">
-              <Filter className="w-4 h-4 text-zinc-400" />
-              <span className="text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">Filter po mesecu</span>
+              <Filter className="w-4 h-4 text-slate-500" />
+              <span className="text-xs font-bold tracking-wide uppercase text-slate-500">Filter po mesecu</span>
             </div>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-800/50 rounded-xl text-white font-medium focus:outline-none focus:border-emerald-500/50 transition-all duration-300 cursor-pointer"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 cursor-pointer"
             >
               {availableMonths.map(month => (
                 <option key={month} value={month}>
@@ -551,76 +546,76 @@ export default function BetsPage() {
           </div>
 
           {/* Monthly Stats */}
-          <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 backdrop-blur-sm p-5">
-            <span className="text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400 block mb-2">Profit</span>
-            <span className={`text-2xl font-light ${monthlyStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+          <div className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 p-5 shadow-lg shadow-emerald-500/20">
+            <span className="text-xs font-bold tracking-wide uppercase text-emerald-100 block mb-2">Profit</span>
+            <span className={`text-2xl font-bold ${monthlyStats.profit >= 0 ? "text-white" : "text-rose-200"}`}>
               {eur(monthlyStats.profit)}
             </span>
           </div>
 
-          <div className="rounded-2xl bg-gradient-to-br from-zinc-900/80 to-zinc-950/80 border border-zinc-800/50 backdrop-blur-sm p-5">
-            <span className="text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400 block mb-2">Win / Loss</span>
-            <span className="text-2xl font-light text-white">
-              <span className="text-emerald-400">{monthlyStats.wins}</span>
-              <span className="text-zinc-600 mx-1">/</span>
-              <span className="text-rose-400">{monthlyStats.losses}</span>
+          <div className="rounded-2xl bg-white border border-slate-200 shadow-md p-5">
+            <span className="text-xs font-bold tracking-wide uppercase text-slate-500 block mb-2">Win / Loss</span>
+            <span className="text-2xl font-bold text-slate-800">
+              <span className="text-emerald-500">{monthlyStats.wins}</span>
+              <span className="text-slate-300 mx-1">/</span>
+              <span className="text-rose-500">{monthlyStats.losses}</span>
             </span>
           </div>
 
-          <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/20 backdrop-blur-sm p-5">
-            <span className="text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400 block mb-2">Odprte</span>
-            <span className="text-2xl font-light text-amber-400">{monthlyStats.openCount}</span>
+          <div className="rounded-2xl bg-gradient-to-br from-amber-400 to-orange-400 p-5 shadow-lg shadow-amber-500/20">
+            <span className="text-xs font-bold tracking-wide uppercase text-amber-100 block mb-2">Odprte</span>
+            <span className="text-2xl font-bold text-white">{monthlyStats.openCount}</span>
           </div>
         </section>
 
         {/* Table */}
-        <section className="rounded-2xl bg-gradient-to-br from-zinc-900/80 to-zinc-950/80 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
+        <section className="rounded-2xl bg-white border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
             <div className="flex items-center gap-3">
-              <Activity className="w-4 h-4 text-zinc-400" />
-              <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-zinc-300">Vse stave</h2>
+              <Activity className="w-4 h-4 text-slate-500" />
+              <h2 className="text-base font-bold text-slate-700">Vse stave</h2>
             </div>
-            <span className="text-xs text-zinc-500">{computed.withProfit.length} vrstic</span>
+            <span className="text-xs font-semibold text-slate-400 bg-slate-200 px-3 py-1 rounded-full">{computed.withProfit.length} vrstic</span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-zinc-800/50">
-                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Datum</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Status</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Dogodek</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Tip</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Kvota</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Vplačilo</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Profit</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Šport</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Tipster</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500">Stavnica</th>
-                  <th className="text-right py-4 px-5 text-xs font-semibold tracking-[0.1em] uppercase text-zinc-500"></th>
+                <tr className="border-b border-slate-100 bg-slate-50/50">
+                  <th className="text-left py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500">Datum</th>
+                  <th className="text-left py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500">Status</th>
+                  <th className="text-left py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500">Dogodek</th>
+                  <th className="text-left py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500">Tip</th>
+                  <th className="text-left py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500">Kvota</th>
+                  <th className="text-left py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500">Vplačilo</th>
+                  <th className="text-left py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500">Profit</th>
+                  <th className="text-left py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500">Šport</th>
+                  <th className="text-left py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500">Tipster</th>
+                  <th className="text-left py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500">Stavnica</th>
+                  <th className="text-right py-4 px-5 text-xs font-bold tracking-wide uppercase text-slate-500"></th>
                 </tr>
               </thead>
               <tbody>
-                {computed.withProfit.map((r) => (
-                  <tr key={r.id} className="border-b border-zinc-800/30 hover:bg-white/[0.02] transition-colors group">
-                    <td className="py-4 px-5 text-sm text-zinc-300">{formatDateSlovenian(r.datum)}</td>
+                {computed.withProfit.map((r, idx) => (
+                  <tr key={r.id} className={`border-b border-slate-50 hover:bg-emerald-50/50 transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
+                    <td className="py-4 px-5 text-sm text-slate-600 font-medium">{formatDateSlovenian(r.datum)}</td>
                     <td className="py-4 px-5">
                       <StatusBadge wl={r.wl} onClick={() => openEdit(r)} />
                     </td>
-                    <td className="py-4 px-5 text-sm text-white font-medium">{r.dogodek}</td>
-                    <td className="py-4 px-5 text-sm text-zinc-400">{r.tip}</td>
-                    <td className="py-4 px-5 text-sm text-white font-semibold tabular-nums">{getDisplayOdds(r) || '-'}</td>
-                    <td className="py-4 px-5 text-sm text-zinc-300 tabular-nums">{eur(getDisplayStake(r) || 0)}</td>
-                    <td className={`py-4 px-5 text-sm font-semibold tabular-nums ${r.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <td className="py-4 px-5 text-sm text-slate-800 font-semibold">{r.dogodek}</td>
+                    <td className="py-4 px-5 text-sm text-slate-500">{r.tip}</td>
+                    <td className="py-4 px-5 text-sm text-slate-800 font-bold tabular-nums">{getDisplayOdds(r) || '-'}</td>
+                    <td className="py-4 px-5 text-sm text-slate-600 tabular-nums">{eur(getDisplayStake(r) || 0)}</td>
+                    <td className={`py-4 px-5 text-sm font-bold tabular-nums ${r.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {eur(r.profit)}
                     </td>
-                    <td className="py-4 px-5 text-sm text-zinc-500">{r.sport}</td>
-                    <td className="py-4 px-5 text-sm text-zinc-300">{r.tipster}</td>
-                    <td className="py-4 px-5 text-sm text-zinc-300">{r.stavnica}</td>
+                    <td className="py-4 px-5 text-sm text-slate-500">{r.sport}</td>
+                    <td className="py-4 px-5 text-sm text-slate-600 font-medium">{r.tipster}</td>
+                    <td className="py-4 px-5 text-sm text-slate-600">{r.stavnica}</td>
                     <td className="py-4 px-5 text-right">
                       <button
                         onClick={() => deleteBet(r.id)}
-                        className="p-2 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all duration-300"
+                        className="p-2 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all duration-300"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -630,7 +625,7 @@ export default function BetsPage() {
 
                 {!computed.withProfit.length && (
                   <tr>
-                    <td colSpan={11} className="py-12 text-center text-zinc-600">
+                    <td colSpan={11} className="py-16 text-center text-slate-400 font-medium">
                       Ni stav za izbrani mesec.
                     </td>
                   </tr>
@@ -641,9 +636,9 @@ export default function BetsPage() {
         </section>
 
         {/* Footer */}
-        <footer className="mt-16 pt-8 border-t border-zinc-800/50">
-          <div className="flex items-center justify-between text-xs text-zinc-600">
-            <span>DDTips Match Analysis & Picks</span>
+        <footer className="mt-12 pt-6 border-t border-slate-200">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span className="font-medium">DDTips Match Analysis & Picks</span>
             <span>Zadnja posodobitev: {new Date().toLocaleDateString("sl-SI")}</span>
           </div>
         </footer>
@@ -653,39 +648,39 @@ export default function BetsPage() {
       {editOpen && (
         <div
           onClick={() => setEditOpen(false)}
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full shadow-2xl"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-white">Zapri stavo</h3>
+              <h3 className="text-lg font-bold text-slate-800">Zapri stavo</h3>
               <button 
                 onClick={() => setEditOpen(false)}
-                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <X className="w-4 h-4 text-zinc-400" />
+                <X className="w-4 h-4 text-slate-400" />
               </button>
             </div>
             
             <div className="mb-6">
-              <label className="block text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400 mb-3">Rezultat</label>
+              <label className="block text-xs font-bold tracking-wide uppercase text-slate-500 mb-3">Rezultat</label>
               <div className="grid grid-cols-4 gap-2">
                 {(["OPEN", "WIN", "LOSS", "VOID"] as WL[]).map((status) => (
                   <button
                     key={status}
                     onClick={() => setEditWl(status)}
-                    className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                    className={`px-4 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
                       editWl === status 
                         ? status === "WIN" 
-                          ? "bg-emerald-500 text-white" 
+                          ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30" 
                           : status === "LOSS" 
-                          ? "bg-rose-500 text-white"
+                          ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30"
                           : status === "VOID"
-                          ? "bg-zinc-500 text-white"
-                          : "bg-amber-500 text-white"
-                        : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                          ? "bg-slate-500 text-white shadow-lg"
+                          : "bg-amber-500 text-white shadow-lg shadow-amber-500/30"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
                     {status}
@@ -697,13 +692,13 @@ export default function BetsPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setEditOpen(false)}
-                className="flex-1 px-6 py-3 bg-zinc-800 text-zinc-300 font-semibold rounded-xl hover:bg-zinc-700 transition-all duration-300"
+                className="flex-1 px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all duration-300"
               >
                 Prekliči
               </button>
               <button
                 onClick={saveEdit}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-500 transition-all duration-300"
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all duration-300 shadow-lg shadow-emerald-500/30"
               >
                 <Check className="w-4 h-4" />
                 Shrani
