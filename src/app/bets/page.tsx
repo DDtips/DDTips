@@ -54,6 +54,12 @@ function eur(n: number) {
   return `${sign}${v.toLocaleString("sl-SI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
+function eurCompact(n: number) {
+  const sign = n < 0 ? "-" : "";
+  const v = Math.abs(n);
+  return `${sign}${v.toLocaleString("sl-SI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€`;
+}
+
 function parseNum(x: string) {
   const s = (x ?? "").toString().trim().replace(/\s+/g, "").replace(",", ".");
   const n = Number(s);
@@ -74,7 +80,6 @@ function hasLay(b: BetRow): boolean {
   return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0;
 }
 
-// Izračun profita
 function calcProfit(b: BetRow): number {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
 
@@ -88,7 +93,6 @@ function calcProfit(b: BetRow): number {
   const layOdds = b.lay_kvota || 0;
   const layLiability = (layOdds - 1) * layStake;
 
-  // Samo lay (brez back)
   if (!hasBackBet && hasLayBet) {
     if (b.wl === "WIN") {
       return layStake - kom;
@@ -97,14 +101,12 @@ function calcProfit(b: BetRow): number {
     }
   }
 
-  // Samo back (brez lay)
   if (hasBackBet && !hasLayBet) {
     if (b.wl === "WIN") return backStake * (backOdds - 1) - kom;
     if (b.wl === "LOSS") return -backStake - kom;
     return 0;
   }
 
-  // Back + Lay (trading)
   if (hasBackBet && hasLayBet) {
     if (b.wl === "WIN") {
       const backProfit = backStake * (backOdds - 1);
@@ -117,7 +119,6 @@ function calcProfit(b: BetRow): number {
   return 0;
 }
 
-// Izračun efektivne kvote: 1 + (dobiček / tveganje)
 function calcEffectiveOdds(b: BetRow): number | null {
   const hasBackBet = hasBack(b);
   const hasLayBet = hasLay(b);
@@ -129,23 +130,16 @@ function calcEffectiveOdds(b: BetRow): number | null {
   const layLiability = (layOdds - 1) * layStake;
   const kom = Number(b.komisija ?? 0);
 
-  // Samo back kvota - klasična stava
   if (hasBackBet && !hasLayBet) {
     return backOdds;
   }
   
-  // Samo lay kvota
-  // Tveganje = layLiability, Dobiček = layStake - kom
-  // Efektivna = 1 + (layStake - kom) / layLiability
   if (!hasBackBet && hasLayBet) {
     if (layLiability <= 0) return null;
     const profit = layStake - kom;
     return 1 + profit / layLiability;
   }
   
-  // Back + Lay (trading/hedge)
-  // Tveganje = layLiability (max izguba)
-  // Dobiček ob WIN = backProfit - layLiability - kom
   if (hasBackBet && hasLayBet) {
     if (layLiability <= 0) return null;
     const backProfit = backStake * (backOdds - 1);
@@ -161,26 +155,13 @@ function getCurrentMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function InputField({ 
-  label, 
-  value, 
-  onChange, 
-  placeholder, 
-  type = "text",
-  icon
-}: { 
-  label: string; 
-  value: string; 
-  onChange: (v: string) => void; 
-  placeholder?: string;
-  type?: string;
-  icon?: React.ReactNode;
+function InputField({ label, value, onChange, placeholder, type = "text", icon }: { 
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; icon?: React.ReactNode;
 }) {
   return (
     <div className="space-y-2">
       <label className="flex items-center justify-center gap-2 text-[10px] font-bold tracking-widest uppercase text-zinc-500">
-        {icon}
-        {label}
+        {icon}{label}
       </label>
       <input
         type={type}
@@ -193,24 +174,13 @@ function InputField({
   );
 }
 
-function SelectField({ 
-  label, 
-  value, 
-  onChange, 
-  options,
-  icon
-}: { 
-  label: string; 
-  value: string; 
-  onChange: (v: string) => void; 
-  options: readonly string[];
-  icon?: React.ReactNode;
+function SelectField({ label, value, onChange, options, icon }: { 
+  label: string; value: string; onChange: (v: string) => void; options: readonly string[]; icon?: React.ReactNode;
 }) {
   return (
     <div className="space-y-2">
       <label className="flex items-center justify-center gap-2 text-[10px] font-bold tracking-widest uppercase text-zinc-500">
-        {icon}
-        {label}
+        {icon}{label}
       </label>
       <select
         value={value}
@@ -236,14 +206,14 @@ function StatusBadge({ wl, onClick }: { wl: WL; onClick?: () => void }) {
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${styles[wl]} transition-all duration-300 hover:scale-105 cursor-pointer`}
+      className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${styles[wl]} transition-all duration-300 hover:scale-105 cursor-pointer`}
     >
       {wl}
     </button>
   );
 }
 
-function TooltipCell({ text, maxWidth = "150px" }: { text: string; maxWidth?: string }) {
+function TooltipCell({ text, className = "" }: { text: string; className?: string }) {
   const [showTooltip, setShowTooltip] = useState(false);
   
   return (
@@ -252,13 +222,10 @@ function TooltipCell({ text, maxWidth = "150px" }: { text: string; maxWidth?: st
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
     >
-      <span 
-        className="block truncate text-sm text-white font-medium text-center cursor-default"
-        style={{ maxWidth }}
-      >
+      <span className={`block truncate cursor-default ${className}`}>
         {text}
       </span>
-      {showTooltip && text.length > 15 && (
+      {showTooltip && text.length > 12 && (
         <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl whitespace-nowrap">
           <span className="text-sm text-white">{text}</span>
           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800"></div>
@@ -455,8 +422,8 @@ export default function BetsPage() {
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
       
-      <div className="relative max-w-[1600px] mx-auto px-4 md:px-8 py-8 md:py-12">
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+      <div className="relative max-w-[1800px] mx-auto px-4 md:px-6 py-8 md:py-12">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
           <div className="text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
                 <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
@@ -571,46 +538,52 @@ export default function BetsPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-zinc-800/50 bg-zinc-900/50">
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Datum</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Status</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Dogodek</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Tip</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Back Kvota</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Back Vplačilo</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Lay Kvota</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Lay Vplačilo</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Efekt. Kvota</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Komisija</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Profit</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Šport</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Tipster</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500">Stavnica</th>
-                  <th className="text-center py-4 px-3 text-[10px] font-bold tracking-widest uppercase text-zinc-500"></th>
+                  <th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">Datum</th>
+                  <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Status</th>
+                  <th className="text-left py-3 px-2 font-bold tracking-wider uppercase text-zinc-500" style={{minWidth: '160px'}}>Dogodek</th>
+                  <th className="text-left py-3 px-2 font-bold tracking-wider uppercase text-zinc-500" style={{minWidth: '140px'}}>Tip</th>
+                  <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Back</th>
+                  <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Vplač.</th>
+                  <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Lay</th>
+                  <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Vplač.</th>
+                  <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Efekt.</th>
+                  <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Kom.</th>
+                  <th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">Profit</th>
+                  <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Šport</th>
+                  <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Tipster</th>
+                  <th className="text-right py-3 px-3 font-bold tracking-wider uppercase text-zinc-500">Stavnica</th>
+                  <th className="w-[30px]"></th>
                 </tr>
               </thead>
               <tbody>
                 {computed.withProfit.map((r, idx) => (
                   <tr key={r.id} className={`border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors group ${idx % 2 === 0 ? 'bg-zinc-900/20' : 'bg-zinc-900/40'}`}>
-                    <td className="py-3 px-3 text-sm text-zinc-300 text-center">{formatDateSlovenian(r.datum)}</td>
-                    <td className="py-3 px-3 text-center"><StatusBadge wl={r.wl} onClick={() => openEdit(r)} /></td>
-                    <td className="py-3 px-3"><TooltipCell text={r.dogodek} maxWidth="150px" /></td>
-                    <td className="py-3 px-3 text-sm text-zinc-400 text-center max-w-[100px] truncate">{r.tip}</td>
-                    <td className="py-3 px-3 text-sm text-white font-semibold tabular-nums text-center">{r.kvota1 > 0 ? r.kvota1.toFixed(2) : '-'}</td>
-                    <td className="py-3 px-3 text-sm text-zinc-300 tabular-nums text-center">{r.vplacilo1 > 0 ? eur(r.vplacilo1) : '-'}</td>
-                    <td className="py-3 px-3 text-sm text-sky-400 font-semibold tabular-nums text-center">{(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : '-'}</td>
-                    <td className="py-3 px-3 text-sm text-sky-300 tabular-nums text-center">{(r.vplacilo2 ?? 0) > 0 ? eur(r.vplacilo2 ?? 0) : '-'}</td>
-                    <td className="py-3 px-3 text-sm text-amber-400 font-semibold tabular-nums text-center">{r.effectiveOdds !== null ? r.effectiveOdds.toFixed(2) : '-'}</td>
-                    <td className="py-3 px-3 text-sm text-zinc-500 tabular-nums text-center">{(r.komisija ?? 0) > 0 ? eur(r.komisija ?? 0) : '-'}</td>
-                    <td className={`py-3 px-3 text-sm font-bold tabular-nums text-center ${r.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(r.profit)}</td>
-                    <td className="py-3 px-3 text-sm text-zinc-500 text-center">{r.sport}</td>
-                    <td className="py-3 px-3 text-center"><span className="px-2 py-1 rounded-md bg-zinc-800 text-xs font-bold text-zinc-300 border border-zinc-700">{r.tipster}</span></td>
-                    <td className="py-3 px-3 text-sm text-zinc-400 text-center">{r.stavnica}</td>
-                    <td className="py-3 px-3 text-center">
-                      <button onClick={() => deleteBet(r.id)} className="p-2 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                        <Trash2 className="w-4 h-4" />
+                    <td className="py-2.5 px-2 text-zinc-300 text-center whitespace-nowrap">{formatDateSlovenian(r.datum)}</td>
+                    <td className="py-2.5 px-1 text-center"><StatusBadge wl={r.wl} onClick={() => openEdit(r)} /></td>
+                    <td className="py-2.5 px-2 text-left" style={{maxWidth: '160px'}}>
+                      <TooltipCell text={r.dogodek} className="text-white font-medium" />
+                    </td>
+                    <td className="py-2.5 px-2 text-left" style={{maxWidth: '140px'}}>
+                      <TooltipCell text={r.tip} className="text-zinc-400" />
+                    </td>
+                    <td className="py-2.5 px-1 text-white font-semibold tabular-nums text-center">{r.kvota1 > 0 ? r.kvota1.toFixed(2) : '-'}</td>
+                    <td className="py-2.5 px-1 text-zinc-300 tabular-nums text-center whitespace-nowrap">{r.vplacilo1 > 0 ? eurCompact(r.vplacilo1) : '-'}</td>
+                    <td className="py-2.5 px-1 text-sky-400 font-semibold tabular-nums text-center">{(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : '-'}</td>
+                    <td className="py-2.5 px-1 text-sky-300 tabular-nums text-center whitespace-nowrap">{(r.vplacilo2 ?? 0) > 0 ? eurCompact(r.vplacilo2 ?? 0) : '-'}</td>
+                    <td className="py-2.5 px-1 text-amber-400 font-semibold tabular-nums text-center">{r.effectiveOdds !== null ? r.effectiveOdds.toFixed(2) : '-'}</td>
+                    <td className="py-2.5 px-1 text-zinc-500 tabular-nums text-center">{(r.komisija ?? 0) > 0 ? eurCompact(r.komisija ?? 0) : '-'}</td>
+                    <td className={`py-2.5 px-2 font-bold tabular-nums text-center whitespace-nowrap ${r.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{eurCompact(r.profit)}</td>
+                    <td className="py-2.5 px-1 text-zinc-500 text-center">{r.sport}</td>
+                    <td className="py-2.5 px-1 text-center">
+                      <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-bold text-zinc-300 border border-zinc-700">{r.tipster}</span>
+                    </td>
+                    <td className="py-2.5 px-3 text-zinc-400 text-right">{r.stavnica}</td>
+                    <td className="py-2.5 px-1 text-center">
+                      <button onClick={() => deleteBet(r.id)} className="p-1.5 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </td>
                   </tr>
