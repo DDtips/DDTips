@@ -53,8 +53,6 @@ type Bet = {
 };
 
 // --- CONSTANTS ---
-// Odstranil sem CAPITAL konstante, če jih ne rabimo direktno za izračun bankrolla iz nule,
-// ampak uporabljamo BOOK_START.
 const BOOK_START: Record<string, number> = {
   SHARP: 2000,
   PINNACLE: 2000,
@@ -79,29 +77,71 @@ function hasLay(b: Bet) {
   return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0;
 }
 
+function hasBack(b: Bet) {
+  return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0;
+}
+
+function calcEffectiveOdds(b: Bet): number | null {
+  const hasBackBet = hasBack(b);
+  const hasLayBet = hasLay(b);
+  
+  if (hasBackBet && !hasLayBet) {
+    return b.kvota1;
+  }
+  
+  if (!hasBackBet && hasLayBet) {
+    const layLiability = (b.lay_kvota - 1) * b.vplacilo2;
+    if (layLiability <= 0) return null;
+    return b.vplacilo2 / layLiability + 1;
+  }
+  
+  if (hasBackBet && hasLayBet) {
+    const layLiability = (b.lay_kvota - 1) * b.vplacilo2;
+    const netStake = b.vplacilo1 - b.vplacilo2;
+    const potentialWin = (b.kvota1 - 1) * b.vplacilo1 - layLiability;
+    
+    if (netStake <= 0) return null;
+    return potentialWin / netStake + 1;
+  }
+  
+  return null;
+}
+
 function calcProfit(b: Bet): number {
   const kom = b.komisija || 0;
   if (b.wl !== "WIN" && b.wl !== "LOSS") return 0;
 
-  if (!hasLay(b)) {
+  const hasBackBet = hasBack(b);
+  const hasLayBet = hasLay(b);
+
+  if (!hasBackBet && hasLayBet) {
+    const layLiability = (b.lay_kvota - 1) * b.vplacilo2;
+    if (b.wl === "WIN") {
+      return b.vplacilo2 - kom;
+    } else {
+      return -layLiability - kom;
+    }
+  }
+
+  if (hasBackBet && !hasLayBet) {
     if (b.wl === "WIN") return b.vplacilo1 * (b.kvota1 - 1) - kom;
     if (b.wl === "LOSS") return -b.vplacilo1 - kom;
     return 0;
   }
 
-  const backStake = b.vplacilo1;
-  const backOdds = b.kvota1;
-  const layStake = b.vplacilo2;
-  const layOdds = b.lay_kvota;
-  const liability = (layOdds - 1) * layStake;
-
-  if (b.wl === "WIN") return backStake * (backOdds - 1) - liability - kom;
-  if (b.wl === "LOSS") return -backStake + layStake - kom;
+  if (hasBackBet && hasLayBet) {
+    const layLiability = (b.lay_kvota - 1) * b.vplacilo2;
+    
+    if (b.wl === "WIN") {
+      return b.vplacilo1 * (b.kvota1 - 1) - layLiability - kom;
+    } else {
+      return -b.vplacilo1 + b.vplacilo2 - kom;
+    }
+  }
 
   return 0;
 }
 
-// --- STATS LOGIC ---
 function buildStats(rows: Bet[]) {
   const settled = rows.filter((r) => r.wl === "WIN" || r.wl === "LOSS");
 
@@ -110,30 +150,36 @@ function buildStats(rows: Bet[]) {
   const losses = settled.filter((r) => r.wl === "LOSS").length;
   const profit = settled.reduce((acc, r) => acc + calcProfit(r), 0);
   
-  const avgOdds = n === 0 ? 0 : settled.reduce((acc, r) => acc + (Number(r.kvota1) || 0), 0) / n;
+  const effectiveOdds = settled.map(r => calcEffectiveOdds(r)).filter(o => o !== null) as number[];
+  const avgOdds = effectiveOdds.length > 0 
+    ? effectiveOdds.reduce((acc, o) => acc + o, 0) / effectiveOdds.length 
+    : 0;
   
-  // ROI calculation based on total turnover (sum of stakes)
-  const totalStaked = settled.reduce((acc, r) => acc + r.vplacilo1, 0);
+  const totalStaked = settled.reduce((acc, r) => {
+    if (hasBack(r)) return acc + r.vplacilo1;
+    if (hasLay(r)) return acc + r.vplacilo2;
+    return acc;
+  }, 0);
   const roi = totalStaked === 0 ? 0 : profit / totalStaked;
   
   const winRate = n > 0 ? (wins / n) * 100 : 0;
 
-  // Chart Data Preparation
   let runningProfit = 0;
   const chartData = settled
     .sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime())
     .map((b) => {
       const p = calcProfit(b);
       runningProfit += p;
+      const date = new Date(b.datum);
       return {
-        date: new Date(b.datum).toLocaleDateString('sl-SI', { day: 'numeric', month: 'short' }),
+        date: date.toLocaleDateString('sl-SI', { day: 'numeric', month: 'short' }),
+        monthName: date.toLocaleDateString('sl-SI', { month: 'short', year: '2-digit' }),
         fullDate: b.datum,
         profit: runningProfit,
         daily: p
       };
     });
 
-  // Balance Logic
   const profitByBook = new Map<string, number>();
   settled.forEach((r) => {
     const key = normBook(r.stavnica || "NEZNANO");
@@ -146,14 +192,12 @@ function buildStats(rows: Bet[]) {
     balanceByBook.push({ name, start, profit: p, balance: start + p });
   });
   
-  // Dodaj stavnice, ki niso v BOOK_START, ampak imajo profit
   profitByBook.forEach((val, key) => {
     if (!BOOK_START[key]) {
         balanceByBook.push({ name: key, start: 0, profit: val, balance: val });
     }
   });
 
-  // Sort by balance descending
   balanceByBook.sort((a, b) => b.balance - a.balance);
 
   return { profit, n, wins, losses, avgOdds, roi, chartData, balanceByBook, winRate, settled };
@@ -172,8 +216,6 @@ function buildStatsByCategory(rows: Bet[], category: 'tipster' | 'sport' | 'cas_
     return { name, ...stats };
   }).sort((a, b) => b.profit - a.profit);
 }
-
-// --- COMPONENTS ---
 
 function MetricCard({ 
   title, 
@@ -210,21 +252,21 @@ function MetricCard({
 
   return (
     <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${gradients[accentColor]} border backdrop-blur-md transition-all duration-300 hover:-translate-y-1`}>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-xs font-bold tracking-wider uppercase text-zinc-500">{title}</span>
+      <div className="p-6 text-center">
+        <div className="flex items-center justify-center gap-2 mb-4">
           <div className={`p-2 rounded-lg bg-white/5 ${textColors[accentColor]}`}>
             {icon}
           </div>
+          <span className="text-xs font-bold tracking-wider uppercase text-zinc-500">{title}</span>
         </div>
         
-        <div className="flex items-baseline gap-3">
+        <div className="flex items-center justify-center gap-3">
           <span className={`${big ? "text-3xl md:text-4xl" : "text-2xl"} font-bold tracking-tight text-white`}>
             {value}
           </span>
           {trend && trend !== "neutral" && (
             <div className={`flex items-center text-sm font-medium ${trend === "up" ? "text-emerald-400" : "text-rose-400"}`}>
-              {trend === "up" ? <ArrowUpRight className="w-4 h-4 mr-1" /> : <ArrowDownRight className="w-4 h-4 mr-1" />}
+              {trend === "up" ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
             </div>
           )}
         </div>
@@ -252,14 +294,14 @@ function InputField({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase text-zinc-500">
+      <label className="flex items-center justify-center gap-2 text-[10px] font-bold tracking-widest uppercase text-zinc-500">
         {icon} {label}
       </label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-sm focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all placeholder:text-zinc-700"
+        className="w-full px-3 py-2 bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-sm text-center focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all placeholder:text-zinc-700"
       />
     </div>
   );
@@ -280,14 +322,14 @@ function SelectField({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase text-zinc-500">
+      <label className="flex items-center justify-center gap-2 text-[10px] font-bold tracking-widest uppercase text-zinc-500">
         {icon} {label}
       </label>
       <div className="relative">
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full pl-3 pr-8 py-2 appearance-none bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-sm focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer"
+          className="w-full pl-3 pr-8 py-2 appearance-none bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-sm text-center focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer"
         >
           {options.map((opt) => (
             <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>
@@ -301,15 +343,12 @@ function SelectField({
   );
 }
 
-// --- MAIN PAGE ---
-
 export default function StatsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // Filter states
   const [sport, setSport] = useState("ALL");
   const [tipster, setTipster] = useState("ALL");
   const [stavnica, setStavnica] = useState("ALL");
@@ -365,9 +404,11 @@ export default function StatsPage() {
       if (appliedFilters.toDate && r.datum > appliedFilters.toDate) return false;
       
       if (appliedFilters.oddsFilter !== "ALL") {
+        const effOdds = calcEffectiveOdds(r);
         const threshold = parseFloat(appliedFilters.oddsValue);
-        if (appliedFilters.oddsFilter === "OVER" && r.kvota1 <= threshold) return false;
-        if (appliedFilters.oddsFilter === "UNDER" && r.kvota1 >= threshold) return false;
+        if (effOdds === null) return true;
+        if (appliedFilters.oddsFilter === "OVER" && effOdds <= threshold) return false;
+        if (appliedFilters.oddsFilter === "UNDER" && effOdds >= threshold) return false;
       }
       return true;
     });
@@ -401,16 +442,14 @@ export default function StatsPage() {
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
-      {/* Ambient Background */}
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
 
       <div className="relative max-w-[1400px] mx-auto px-4 md:px-8 py-8 md:py-12">
         
-        {/* Header */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
+          <div className="text-center md:text-left">
+            <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
                 <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
                     <Activity className="w-5 h-5 text-emerald-400" />
                 </div>
@@ -422,7 +461,7 @@ export default function StatsPage() {
             <p className="text-zinc-400 font-medium">Pregled donosnosti in analitika stav</p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center md:justify-end gap-3">
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
               className={`flex items-center gap-2 px-5 py-3 rounded-xl border transition-all duration-200 ${filtersOpen ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'}`}
@@ -439,7 +478,6 @@ export default function StatsPage() {
           </div>
         </header>
 
-        {/* Filter Panel */}
         <div className={`overflow-hidden transition-all duration-300 ease-in-out ${filtersOpen ? 'max-h-[500px] opacity-100 mb-8' : 'max-h-0 opacity-0 mb-0'}`}>
           <div className="p-6 rounded-2xl bg-zinc-900/80 border border-zinc-800 backdrop-blur-xl">
              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
@@ -448,18 +486,17 @@ export default function StatsPage() {
                 <SelectField label="Šport" value={sport} onChange={setSport} options={["ALL", ...SPORTI]} icon={<Target className="w-3 h-3" />} />
                 <SelectField label="Tipster" value={tipster} onChange={setTipster} options={["ALL", ...TIPSTERJI]} icon={<Users className="w-3 h-3" />} />
                 <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3 h-3" />} />
-                <SelectField label="Cas" value={cas} onChange={(v: string) => setCas(v as "ALL" | Cas)} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3 h-3" />} />
-                <SelectField label="Filter Kvot" value={oddsFilter} onChange={(v: string) => setOddsFilter(v as "ALL" | "OVER" | "UNDER")} options={["ALL", "OVER", "UNDER"]} icon={<TrendingUp className="w-3 h-3" />} />
+                <SelectField label="Čas" value={cas} onChange={(v: string) => setCas(v as "ALL" | Cas)} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3 h-3" />} />
+                <SelectField label="Efekt. Kvota" value={oddsFilter} onChange={(v: string) => setOddsFilter(v as "ALL" | "OVER" | "UNDER")} options={["ALL", "OVER", "UNDER"]} icon={<TrendingUp className="w-3 h-3" />} />
                 <InputField label="Vrednost" value={oddsValue} onChange={setOddsValue} type="number" icon={<Zap className="w-3 h-3" />} />
              </div>
-             <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
+             <div className="flex justify-center md:justify-end gap-3 pt-4 border-t border-zinc-800">
                 <button onClick={handleClearFilters} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-zinc-500 hover:text-white transition-colors">Počisti</button>
                 <button onClick={handleApplyFilters} className="px-6 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-zinc-200 transition-colors">Uporabi</button>
              </div>
           </div>
         </div>
 
-        {/* Top KPI Grid */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
             <MetricCard
               title="Skupni Profit"
@@ -485,7 +522,7 @@ export default function StatsPage() {
               accentColor="sky"
             />
             <MetricCard
-              title="Povprečna Kvota"
+              title="Povp. Efektivna Kvota"
               value={stats.avgOdds.toFixed(2)}
               subtitle="Tehtano povprečje"
               icon={<Zap className="w-5 h-5" />}
@@ -493,16 +530,14 @@ export default function StatsPage() {
             />
         </section>
 
-        {/* Main Chart Section */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* Chart */}
             <div className="lg:col-span-2 rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6 md:p-8">
-                <div className="flex items-center justify-between mb-8">
-                    <div>
+                <div className="flex items-center justify-center md:justify-between mb-8">
+                    <div className="text-center md:text-left">
                         <h3 className="text-lg font-bold text-white">Rast Profita</h3>
                         <p className="text-sm text-zinc-500">Kumulativni pregled skozi čas</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="hidden md:flex gap-2">
                          <div className="flex items-center gap-2 text-xs text-zinc-500">
                             <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Profit
                         </div>
@@ -553,11 +588,10 @@ export default function StatsPage() {
                 </div>
             </div>
 
-            {/* Bankroll / Bookies */}
             <div className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6 md:p-8 flex flex-col">
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center justify-center gap-3 mb-6">
                     <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500"><Wallet className="w-5 h-5" /></div>
-                    <div>
+                    <div className="text-center">
                         <h3 className="text-lg font-bold text-white">Stanja Stavnic</h3>
                         <p className="text-sm text-zinc-500">Razporeditev kapitala</p>
                     </div>
@@ -579,7 +613,7 @@ export default function StatsPage() {
                     ))}
                 </div>
                 <div className="mt-6 pt-6 border-t border-zinc-800">
-                    <div className="flex justify-between items-end">
+                    <div className="flex flex-col items-center gap-1">
                         <span className="text-sm font-medium text-zinc-500">Skupna banka</span>
                         <span className="text-2xl font-bold text-white tracking-tight">{eur(stats.balanceByBook.reduce((a, b) => a + b.balance, 0))}</span>
                     </div>
@@ -587,13 +621,10 @@ export default function StatsPage() {
             </div>
         </section>
 
-        {/* Detailed Breakdowns */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-            {/* By Tipster */}
             <div>
-                 <div className="flex items-center justify-between mb-6 px-1">
+                 <div className="flex items-center justify-center md:justify-between mb-6 px-1">
                     <h3 className="font-bold text-xl text-white">Top Tipsterji</h3>
-                    <button onClick={() => setTipster("ALL")} className="text-xs text-zinc-500 hover:text-white uppercase tracking-wider">Prikaži vse</button>
                  </div>
                  <div className="space-y-3">
                     {statsByTipster.slice(0, 5).map((t, i) => (
@@ -609,6 +640,10 @@ export default function StatsPage() {
                                         <div className="text-xs text-zinc-500 uppercase">Yield</div>
                                         <div className={`font-mono font-medium ${(t.roi * 100) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{(t.roi * 100).toFixed(1)}%</div>
                                     </div>
+                                    <div className="text-right hidden sm:block">
+                                        <div className="text-xs text-zinc-500 uppercase">Efekt. Kvota</div>
+                                        <div className="font-mono font-medium text-amber-400">{t.avgOdds.toFixed(2)}</div>
+                                    </div>
                                     <div className="text-right w-24">
                                         <div className="text-xs text-zinc-500 uppercase">Profit</div>
                                         <div className={`font-mono font-bold ${t.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(t.profit)}</div>
@@ -620,21 +655,20 @@ export default function StatsPage() {
                  </div>
             </div>
 
-            {/* By Sport */}
             <div>
-                 <div className="flex items-center justify-between mb-6 px-1">
+                 <div className="flex items-center justify-center md:justify-between mb-6 px-1">
                     <h3 className="font-bold text-xl text-white">Po Športih</h3>
                  </div>
                  <div className="grid grid-cols-2 gap-3">
                     {statsBySport.map((s) => (
-                         <div key={s.name} className="rounded-xl bg-zinc-900/30 border border-zinc-800/50 p-4 hover:bg-zinc-800/50 transition-colors">
-                            <div className="flex justify-between items-start mb-2">
+                         <div key={s.name} className="rounded-xl bg-zinc-900/30 border border-zinc-800/50 p-4 hover:bg-zinc-800/50 transition-colors text-center">
+                            <div className="flex justify-center items-center gap-2 mb-2">
                                 <span className="text-xs font-bold text-zinc-500 tracking-wider uppercase">{s.name}</span>
                                 {s.profit > 0 ? <TrendingUp className="w-3 h-3 text-emerald-500" /> : <TrendingUp className="w-3 h-3 text-rose-500 rotate-180" />}
                             </div>
-                            <div className="flex justify-between items-end">
+                            <div className="flex flex-col items-center gap-1">
                                 <span className={`text-lg font-bold ${s.profit >= 0 ? "text-white" : "text-zinc-400"}`}>{eur(s.profit)}</span>
-                                <span className="text-xs text-zinc-500">{s.n} stav</span>
+                                <span className="text-xs text-zinc-500">{s.n} stav • Kvota: {s.avgOdds.toFixed(2)}</span>
                             </div>
                          </div>
                     ))}
@@ -642,9 +676,8 @@ export default function StatsPage() {
             </div>
         </section>
 
-        {/* Recent Activity Table */}
         <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
-            <div className="p-6 border-b border-zinc-800/50 flex items-center gap-3">
+            <div className="p-6 border-b border-zinc-800/50 flex items-center justify-center gap-3">
                 <TableIcon className="w-5 h-5 text-zinc-400" />
                 <h3 className="font-bold text-white">Zadnje Stave</h3>
             </div>
@@ -652,29 +685,32 @@ export default function StatsPage() {
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-zinc-900/50 text-xs text-zinc-500 uppercase tracking-wider">
-                            <th className="p-4 font-semibold">Datum</th>
-                            <th className="p-4 font-semibold">Šport</th>
-                            <th className="p-4 font-semibold">Tipster</th>
-                            <th className="p-4 font-semibold">Stavnica</th>
-                            <th className="p-4 font-semibold text-right">Kvota</th>
-                            <th className="p-4 font-semibold text-right">Vplačilo</th>
+                            <th className="p-4 font-semibold text-center">Datum</th>
+                            <th className="p-4 font-semibold text-center">Šport</th>
+                            <th className="p-4 font-semibold text-center">Tipster</th>
+                            <th className="p-4 font-semibold text-center">Stavnica</th>
+                            <th className="p-4 font-semibold text-center">Efekt. Kvota</th>
+                            <th className="p-4 font-semibold text-center">Vplačilo</th>
                             <th className="p-4 font-semibold text-center">Stanje</th>
-                            <th className="p-4 font-semibold text-right">Profit</th>
+                            <th className="p-4 font-semibold text-center">Profit</th>
                         </tr>
                     </thead>
                     <tbody className="text-sm divide-y divide-zinc-800/50">
-                        {stats.settled.slice().reverse().slice(0, 10).map((row) => (
+                        {stats.settled.slice().reverse().slice(0, 10).map((row) => {
+                            const effOdds = calcEffectiveOdds(row);
+                            const stake = hasBack(row) ? row.vplacilo1 : row.vplacilo2;
+                            return (
                             <tr key={row.id} className="hover:bg-zinc-800/30 transition-colors group">
-                                <td className="p-4 text-zinc-300 font-medium">
+                                <td className="p-4 text-zinc-300 font-medium text-center">
                                     {new Date(row.datum).toLocaleDateString("sl-SI")}
                                 </td>
-                                <td className="p-4 text-zinc-400">{row.sport}</td>
-                                <td className="p-4">
+                                <td className="p-4 text-zinc-400 text-center">{row.sport}</td>
+                                <td className="p-4 text-center">
                                     <span className="px-2 py-1 rounded-md bg-zinc-800 text-xs font-bold text-zinc-300 border border-zinc-700">{row.tipster}</span>
                                 </td>
-                                <td className="p-4 text-zinc-400 text-xs">{row.stavnica}</td>
-                                <td className="p-4 text-right font-mono text-zinc-300">{row.kvota1.toFixed(2)}</td>
-                                <td className="p-4 text-right font-mono text-zinc-300">{eur(row.vplacilo1)}</td>
+                                <td className="p-4 text-zinc-400 text-xs text-center">{row.stavnica}</td>
+                                <td className="p-4 text-center font-mono text-amber-400 font-semibold">{effOdds !== null ? effOdds.toFixed(2) : '-'}</td>
+                                <td className="p-4 text-center font-mono text-zinc-300">{eur(stake)}</td>
                                 <td className="p-4 text-center">
                                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${
                                         row.wl === 'WIN' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
@@ -684,11 +720,11 @@ export default function StatsPage() {
                                         {row.wl}
                                     </span>
                                 </td>
-                                <td className={`p-4 text-right font-mono font-bold ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                <td className={`p-4 text-center font-mono font-bold ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                                     {eur(calcProfit(row))}
                                 </td>
                             </tr>
-                        ))}
+                        )})}
                     </tbody>
                 </table>
             </div>
@@ -697,10 +733,9 @@ export default function StatsPage() {
              </div>
         </section>
 
-        {/* Footer */}
-        <footer className="mt-12 pt-8 border-t border-zinc-900 text-center md:text-left flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs">
+        <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
           <p>© 2024 DDTips Analytics. Vse pravice pridržane.</p>
-          <p className="mt-2 md:mt-0 font-mono">Last updated: {new Date().toLocaleTimeString()}</p>
+          <p className="font-mono">Last updated: {new Date().toLocaleTimeString()}</p>
         </footer>
       </div>
     </main>
