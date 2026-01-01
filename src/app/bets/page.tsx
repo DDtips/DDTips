@@ -19,8 +19,7 @@ import {
   Activity,
   X,
   Check,
-  Percent,
-  Zap
+  Percent
 } from "lucide-react";
 
 type WL = "OPEN" | "WIN" | "LOSS" | "VOID";
@@ -75,40 +74,7 @@ function hasLay(b: BetRow): boolean {
   return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0;
 }
 
-// Nova funkcija za izračun efektivne kvote
-function calcEffectiveOdds(b: BetRow): number | null {
-  const hasBackBet = hasBack(b);
-  const hasLayBet = hasLay(b);
-  
-  // Samo back kvota
-  if (hasBackBet && !hasLayBet) {
-    return b.kvota1;
-  }
-  
-  // Samo lay kvota
-  // Primer: lay 1.20 za 100€ -> zmagaš 100€, zgubiš 20€ -> efektivna = 100/20 + 1 = 6
-  if (!hasBackBet && hasLayBet) {
-    const layLiability = ((b.lay_kvota || 0) - 1) * (b.vplacilo2 || 0);
-    if (layLiability <= 0) return null;
-    return (b.vplacilo2 || 0) / layLiability + 1;
-  }
-  
-  // Oboje - back + lay (trading)
-  if (hasBackBet && hasLayBet) {
-    const layLiability = ((b.lay_kvota || 0) - 1) * (b.vplacilo2 || 0);
-    const netStake = b.vplacilo1 - (b.vplacilo2 || 0);
-    const potentialWin = (b.kvota1 - 1) * b.vplacilo1 - layLiability;
-    
-    if (netStake <= 0) {
-      return null; // Arb situacija
-    }
-    
-    return potentialWin / netStake + 1;
-  }
-  
-  return null;
-}
-
+// Izračun profita
 function calcProfit(b: BetRow): number {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
 
@@ -116,39 +82,78 @@ function calcProfit(b: BetRow): number {
   const hasBackBet = hasBack(b);
   const hasLayBet = hasLay(b);
 
+  const backStake = b.vplacilo1 || 0;
+  const backOdds = b.kvota1 || 0;
+  const layStake = b.vplacilo2 || 0;
+  const layOdds = b.lay_kvota || 0;
+  const layLiability = (layOdds - 1) * layStake;
+
   // Samo lay (brez back)
   if (!hasBackBet && hasLayBet) {
-    const layLiability = ((b.lay_kvota || 0) - 1) * (b.vplacilo2 || 0);
     if (b.wl === "WIN") {
-      // WIN pomeni da selection NI zmagal -> mi dobimo layStake
-      return (b.vplacilo2 || 0) - kom;
+      return layStake - kom;
     } else {
-      // LOSS pomeni da selection JE zmagal -> mi zgubimo liability
       return -layLiability - kom;
     }
   }
 
   // Samo back (brez lay)
   if (hasBackBet && !hasLayBet) {
-    if (b.wl === "WIN") return b.vplacilo1 * (b.kvota1 - 1) - kom;
-    if (b.wl === "LOSS") return -b.vplacilo1 - kom;
+    if (b.wl === "WIN") return backStake * (backOdds - 1) - kom;
+    if (b.wl === "LOSS") return -backStake - kom;
     return 0;
   }
 
   // Back + Lay (trading)
   if (hasBackBet && hasLayBet) {
-    const layLiability = ((b.lay_kvota || 0) - 1) * (b.vplacilo2 || 0);
-    
     if (b.wl === "WIN") {
-      // Back zadel, lay zgubil
-      return b.vplacilo1 * (b.kvota1 - 1) - layLiability - kom;
+      const backProfit = backStake * (backOdds - 1);
+      return backProfit - layLiability - kom;
     } else {
-      // Back zgubil, lay zadel
-      return -b.vplacilo1 + (b.vplacilo2 || 0) - kom;
+      return -backStake + layStake - kom;
     }
   }
 
   return 0;
+}
+
+// Izračun efektivne kvote: 1 + (dobiček / tveganje)
+function calcEffectiveOdds(b: BetRow): number | null {
+  const hasBackBet = hasBack(b);
+  const hasLayBet = hasLay(b);
+
+  const backStake = b.vplacilo1 || 0;
+  const backOdds = b.kvota1 || 0;
+  const layStake = b.vplacilo2 || 0;
+  const layOdds = b.lay_kvota || 0;
+  const layLiability = (layOdds - 1) * layStake;
+  const kom = Number(b.komisija ?? 0);
+
+  // Samo back kvota - klasična stava
+  if (hasBackBet && !hasLayBet) {
+    return backOdds;
+  }
+  
+  // Samo lay kvota
+  // Tveganje = layLiability, Dobiček = layStake - kom
+  // Efektivna = 1 + (layStake - kom) / layLiability
+  if (!hasBackBet && hasLayBet) {
+    if (layLiability <= 0) return null;
+    const profit = layStake - kom;
+    return 1 + profit / layLiability;
+  }
+  
+  // Back + Lay (trading/hedge)
+  // Tveganje = layLiability (max izguba)
+  // Dobiček ob WIN = backProfit - layLiability - kom
+  if (hasBackBet && hasLayBet) {
+    if (layLiability <= 0) return null;
+    const backProfit = backStake * (backOdds - 1);
+    const profitOnWin = backProfit - layLiability - kom;
+    return 1 + profitOnWin / layLiability;
+  }
+  
+  return null;
 }
 
 function getCurrentMonth() {
@@ -235,6 +240,31 @@ function StatusBadge({ wl, onClick }: { wl: WL; onClick?: () => void }) {
     >
       {wl}
     </button>
+  );
+}
+
+function TooltipCell({ text, maxWidth = "150px" }: { text: string; maxWidth?: string }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  
+  return (
+    <div 
+      className="relative"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <span 
+        className="block truncate text-sm text-white font-medium text-center cursor-default"
+        style={{ maxWidth }}
+      >
+        {text}
+      </span>
+      {showTooltip && text.length > 15 && (
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl whitespace-nowrap">
+          <span className="text-sm text-white">{text}</span>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800"></div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -422,12 +452,10 @@ export default function BetsPage() {
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
-      {/* Ambient Background */}
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
       
       <div className="relative max-w-[1600px] mx-auto px-4 md:px-8 py-8 md:py-12">
-        {/* Header */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div className="text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
@@ -450,14 +478,12 @@ export default function BetsPage() {
           </button>
         </header>
 
-        {/* Error message */}
         {msg && (
           <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center">
             {msg}
           </div>
         )}
 
-        {/* Add Bet Form */}
         <section className="mb-8">
           <div className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-center gap-3">
@@ -468,114 +494,31 @@ export default function BetsPage() {
             </div>
             
             <div className="p-6">
-              {/* Row 1: Osnovni podatki */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <InputField
-                  label="Datum"
-                  value={datum}
-                  onChange={setDatum}
-                  type="date"
-                  icon={<Calendar className="w-3 h-3" />}
-                />
-                <SelectField
-                  label="Status"
-                  value={wl}
-                  onChange={(v) => setWl(v as WL)}
-                  options={["OPEN", "WIN", "LOSS", "VOID"]}
-                  icon={<Trophy className="w-3 h-3" />}
-                />
-                <SelectField
-                  label="Šport"
-                  value={sport}
-                  onChange={(v) => setSport(v as typeof sport)}
-                  options={SPORTI}
-                  icon={<Target className="w-3 h-3" />}
-                />
-                <SelectField
-                  label="Čas"
-                  value={casStave}
-                  onChange={(v) => setCasStave(v as PreLive)}
-                  options={PRELIVE}
-                  icon={<Clock className="w-3 h-3" />}
-                />
+                <InputField label="Datum" value={datum} onChange={setDatum} type="date" icon={<Calendar className="w-3 h-3" />} />
+                <SelectField label="Status" value={wl} onChange={(v) => setWl(v as WL)} options={["OPEN", "WIN", "LOSS", "VOID"]} icon={<Trophy className="w-3 h-3" />} />
+                <SelectField label="Šport" value={sport} onChange={(v) => setSport(v as typeof sport)} options={SPORTI} icon={<Target className="w-3 h-3" />} />
+                <SelectField label="Čas" value={casStave} onChange={(v) => setCasStave(v as PreLive)} options={PRELIVE} icon={<Clock className="w-3 h-3" />} />
               </div>
 
-              {/* Row 2: Dogodek in Tip */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <InputField
-                  label="Dogodek"
-                  value={dogodek}
-                  onChange={setDogodek}
-                  placeholder="npr. Dinamo : Hajduk"
-                />
-                <InputField
-                  label="Tip"
-                  value={tip}
-                  onChange={setTip}
-                  placeholder="npr. Dinamo to win"
-                />
+                <InputField label="Dogodek" value={dogodek} onChange={setDogodek} placeholder="Home : Away" />
+                <InputField label="Tip" value={tip} onChange={setTip} placeholder="" />
               </div>
 
-              {/* Row 3: Back podatki */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <InputField
-                  label="Back Kvota"
-                  value={kvota1}
-                  onChange={setKvota1}
-                  placeholder="2.00"
-                  icon={<TrendingUp className="w-3 h-3" />}
-                />
-                <InputField
-                  label="Back Vplačilo"
-                  value={vplacilo1}
-                  onChange={setVplacilo1}
-                  placeholder="100"
-                  icon={<DollarSign className="w-3 h-3" />}
-                />
-                <InputField
-                  label="Lay Kvota"
-                  value={layKvota}
-                  onChange={setLayKvota}
-                  placeholder="2.28"
-                  icon={<TrendingUp className="w-3 h-3" />}
-                />
-                <InputField
-                  label="Lay Vplačilo"
-                  value={vplacilo2}
-                  onChange={setVplacilo2}
-                  placeholder="39.06"
-                  icon={<DollarSign className="w-3 h-3" />}
-                />
+                <InputField label="Back Kvota" value={kvota1} onChange={setKvota1} placeholder="2" icon={<TrendingUp className="w-3 h-3" />} />
+                <InputField label="Back Vplačilo" value={vplacilo1} onChange={setVplacilo1} placeholder="100" icon={<DollarSign className="w-3 h-3" />} />
+                <InputField label="Lay Kvota" value={layKvota} onChange={setLayKvota} placeholder="2" icon={<TrendingUp className="w-3 h-3" />} />
+                <InputField label="Lay Vplačilo" value={vplacilo2} onChange={setVplacilo2} placeholder="100" icon={<DollarSign className="w-3 h-3" />} />
               </div>
 
-              {/* Row 4: Komisija, Tipster, Stavnica, Gumb */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <InputField
-                  label="Komisija"
-                  value={komisija}
-                  onChange={setKomisija}
-                  placeholder="0"
-                  icon={<Percent className="w-3 h-3" />}
-                />
-                <SelectField
-                  label="Tipster"
-                  value={tipster}
-                  onChange={(v) => setTipster(v as typeof tipster)}
-                  options={TIPSTERJI}
-                  icon={<Users className="w-3 h-3" />}
-                />
-                <SelectField
-                  label="Stavnica"
-                  value={stavnica}
-                  onChange={(v) => setStavnica(v as typeof stavnica)}
-                  options={STAVNICE}
-                  icon={<Building2 className="w-3 h-3" />}
-                />
+                <InputField label="Komisija" value={komisija} onChange={setKomisija} placeholder="0" icon={<Percent className="w-3 h-3" />} />
+                <SelectField label="Tipster" value={tipster} onChange={(v) => setTipster(v as typeof tipster)} options={TIPSTERJI} icon={<Users className="w-3 h-3" />} />
+                <SelectField label="Stavnica" value={stavnica} onChange={(v) => setStavnica(v as typeof stavnica)} options={STAVNICE} icon={<Building2 className="w-3 h-3" />} />
                 <div className="flex items-end">
-                  <button
-                    onClick={addBet}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 transition-all duration-300 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
-                  >
+                  <button onClick={addBet} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 transition-all duration-300 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]">
                     <Plus className="w-4 h-4" />
                     Dodaj
                   </button>
@@ -585,19 +528,13 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* Month Filter & Stats */}
         <section className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
-          {/* Filter */}
           <div className="col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5">
             <div className="flex items-center justify-center gap-3 mb-3">
               <Filter className="w-4 h-4 text-zinc-400" />
               <span className="text-xs font-bold tracking-widest uppercase text-zinc-500">Filter po mesecu</span>
             </div>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full px-4 py-3 bg-zinc-950/50 border border-zinc-800 rounded-xl text-white font-medium text-center focus:outline-none focus:border-emerald-500/50 transition-all duration-300 cursor-pointer"
-            >
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full px-4 py-3 bg-zinc-950/50 border border-zinc-800 rounded-xl text-white font-medium text-center focus:outline-none focus:border-emerald-500/50 transition-all duration-300 cursor-pointer">
               {availableMonths.map(month => (
                 <option key={month} value={month} className="bg-zinc-900">
                   {new Date(month + '-01').toLocaleDateString('sl-SI', { year: 'numeric', month: 'long' })}
@@ -606,12 +543,9 @@ export default function BetsPage() {
             </select>
           </div>
 
-          {/* Monthly Stats */}
           <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 backdrop-blur-sm p-5 text-center">
             <span className="text-xs font-bold tracking-widest uppercase text-emerald-400/80 block mb-2">Profit</span>
-            <span className={`text-2xl font-bold ${monthlyStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-              {eur(monthlyStats.profit)}
-            </span>
+            <span className={`text-2xl font-bold ${monthlyStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(monthlyStats.profit)}</span>
           </div>
 
           <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 text-center">
@@ -629,7 +563,6 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* Table */}
         <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-center gap-3">
             <Activity className="w-4 h-4 text-zinc-400" />
@@ -662,126 +595,60 @@ export default function BetsPage() {
                 {computed.withProfit.map((r, idx) => (
                   <tr key={r.id} className={`border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors group ${idx % 2 === 0 ? 'bg-zinc-900/20' : 'bg-zinc-900/40'}`}>
                     <td className="py-3 px-3 text-sm text-zinc-300 text-center">{formatDateSlovenian(r.datum)}</td>
-                    <td className="py-3 px-3 text-center">
-                      <StatusBadge wl={r.wl} onClick={() => openEdit(r)} />
-                    </td>
-                    <td className="py-3 px-3 text-sm text-white font-medium text-center max-w-[150px] truncate">{r.dogodek}</td>
+                    <td className="py-3 px-3 text-center"><StatusBadge wl={r.wl} onClick={() => openEdit(r)} /></td>
+                    <td className="py-3 px-3"><TooltipCell text={r.dogodek} maxWidth="150px" /></td>
                     <td className="py-3 px-3 text-sm text-zinc-400 text-center max-w-[100px] truncate">{r.tip}</td>
-                    <td className="py-3 px-3 text-sm text-white font-semibold tabular-nums text-center">
-                      {r.kvota1 > 0 ? r.kvota1.toFixed(2) : '-'}
-                    </td>
-                    <td className="py-3 px-3 text-sm text-zinc-300 tabular-nums text-center">
-                      {r.vplacilo1 > 0 ? eur(r.vplacilo1) : '-'}
-                    </td>
-                    <td className="py-3 px-3 text-sm text-sky-400 font-semibold tabular-nums text-center">
-                      {(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : '-'}
-                    </td>
-                    <td className="py-3 px-3 text-sm text-sky-300 tabular-nums text-center">
-                      {(r.vplacilo2 ?? 0) > 0 ? eur(r.vplacilo2 ?? 0) : '-'}
-                    </td>
-                    <td className="py-3 px-3 text-sm text-amber-400 font-semibold tabular-nums text-center">
-                      {r.effectiveOdds !== null ? r.effectiveOdds.toFixed(2) : '-'}
-                    </td>
-                    <td className="py-3 px-3 text-sm text-zinc-500 tabular-nums text-center">
-                      {(r.komisija ?? 0) > 0 ? eur(r.komisija ?? 0) : '-'}
-                    </td>
-                    <td className={`py-3 px-3 text-sm font-bold tabular-nums text-center ${r.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {eur(r.profit)}
-                    </td>
+                    <td className="py-3 px-3 text-sm text-white font-semibold tabular-nums text-center">{r.kvota1 > 0 ? r.kvota1.toFixed(2) : '-'}</td>
+                    <td className="py-3 px-3 text-sm text-zinc-300 tabular-nums text-center">{r.vplacilo1 > 0 ? eur(r.vplacilo1) : '-'}</td>
+                    <td className="py-3 px-3 text-sm text-sky-400 font-semibold tabular-nums text-center">{(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : '-'}</td>
+                    <td className="py-3 px-3 text-sm text-sky-300 tabular-nums text-center">{(r.vplacilo2 ?? 0) > 0 ? eur(r.vplacilo2 ?? 0) : '-'}</td>
+                    <td className="py-3 px-3 text-sm text-amber-400 font-semibold tabular-nums text-center">{r.effectiveOdds !== null ? r.effectiveOdds.toFixed(2) : '-'}</td>
+                    <td className="py-3 px-3 text-sm text-zinc-500 tabular-nums text-center">{(r.komisija ?? 0) > 0 ? eur(r.komisija ?? 0) : '-'}</td>
+                    <td className={`py-3 px-3 text-sm font-bold tabular-nums text-center ${r.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(r.profit)}</td>
                     <td className="py-3 px-3 text-sm text-zinc-500 text-center">{r.sport}</td>
-                    <td className="py-3 px-3 text-center">
-                      <span className="px-2 py-1 rounded-md bg-zinc-800 text-xs font-bold text-zinc-300 border border-zinc-700">{r.tipster}</span>
-                    </td>
+                    <td className="py-3 px-3 text-center"><span className="px-2 py-1 rounded-md bg-zinc-800 text-xs font-bold text-zinc-300 border border-zinc-700">{r.tipster}</span></td>
                     <td className="py-3 px-3 text-sm text-zinc-400 text-center">{r.stavnica}</td>
                     <td className="py-3 px-3 text-center">
-                      <button
-                        onClick={() => deleteBet(r.id)}
-                        className="p-2 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all duration-300"
-                      >
+                      <button onClick={() => deleteBet(r.id)} className="p-2 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all duration-300">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
                 ))}
-
                 {!computed.withProfit.length && (
-                  <tr>
-                    <td colSpan={15} className="py-12 text-center text-zinc-600">
-                      Ni stav za izbrani mesec.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={15} className="py-12 text-center text-zinc-600">Ni stav za izbrani mesec.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </section>
 
-        {/* Footer */}
         <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
           <p>© 2024 DDTips Analytics. Vse pravice pridržane.</p>
           <p className="font-mono">Last updated: {new Date().toLocaleTimeString()}</p>
         </footer>
       </div>
 
-      {/* Edit Modal */}
       {editOpen && (
-        <div
-          onClick={() => setEditOpen(false)}
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
-          >
+        <div onClick={() => setEditOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div onClick={(e) => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-white">Zapri stavo</h3>
-              <button 
-                onClick={() => setEditOpen(false)}
-                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
-              >
-                <X className="w-4 h-4 text-zinc-400" />
-              </button>
+              <button onClick={() => setEditOpen(false)} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-4 h-4 text-zinc-400" /></button>
             </div>
             
             <div className="mb-6">
               <label className="block text-xs font-bold tracking-widest uppercase text-zinc-500 mb-3 text-center">Rezultat</label>
               <div className="grid grid-cols-4 gap-2">
                 {(["OPEN", "WIN", "LOSS", "VOID"] as WL[]).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setEditWl(status)}
-                    className={`px-4 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
-                      editWl === status 
-                        ? status === "WIN" 
-                          ? "bg-emerald-500 text-white" 
-                          : status === "LOSS" 
-                          ? "bg-rose-500 text-white"
-                          : status === "VOID"
-                          ? "bg-zinc-500 text-white"
-                          : "bg-amber-500 text-white"
-                        : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
-                    }`}
-                  >
-                    {status}
-                  </button>
+                  <button key={status} onClick={() => setEditWl(status)} className={`px-4 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${editWl === status ? status === "WIN" ? "bg-emerald-500 text-white" : status === "LOSS" ? "bg-rose-500 text-white" : status === "VOID" ? "bg-zinc-500 text-white" : "bg-amber-500 text-white" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>{status}</button>
                 ))}
               </div>
             </div>
 
             <div className="flex gap-3">
-              <button
-                onClick={() => setEditOpen(false)}
-                className="flex-1 px-6 py-3 bg-zinc-800 text-zinc-300 font-bold rounded-xl hover:bg-zinc-700 transition-all duration-300"
-              >
-                Prekliči
-              </button>
-              <button
-                onClick={saveEdit}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 transition-all duration-300"
-              >
-                <Check className="w-4 h-4" />
-                Shrani
-              </button>
+              <button onClick={() => setEditOpen(false)} className="flex-1 px-6 py-3 bg-zinc-800 text-zinc-300 font-bold rounded-xl hover:bg-zinc-700 transition-all duration-300">Prekliči</button>
+              <button onClick={saveEdit} className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 transition-all duration-300"><Check className="w-4 h-4" />Shrani</button>
             </div>
           </div>
         </div>
