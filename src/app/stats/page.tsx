@@ -448,8 +448,8 @@ export default function StatsPage() {
                 <SelectField label="Šport" value={sport} onChange={setSport} options={["ALL", ...SPORTI]} icon={<Target className="w-3 h-3" />} />
                 <SelectField label="Tipster" value={tipster} onChange={setTipster} options={["ALL", ...TIPSTERJI]} icon={<Users className="w-3 h-3" />} />
                 <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3 h-3" />} />
-                <SelectField label="Cas" value={cas} onChange={(v: string) => setCas(v as any)} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3 h-3" />} />
-                <SelectField label="Filter Kvot" value={oddsFilter} onChange={(v: string) => setOddsFilter(v as any)} options={["ALL", "OVER", "UNDER"]} icon={<TrendingUp className="w-3 h-3" />} />
+                <SelectField label="Cas" value={cas} onChange={(v: string) => setCas(v as "ALL" | Cas)} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3 h-3" />} />
+                <SelectField label="Filter Kvot" value={oddsFilter} onChange={(v: string) => setOddsFilter(v as "ALL" | "OVER" | "UNDER")} options={["ALL", "OVER", "UNDER"]} icon={<TrendingUp className="w-3 h-3" />} />
                 <InputField label="Vrednost" value={oddsValue} onChange={setOddsValue} type="number" icon={<Zap className="w-3 h-3" />} />
              </div>
              <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
@@ -538,7 +538,7 @@ export default function StatsPage() {
                                 contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
                                 itemStyle={{ color: '#fff' }}
                                 labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
-                                formatter={(value: number) => [eur(value), "Profit"]}
+                                formatter={(value: number | undefined) => [eur(value ?? 0), "Profit"]}
                             />
                             <Area 
                                 type="monotone" 
