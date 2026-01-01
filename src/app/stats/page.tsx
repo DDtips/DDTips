@@ -10,10 +10,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell
+  ResponsiveContainer
 } from "recharts";
 import {
   TrendingUp,
@@ -21,7 +18,6 @@ import {
   Trophy,
   Calendar,
   Filter,
-  BarChart3,
   Users,
   Building2,
   Clock,
@@ -29,7 +25,6 @@ import {
   Percent,
   Zap,
   RefreshCw,
-  X,
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
@@ -53,15 +48,13 @@ type Bet = {
   cas_stave: Cas;
   tipster: string;
   stavnica: string;
-  dogodek?: string; // Assuming you might have an event name, if not, remove usage
-  tip?: string;     // Assuming selection name
+  dogodek?: string;
+  tip?: string;
 };
 
 // --- CONSTANTS ---
-const CAPITAL_DAVID = 3500;
-const CAPITAL_DEJAN = 3500;
-const CAPITAL_TOTAL = CAPITAL_DAVID + CAPITAL_DEJAN;
-
+// Odstranil sem CAPITAL konstante, če jih ne rabimo direktno za izračun bankrolla iz nule,
+// ampak uporabljamo BOOK_START.
 const BOOK_START: Record<string, number> = {
   SHARP: 2000,
   PINNACLE: 2000,
@@ -118,7 +111,11 @@ function buildStats(rows: Bet[]) {
   const profit = settled.reduce((acc, r) => acc + calcProfit(r), 0);
   
   const avgOdds = n === 0 ? 0 : settled.reduce((acc, r) => acc + (Number(r.kvota1) || 0), 0) / n;
-  const roi = settled.reduce((acc, r) => acc + r.vplacilo1, 0) === 0 ? 0 : profit / settled.reduce((acc, r) => acc + r.vplacilo1, 0); // ROI based on turnover usually better, but keeping generic logic
+  
+  // ROI calculation based on total turnover (sum of stakes)
+  const totalStaked = settled.reduce((acc, r) => acc + r.vplacilo1, 0);
+  const roi = totalStaked === 0 ? 0 : profit / totalStaked;
+  
   const winRate = n > 0 ? (wins / n) * 100 : 0;
 
   // Chart Data Preparation
@@ -148,6 +145,16 @@ function buildStats(rows: Bet[]) {
     const p = profitByBook.get(name) ?? 0;
     balanceByBook.push({ name, start, profit: p, balance: start + p });
   });
+  
+  // Dodaj stavnice, ki niso v BOOK_START, ampak imajo profit
+  profitByBook.forEach((val, key) => {
+    if (!BOOK_START[key]) {
+        balanceByBook.push({ name: key, start: 0, profit: val, balance: val });
+    }
+  });
+
+  // Sort by balance descending
+  balanceByBook.sort((a, b) => b.balance - a.balance);
 
   return { profit, n, wins, losses, avgOdds, roi, chartData, balanceByBook, winRate, settled };
 }
@@ -230,17 +237,19 @@ function MetricCard({
   );
 }
 
-function MiniStatCard({ label, value, subValue, colorClass }: { label: string, value: string, subValue?: string, colorClass: string }) {
-    return (
-        <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-800/50 hover:bg-zinc-800/50 transition-colors">
-            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">{label}</div>
-            <div className={`text-lg font-bold ${colorClass}`}>{value}</div>
-            {subValue && <div className="text-xs text-zinc-400 mt-1">{subValue}</div>}
-        </div>
-    )
-}
-
-function InputField({ label, value, onChange, type = "text", icon }: any) {
+function InputField({ 
+  label, 
+  value, 
+  onChange, 
+  type = "text", 
+  icon 
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (val: string) => void; 
+  type?: string; 
+  icon?: React.ReactNode 
+}) {
   return (
     <div className="space-y-1.5">
       <label className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase text-zinc-500">
@@ -256,7 +265,19 @@ function InputField({ label, value, onChange, type = "text", icon }: any) {
   );
 }
 
-function SelectField({ label, value, onChange, options, icon }: any) {
+function SelectField({ 
+  label, 
+  value, 
+  onChange, 
+  options, 
+  icon 
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (val: string) => void; 
+  options: string[]; 
+  icon?: React.ReactNode 
+}) {
   return (
     <div className="space-y-1.5">
       <label className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase text-zinc-500">
@@ -268,7 +289,7 @@ function SelectField({ label, value, onChange, options, icon }: any) {
           onChange={(e) => onChange(e.target.value)}
           className="w-full pl-3 pr-8 py-2 appearance-none bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-sm focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer"
         >
-          {options.map((opt: string) => (
+          {options.map((opt) => (
             <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>
           ))}
         </select>
