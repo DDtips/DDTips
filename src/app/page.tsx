@@ -11,6 +11,8 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  BarChart,
+  Bar,
 } from "recharts";
 import { 
   TrendingUp, 
@@ -68,10 +70,6 @@ function eur(n: number) {
   return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR" });
 }
 
-function monthKey(d: string) {
-  return d.slice(0, 7);
-}
-
 function hasLay(b: Bet) {
   return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0;
 }
@@ -113,7 +111,6 @@ function calcProfit(b: Bet): number {
   return 0;
 }
 
-// Izračun tveganja (risk) za stavo
 function calcRisk(b: Bet): number {
   const hasBackBet = hasBack(b);
   const hasLayBet = hasLay(b);
@@ -123,20 +120,9 @@ function calcRisk(b: Bet): number {
   const layOdds = b.lay_kvota || 0;
   const layLiability = (layOdds - 1) * layStake;
 
-  // Samo back - tveganje je backStake
-  if (hasBackBet && !hasLayBet) {
-    return backStake;
-  }
-  
-  // Samo lay - tveganje je layLiability
-  if (!hasBackBet && hasLayBet) {
-    return layLiability;
-  }
-  
-  // Back + Lay - tveganje je layLiability (max izguba)
-  if (hasBackBet && hasLayBet) {
-    return layLiability;
-  }
+  if (hasBackBet && !hasLayBet) return backStake;
+  if (!hasBackBet && hasLayBet) return layLiability;
+  if (hasBackBet && hasLayBet) return layLiability;
   
   return 0;
 }
@@ -155,18 +141,13 @@ function calcEffectiveOdds(b: Bet): number | null {
   const layOdds = b.lay_kvota || 0;
   const layLiability = (layOdds - 1) * layStake;
 
-  // Samo back - efektivna = backOdds
-  if (hasBackBet && !hasLayBet) {
-    return backOdds;
-  }
+  if (hasBackBet && !hasLayBet) return backOdds;
   
-  // Samo lay - efektivna = 1 + layStake / layLiability
   if (!hasBackBet && hasLayBet) {
     const profit = layStake - kom;
     return 1 + profit / layLiability;
   }
   
-  // Back + Lay - efektivna = 1 + profitOnWin / layLiability
   if (hasBackBet && hasLayBet) {
     const backProfit = backStake * (backOdds - 1);
     const profitOnWin = backProfit - layLiability - kom;
@@ -185,7 +166,6 @@ function buildStats(rows: Bet[]) {
 
   const profit = settled.reduce((acc, r) => acc + calcProfit(r), 0);
 
-  // Povprečna efektivna kvota
   const effectiveOdds = settled.map(r => calcEffectiveOdds(r)).filter(o => o !== null) as number[];
   const avgOdds = effectiveOdds.length > 0 
     ? effectiveOdds.reduce((acc, o) => acc + o, 0) / effectiveOdds.length 
@@ -193,13 +173,11 @@ function buildStats(rows: Bet[]) {
 
   const bankroll = CAPITAL_TOTAL + profit;
 
-  // ROI = profit / skupno tveganje (risk)
   const totalRisk = settled.reduce((acc, r) => acc + calcRisk(r), 0);
   const roiPercent = totalRisk === 0 ? 0 : (profit / totalRisk) * 100;
 
   const donosNaKapital = ((bankroll - CAPITAL_TOTAL) / CAPITAL_TOTAL) * 100;
 
-  // Win rate
   const winRate = n > 0 ? (wins / n) * 100 : 0;
 
   const profitByBook = new Map<string, number>();
@@ -343,23 +321,6 @@ function DataTable({ title, data, icon }: {
   );
 }
 
-function BookCard({ book }: { book: { name: string; start: number; profit: number; balance: number } }) {
-  const isPositive = book.profit >= 0;
-  const percentChange = book.start > 0 ? ((book.balance - book.start) / book.start * 100) : 0;
-  
-  return (
-    <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900/50 border border-zinc-800/50 hover:bg-zinc-800 transition-colors">
-      <div className="flex flex-col">
-        <span className="text-[10px] font-bold tracking-wider uppercase text-zinc-400">{book.name}</span>
-        <span className={`text-[10px] ${isPositive ? "text-emerald-500" : "text-rose-500"}`}>
-          {isPositive ? "+" : ""}{eur(book.profit)} ({percentChange >= 0 ? "+" : ""}{percentChange.toFixed(1)}%)
-        </span>
-      </div>
-      <span className="font-mono text-sm font-medium text-white">{eur(book.balance)}</span>
-    </div>
-  );
-}
-
 export default function HomePage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
@@ -390,28 +351,75 @@ export default function HomePage() {
 
   const stats = useMemo(() => buildStats(rows), [rows]);
 
-  const chartMonthly = useMemo(() => {
-    const settled = rows.filter((r) => r.wl === "WIN" || r.wl === "LOSS");
-    const map = new Map<string, number>();
-    let cumulative = 0;
+  // Dnevni graf za tekoči mesec
+  const chartDaily = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
     
-    settled.forEach((r) => {
-      const key = monthKey(r.datum);
-      map.set(key, (map.get(key) ?? 0) + calcProfit(r));
+    const settled = rows.filter((r) => {
+      if (r.wl !== "WIN" && r.wl !== "LOSS") return false;
+      const d = new Date(r.datum);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     });
 
-    const arr = Array.from(map.entries())
-      .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([m, profit]) => {
-        cumulative += profit;
-        const [year, month] = m.split('-');
-        const date = new Date(parseInt(year), parseInt(month) - 1);
-        const monthName = date.toLocaleDateString('sl-SI', { month: 'short', year: '2-digit' });
-        return { month: m, monthName, profit, cumulative };
-      });
+    // Grupiraj po dnevu
+    const map = new Map<number, number>();
+    settled.forEach((r) => {
+      const day = new Date(r.datum).getDate();
+      map.set(day, (map.get(day) ?? 0) + calcProfit(r));
+    });
+
+    // Ustvari kumulativno rast po dnevih
+    let cumulative = 0;
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const arr: { day: number; dayLabel: string; profit: number; daily: number }[] = [];
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+      const daily = map.get(d) ?? 0;
+      cumulative += daily;
+      if (d <= now.getDate()) { // samo do danes
+        arr.push({
+          day: d,
+          dayLabel: `${d}.`,
+          profit: cumulative,
+          daily
+        });
+      }
+    }
 
     return arr;
   }, [rows]);
+
+  // Mesečni graf za leto 2026
+  const chartMonthly = useMemo(() => {
+    const settled = rows.filter((r) => {
+      if (r.wl !== "WIN" && r.wl !== "LOSS") return false;
+      const d = new Date(r.datum);
+      return d.getFullYear() === 2026;
+    });
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Avg", "Sep", "Okt", "Nov", "Dec"];
+    
+    // Grupiraj po mesecu
+    const map = new Map<number, number>();
+    settled.forEach((r) => {
+      const month = new Date(r.datum).getMonth();
+      map.set(month, (map.get(month) ?? 0) + calcProfit(r));
+    });
+
+    // Ustvari podatke za vse mesece
+    const arr = monthNames.map((name, idx) => ({
+      month: idx,
+      monthName: name,
+      profit: map.get(idx) ?? 0
+    }));
+
+    return arr;
+  }, [rows]);
+
+  // Trenutni mesec ime
+  const currentMonthName = new Date().toLocaleDateString('sl-SI', { month: 'long', year: 'numeric' });
 
   if (loading) {
     return (
@@ -440,6 +448,8 @@ export default function HomePage() {
     { label: `Prematch (${stats.prematchCount})`, value: eur(stats.profitPrematch), profit: stats.profitPrematch },
     { label: `Live (${stats.liveCount})`, value: eur(stats.profitLive), profit: stats.profitLive }
   ];
+
+  const skupnaBanka = stats.balanceByBook.reduce((a, b) => a + b.balance, 0);
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
@@ -491,28 +501,28 @@ export default function HomePage() {
           <MetricCard title="Povp. Efekt. Kvota" value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"} icon={<Target className="w-4 h-4" />} accentColor="amber" />
         </section>
 
-        {/* Graf + Stavnice - 50/50 layout */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-          {/* Chart */}
+        {/* Dnevni graf + Stavnice tabela - 50/50 layout */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          {/* Dnevni Chart */}
           <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5">
             <div className="flex items-center justify-center mb-4">
               <div className="text-center">
-                <h3 className="text-sm font-bold text-white">Rast Profita</h3>
-                <p className="text-xs text-zinc-500">Kumulativni pregled po mesecih</p>
+                <h3 className="text-sm font-bold text-white">Rast Profita - {currentMonthName}</h3>
+                <p className="text-xs text-zinc-500">Kumulativni pregled po dnevih</p>
               </div>
             </div>
             
-            <div className="h-[240px] w-full">
+            <div className="h-[220px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartMonthly}>
+                <AreaChart data={chartDaily}>
                   <defs>
-                    <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="colorProfitDaily" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
@@ -520,13 +530,13 @@ export default function HomePage() {
                     labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
                     formatter={(value: number | undefined) => [eur(value ?? 0), "Kumulativno"]}
                   />
-                  <Area type="monotone" dataKey="cumulative" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorProfit)" dot={{ fill: "#10b981", strokeWidth: 0, r: 3 }} activeDot={{ r: 5, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }} />
+                  <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorProfitDaily)" dot={{ fill: "#10b981", strokeWidth: 0, r: 2 }} activeDot={{ r: 4, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Stavnice */}
+          {/* Stavnice tabela */}
           <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col">
             <div className="flex items-center justify-center gap-2 mb-4">
               <div className="p-1.5 bg-amber-500/10 rounded-lg text-amber-500"><Wallet className="w-4 h-4" /></div>
@@ -536,17 +546,69 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="flex-1 space-y-2">
-              {stats.balanceByBook.map((book) => (
-                <BookCard key={book.name} book={book} />
-              ))}
+            {/* Tabela */}
+            <div className="flex-1 overflow-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-800">
+                    <th className="text-left py-2 px-2 text-[10px] font-bold uppercase tracking-wider text-zinc-500">Stavnica</th>
+                    <th className="text-right py-2 px-2 text-[10px] font-bold uppercase tracking-wider text-zinc-500">Začetno</th>
+                    <th className="text-right py-2 px-2 text-[10px] font-bold uppercase tracking-wider text-zinc-500">Trenutno</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.balanceByBook.map((book) => {
+                    const isPositive = book.profit >= 0;
+                    return (
+                      <tr key={book.name} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
+                        <td className="py-2 px-2 font-medium text-zinc-300">{book.name}</td>
+                        <td className="py-2 px-2 text-right font-mono text-zinc-500">{eur(book.start)}</td>
+                        <td className={`py-2 px-2 text-right font-mono font-semibold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>{eur(book.balance)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-zinc-700">
+                    <td className="py-3 px-2 font-bold text-zinc-300">Skupna banka</td>
+                    <td className="py-3 px-2 text-right font-mono text-zinc-500">{eur(CAPITAL_TOTAL)}</td>
+                    <td className="py-3 px-2 text-right font-mono font-bold text-white text-sm">{eur(skupnaBanka)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {/* Mesečni graf za 2026 */}
+        <section className="mb-6">
+          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5">
+            <div className="flex items-center justify-center mb-4">
+              <div className="text-center">
+                <h3 className="text-sm font-bold text-white">Profit po mesecih - 2026</h3>
+                <p className="text-xs text-zinc-500">Mesečni pregled dobičkov in izgub</p>
+              </div>
             </div>
             
-            <div className="mt-3 pt-3 border-t border-zinc-800">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-medium text-zinc-500">Skupna banka</span>
-                <span className="text-lg font-bold text-white">{eur(stats.balanceByBook.reduce((a, b) => a + b.balance, 0))}</span>
-              </div>
+            <div className="h-[180px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartMonthly}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
+                    itemStyle={{ color: '#fff' }}
+                    labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
+                    formatter={(value: number | undefined) => [eur(value ?? 0), "Profit"]}
+                  />
+                  <Bar 
+                    dataKey="profit" 
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </section>
