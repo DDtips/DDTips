@@ -550,15 +550,10 @@ export default function BetsPage() {
 
     {/* Dogodek + Tip skupaj */}
     <th
-      className="text-left py-3 px-3 font-bold tracking-wider uppercase text-zinc-500"
-      style={{ minWidth: "260px" }}
+      className="text-left py-3 px-2 font-bold tracking-wider uppercase text-zinc-500"
+      style={{ minWidth: "220px" }}
     >
       Dogodek / Tip
-    </th>
-
-    {/* NOVO */}
-    <th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">
-      Čas
     </th>
 
     <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
@@ -582,20 +577,20 @@ export default function BetsPage() {
     <th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">
       Profit
     </th>
+<th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Šport</th>
+<th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Tipster</th>
 
-    <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
-      Šport
-    </th>
-    <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
-      Tipster
-    </th>
+{/* ČAS prestavljen sem */}
+<th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">
+  Čas
+</th>
 
-    {/* STAVNICA na sredini */}
-    <th className="text-center py-3 px-3 font-bold tracking-wider uppercase text-zinc-500">
-      Stavnica
-    </th>
+<th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500">
+  Stavnica
+</th>
 
-    <th className="w-[36px]"></th>
+<th className="w-[36px]"></th>
+
   </tr>
 </thead>
 
@@ -616,25 +611,27 @@ export default function BetsPage() {
   </td>
 
   {/* Dogodek + Tip skupaj (bolj kompaktno) */}
-  <td className="py-2.5 px-3 text-left">
-    <div className="space-y-0.5">
+ <td className="py-2 px-2 text-left">
+  <div className="space-y-0">
+
       <TooltipCell text={r.dogodek} className="text-white font-semibold" />
       <TooltipCell text={r.tip} className="text-zinc-400 text-[11px]" />
     </div>
   </td>
 
   {/* NOVO: Čas (PREMATCH/LIVE) */}
-  <td className="py-2.5 px-2 text-center">
-    <span
-      className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${
-        r.cas_stave === "LIVE"
-          ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
-          : "bg-zinc-500/10 text-zinc-300 border-zinc-500/25"
-      }`}
-    >
-      {r.cas_stave}
-    </span>
-  </td>
+<td className="py-2 px-1 text-center">
+  <span
+    className={`px-2 py-1 rounded-lg text-[10px] font-bold border whitespace-nowrap ${
+      r.cas_stave === "LIVE"
+        ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
+        : "bg-zinc-500/10 text-zinc-200 border-zinc-500/25"
+    }`}
+  >
+    {r.cas_stave}
+  </span>
+</td>
+
 
   <td className="py-2.5 px-1 text-white font-semibold tabular-nums text-center">
     {r.kvota1 > 0 ? r.kvota1.toFixed(2) : "-"}
@@ -663,7 +660,12 @@ export default function BetsPage() {
     {eurCompact(r.profit)}
   </td>
 
-  <td className="py-2.5 px-1 text-zinc-500 text-center">{r.sport}</td>
+  <td className="py-2 px-1 text-center">
+  <span className="px-2 py-1 rounded-lg bg-zinc-800/70 text-[10px] font-bold text-zinc-200 border border-zinc-700 whitespace-nowrap">
+    {r.sport}
+  </span>
+</td>
+
 
   <td className="py-2.5 px-1 text-center">
     <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-bold text-zinc-300 border border-zinc-700">
@@ -672,7 +674,8 @@ export default function BetsPage() {
   </td>
 
   {/* STAVNICA: center */}
-  <td className="py-2.5 px-3 text-zinc-400 text-center">{r.stavnica}</td>
+<td className="py-2 px-2 text-zinc-300 text-center whitespace-nowrap">{r.stavnica}</td>
+
 
   <td className="py-2.5 px-1 text-center">
     <button
