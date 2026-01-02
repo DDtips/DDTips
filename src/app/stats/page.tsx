@@ -81,29 +81,44 @@ function hasBack(b: Bet) {
   return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0;
 }
 
+function calcRisk(b: Bet): number {
+  const hasBackBet = hasBack(b);
+  const hasLayBet = hasLay(b);
+
+  const backStake = b.vplacilo1 || 0;
+  const layStake = b.vplacilo2 || 0;
+  const layOdds = b.lay_kvota || 0;
+  const layLiability = (layOdds - 1) * layStake;
+
+  if (hasBackBet && !hasLayBet) return backStake;
+  if (!hasBackBet && hasLayBet) return layLiability;
+  if (hasBackBet && hasLayBet) return layLiability;
+  
+  return 0;
+}
+
 function calcEffectiveOdds(b: Bet): number | null {
+  const risk = calcRisk(b);
+  if (risk <= 0) return null;
+  
+  const kom = b.komisija || 0;
+  const hasBackBet = hasBack(b);
+  const hasLayBet = hasLay(b);
+
   const backStake = b.vplacilo1 || 0;
   const backOdds = b.kvota1 || 0;
   const layStake = b.vplacilo2 || 0;
   const layOdds = b.lay_kvota || 0;
   const layLiability = (layOdds - 1) * layStake;
-  const kom = b.komisija || 0;
 
-  const hasBackBet = hasBack(b);
-  const hasLayBet = hasLay(b);
-
-  if (hasBackBet && !hasLayBet) {
-    return backOdds;
-  }
+  if (hasBackBet && !hasLayBet) return backOdds;
   
   if (!hasBackBet && hasLayBet) {
-    if (layLiability <= 0) return null;
     const profit = layStake - kom;
     return 1 + profit / layLiability;
   }
   
   if (hasBackBet && hasLayBet) {
-    if (layLiability <= 0) return null;
     const backProfit = backStake * (backOdds - 1);
     const profitOnWin = backProfit - layLiability - kom;
     return 1 + profitOnWin / layLiability;
@@ -136,9 +151,7 @@ function calcProfit(b: Bet): number {
   }
 
   if (hasBackBet && hasLayBet) {
-    if (b.wl === "WIN") {
-      return backStake * (backOdds - 1) - layLiability - kom;
-    }
+    if (b.wl === "WIN") return backStake * (backOdds - 1) - layLiability - kom;
     return -backStake + layStake - kom;
   }
 
@@ -158,12 +171,9 @@ function buildStats(rows: Bet[]) {
     ? effectiveOdds.reduce((acc, o) => acc + o, 0) / effectiveOdds.length 
     : 0;
   
-  const totalStaked = settled.reduce((acc, r) => {
-    if (hasBack(r)) return acc + r.vplacilo1;
-    if (hasLay(r)) return acc + r.vplacilo2;
-    return acc;
-  }, 0);
-  const roi = totalStaked === 0 ? 0 : profit / totalStaked;
+  // ROI = profit / skupno tveganje (risk)
+  const totalRisk = settled.reduce((acc, r) => acc + calcRisk(r), 0);
+  const roi = totalRisk === 0 ? 0 : profit / totalRisk;
   
   const winRate = n > 0 ? (wins / n) * 100 : 0;
 
@@ -244,27 +254,27 @@ function MetricCard({ title, value, subtitle, trend, icon, accentColor = "emeral
 
   return (
     <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${gradients[accentColor]} border backdrop-blur-md transition-all duration-300 hover:-translate-y-1`}>
-      <div className="p-6 text-center">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <div className={`p-2 rounded-lg bg-white/5 ${textColors[accentColor]}`}>
+      <div className="p-4 text-center">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <div className={`p-1.5 rounded-lg bg-white/5 ${textColors[accentColor]}`}>
             {icon}
           </div>
-          <span className="text-xs font-bold tracking-wider uppercase text-zinc-500">{title}</span>
+          <span className="text-[10px] font-bold tracking-wider uppercase text-zinc-500">{title}</span>
         </div>
         
-        <div className="flex items-center justify-center gap-3">
-          <span className={`${big ? "text-3xl md:text-4xl" : "text-2xl"} font-bold tracking-tight text-white`}>
+        <div className="flex items-center justify-center gap-2">
+          <span className={`${big ? "text-2xl" : "text-xl"} font-bold tracking-tight text-white`}>
             {value}
           </span>
           {trend && trend !== "neutral" && (
             <div className={`flex items-center text-sm font-medium ${trend === "up" ? "text-emerald-400" : "text-rose-400"}`}>
-              {trend === "up" ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+              {trend === "up" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             </div>
           )}
         </div>
         
         {subtitle && (
-          <p className="mt-2 text-sm text-zinc-400 font-medium">{subtitle}</p>
+          <p className="mt-1 text-[10px] text-zinc-400 font-medium">{subtitle}</p>
         )}
       </div>
     </div>
@@ -275,15 +285,15 @@ function InputField({ label, value, onChange, type = "text", icon }: {
   label: string; value: string; onChange: (val: string) => void; type?: string; icon?: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <label className="flex items-center justify-center gap-2 text-[10px] font-bold tracking-widest uppercase text-zinc-500">
+    <div className="space-y-1">
+      <label className="flex items-center justify-center gap-1 text-[9px] font-bold tracking-widest uppercase text-zinc-500">
         {icon} {label}
       </label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-sm text-center focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all placeholder:text-zinc-700"
+        className="w-full px-2 py-1.5 bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-xs text-center focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-zinc-700"
       />
     </div>
   );
@@ -293,24 +303,19 @@ function SelectField({ label, value, onChange, options, icon }: {
   label: string; value: string; onChange: (val: string) => void; options: string[]; icon?: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <label className="flex items-center justify-center gap-2 text-[10px] font-bold tracking-widest uppercase text-zinc-500">
+    <div className="space-y-1">
+      <label className="flex items-center justify-center gap-1 text-[9px] font-bold tracking-widest uppercase text-zinc-500">
         {icon} {label}
       </label>
-      <div className="relative">
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full pl-3 pr-8 py-2 appearance-none bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-sm text-center focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer"
-        >
-          {options.map((opt) => (
-            <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>
-          ))}
-        </select>
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-        </div>
-      </div>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-2 py-1.5 appearance-none bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-xs text-center focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer"
+      >
+        {options.map((opt) => (
+          <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -320,16 +325,14 @@ function BookCard({ book }: { book: { name: string; start: number; profit: numbe
   const percentChange = book.start > 0 ? ((book.balance - book.start) / book.start * 100) : 0;
   
   return (
-    <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/50 border border-zinc-800/50 hover:bg-zinc-800 transition-colors">
+    <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900/50 border border-zinc-800/50 hover:bg-zinc-800 transition-colors">
       <div className="flex flex-col">
-        <span className="font-bold text-sm text-zinc-300">{book.name}</span>
-        <span className={`text-xs ${isPositive ? "text-emerald-500" : "text-rose-500"}`}>
+        <span className="text-[10px] font-bold tracking-wider uppercase text-zinc-400">{book.name}</span>
+        <span className={`text-[10px] ${isPositive ? "text-emerald-500" : "text-rose-500"}`}>
           {isPositive ? "+" : ""}{eur(book.profit)} ({percentChange >= 0 ? "+" : ""}{percentChange.toFixed(1)}%)
         </span>
       </div>
-      <div className="text-right">
-        <span className="block font-mono font-medium text-white">{eur(book.balance)}</span>
-      </div>
+      <span className="font-mono text-sm font-medium text-white">{eur(book.balance)}</span>
     </div>
   );
 }
@@ -411,6 +414,11 @@ export default function StatsPage() {
     setAppliedFilters({ sport: "ALL", tipster: "ALL", stavnica: "ALL", cas: "ALL", fromDate: "", toDate: "", oddsFilter: "ALL", oddsValue: "2" });
   };
 
+  // Preveri če so aktivni filtri
+  const hasActiveFilters = appliedFilters.sport !== "ALL" || appliedFilters.tipster !== "ALL" || 
+    appliedFilters.stavnica !== "ALL" || appliedFilters.cas !== "ALL" || 
+    appliedFilters.fromDate !== "" || appliedFilters.toDate !== "";
+
   if (loading && rows.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
@@ -427,76 +435,80 @@ export default function StatsPage() {
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
 
-      <div className="relative max-w-[1400px] mx-auto px-4 md:px-8 py-8 md:py-12">
+      <div className="relative max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-10">
         
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div className="text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-              <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                <Activity className="w-5 h-5 text-emerald-400" />
+            <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+              <div className="p-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                <Activity className="w-4 h-4 text-emerald-400" />
               </div>
-              <span className="text-xs font-bold text-emerald-500 tracking-widest uppercase">Live Dashboard</span>
+              <span className="text-[10px] font-bold text-emerald-500 tracking-widest uppercase">Live Dashboard</span>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-2">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-1">
               Statistika <span className="text-zinc-600">Performance</span>
             </h1>
-            <p className="text-zinc-400 font-medium">Pregled donosnosti in analitika stav</p>
+            <p className="text-zinc-400 text-sm font-medium">Pregled donosnosti in analitika stav</p>
           </div>
           
-          <div className="flex items-center justify-center md:justify-end gap-3">
+          <div className="flex items-center justify-center md:justify-end gap-2">
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`flex items-center gap-2 px-5 py-3 rounded-xl border transition-all duration-200 ${filtersOpen ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-200 ${filtersOpen ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'}`}
             >
-              <Filter className="w-4 h-4" />
-              <span className="text-sm font-semibold">Filtri</span>
+              <Filter className="w-3 h-3" />
+              <span className="text-xs font-semibold">Filtri</span>
+              {hasActiveFilters && <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>}
             </button>
             <button
               onClick={loadRows}
-              className="group p-3 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
+              className="group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
             >
-              <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
             </button>
           </div>
         </header>
 
-        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${filtersOpen ? 'max-h-[500px] opacity-100 mb-8' : 'max-h-0 opacity-0 mb-0'}`}>
-          <div className="p-6 rounded-2xl bg-zinc-900/80 border border-zinc-800 backdrop-blur-xl">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
-              <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-3 h-3" />} />
-              <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-3 h-3" />} />
-              <SelectField label="Šport" value={sport} onChange={setSport} options={["ALL", ...SPORTI]} icon={<Target className="w-3 h-3" />} />
-              <SelectField label="Tipster" value={tipster} onChange={setTipster} options={["ALL", ...TIPSTERJI]} icon={<Users className="w-3 h-3" />} />
-              <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3 h-3" />} />
-              <SelectField label="Čas" value={cas} onChange={(v: string) => setCas(v as "ALL" | Cas)} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3 h-3" />} />
-              <SelectField label="Efekt. Kvota" value={oddsFilter} onChange={(v: string) => setOddsFilter(v as "ALL" | "OVER" | "UNDER")} options={["ALL", "OVER", "UNDER"]} icon={<TrendingUp className="w-3 h-3" />} />
-              <InputField label="Vrednost" value={oddsValue} onChange={setOddsValue} type="number" icon={<Zap className="w-3 h-3" />} />
+        {/* Filter Panel */}
+        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${filtersOpen ? 'max-h-[400px] opacity-100 mb-6' : 'max-h-0 opacity-0 mb-0'}`}>
+          <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 backdrop-blur-xl">
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-3 mb-4">
+              <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-2 h-2" />} />
+              <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-2 h-2" />} />
+              <SelectField label="Šport" value={sport} onChange={setSport} options={["ALL", ...SPORTI]} icon={<Target className="w-2 h-2" />} />
+              <SelectField label="Tipster" value={tipster} onChange={setTipster} options={["ALL", ...TIPSTERJI]} icon={<Users className="w-2 h-2" />} />
+              <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-2 h-2" />} />
+              <SelectField label="Čas" value={cas} onChange={(v: string) => setCas(v as "ALL" | Cas)} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-2 h-2" />} />
+              <SelectField label="Efekt. Kvota" value={oddsFilter} onChange={(v: string) => setOddsFilter(v as "ALL" | "OVER" | "UNDER")} options={["ALL", "OVER", "UNDER"]} icon={<TrendingUp className="w-2 h-2" />} />
+              <InputField label="Vrednost" value={oddsValue} onChange={setOddsValue} type="number" icon={<Zap className="w-2 h-2" />} />
             </div>
-            <div className="flex justify-center md:justify-end gap-3 pt-4 border-t border-zinc-800">
-              <button onClick={handleClearFilters} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-zinc-500 hover:text-white transition-colors">Počisti</button>
-              <button onClick={handleApplyFilters} className="px-6 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-zinc-200 transition-colors">Uporabi</button>
+            <div className="flex justify-center md:justify-end gap-2 pt-3 border-t border-zinc-800">
+              <button onClick={handleClearFilters} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-white transition-colors">Počisti</button>
+              <button onClick={handleApplyFilters} className="px-4 py-1.5 bg-white text-black text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-zinc-200 transition-colors">Uporabi</button>
             </div>
           </div>
         </div>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-          <MetricCard title="Skupni Profit" value={eur(stats.profit)} trend={stats.profit >= 0 ? "up" : "down"} icon={<TrendingUp className="w-5 h-5" />} accentColor="emerald" big />
-          <MetricCard title="ROI" value={`${(stats.roi * 100).toFixed(2)}%`} trend={stats.roi >= 0 ? "up" : "down"} subtitle={`Na ${stats.n} stav`} icon={<Percent className="w-5 h-5" />} accentColor="amber" />
-          <MetricCard title="Win Rate" value={`${stats.winRate.toFixed(1)}%`} subtitle={`${stats.wins}W - ${stats.losses}L`} icon={<Trophy className="w-5 h-5" />} accentColor="sky" />
-          <MetricCard title="Povp. Efekt. Kvota" value={stats.avgOdds.toFixed(2)} subtitle="Tehtano povprečje" icon={<Zap className="w-5 h-5" />} accentColor="violet" />
+        {/* KPI Kartice - statistika za filtrirane rezultate */}
+        <section className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+          <MetricCard title="Profit" value={eur(stats.profit)} trend={stats.profit >= 0 ? "up" : "down"} icon={<TrendingUp className="w-4 h-4" />} accentColor="emerald" big />
+          <MetricCard title="ROI" value={`${(stats.roi * 100).toFixed(2)}%`} trend={stats.roi >= 0 ? "up" : "down"} subtitle="Profit / Tveganje" icon={<Percent className="w-4 h-4" />} accentColor="amber" />
+          <MetricCard title="Win Rate" value={`${stats.winRate.toFixed(1)}%`} subtitle={`${stats.wins}W - ${stats.losses}L`} icon={<Trophy className="w-4 h-4" />} accentColor="sky" />
+          <MetricCard title="Efekt. Kvota" value={stats.avgOdds.toFixed(2)} subtitle="Povprečje" icon={<Zap className="w-4 h-4" />} accentColor="violet" />
+          <MetricCard title="Stave" value={String(stats.n)} subtitle="Odigranih" icon={<Activity className="w-4 h-4" />} accentColor="emerald" />
         </section>
 
         {/* Graf + Stavnice - 50/50 layout */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6">
-            <div className="flex items-center justify-center mb-6">
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5">
+            <div className="flex items-center justify-center mb-4">
               <div className="text-center">
-                <h3 className="text-lg font-bold text-white">Rast Profita</h3>
-                <p className="text-sm text-zinc-500">Kumulativni pregled skozi čas</p>
+                <h3 className="text-sm font-bold text-white">Rast Profita</h3>
+                <p className="text-xs text-zinc-500">Kumulativni pregled skozi čas</p>
               </div>
             </div>
             
-            <div className="h-[280px] w-full">
+            <div className="h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={stats.chartData}>
                   <defs>
@@ -506,10 +518,10 @@ export default function StatsPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="date" stroke="#52525b" fontSize={11} tickLine={false} axisLine={false} minTickGap={30} />
-                  <YAxis stroke="#52525b" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
+                  <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
+                  <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
+                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
                     itemStyle={{ color: '#fff' }}
                     labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
                     formatter={(value: number | undefined) => [eur(value ?? 0), "Profit"]}
@@ -520,55 +532,59 @@ export default function StatsPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6 flex flex-col">
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500"><Wallet className="w-5 h-5" /></div>
+          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="p-1.5 bg-amber-500/10 rounded-lg text-amber-500"><Wallet className="w-4 h-4" /></div>
               <div className="text-center">
-                <h3 className="text-lg font-bold text-white">Stanja Stavnic</h3>
-                <p className="text-sm text-zinc-500">Razporeditev kapitala</p>
+                <h3 className="text-sm font-bold text-white">Stanja Stavnic</h3>
+                <p className="text-xs text-zinc-500">Razporeditev kapitala</p>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+            <div className="flex-1 space-y-2">
               {stats.balanceByBook.map((book) => (
                 <BookCard key={book.name} book={book} />
               ))}
             </div>
             
-            <div className="mt-4 pt-4 border-t border-zinc-800">
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-sm font-medium text-zinc-500">Skupna banka</span>
-                <span className="text-2xl font-bold text-white tracking-tight">{eur(stats.balanceByBook.reduce((a, b) => a + b.balance, 0))}</span>
+            <div className="mt-3 pt-3 border-t border-zinc-800">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-zinc-500">Skupna banka</span>
+                <span className="text-lg font-bold text-white">{eur(stats.balanceByBook.reduce((a, b) => a + b.balance, 0))}</span>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+        {/* Tipsterji + Športi */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div>
-            <div className="flex items-center justify-center mb-6 px-1">
-              <h3 className="font-bold text-xl text-white">Top Tipsterji</h3>
+            <div className="flex items-center justify-center mb-4">
+              <h3 className="font-bold text-lg text-white">Top Tipsterji</h3>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {statsByTipster.slice(0, 5).map((t, i) => (
-                <div key={t.name} className="group relative overflow-hidden rounded-xl bg-zinc-900/30 border border-zinc-800/50 hover:border-zinc-700 transition-all p-4">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-amber-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div key={t.name} className="group relative overflow-hidden rounded-xl bg-zinc-900/30 border border-zinc-800/50 hover:border-zinc-700 transition-all p-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-zinc-600 w-4">#{i + 1}</span>
-                      <span className="font-bold text-zinc-200">{t.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-zinc-600 w-4">#{i + 1}</span>
+                      <span className="font-bold text-sm text-zinc-200">{t.name}</span>
                     </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right hidden sm:block">
-                        <div className="text-xs text-zinc-500 uppercase">Yield</div>
+                    <div className="flex items-center gap-4 text-xs">
+                      <div className="text-right">
+                        <div className="text-[10px] text-zinc-500 uppercase">ROI</div>
                         <div className={`font-mono font-medium ${(t.roi * 100) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{(t.roi * 100).toFixed(1)}%</div>
                       </div>
-                      <div className="text-right hidden sm:block">
-                        <div className="text-xs text-zinc-500 uppercase">Efekt. Kvota</div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-zinc-500 uppercase">Kvota</div>
                         <div className="font-mono font-medium text-amber-400">{t.avgOdds.toFixed(2)}</div>
                       </div>
-                      <div className="text-right w-24">
-                        <div className="text-xs text-zinc-500 uppercase">Profit</div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-zinc-500 uppercase">Win</div>
+                        <div className="font-mono font-medium text-sky-400">{t.winRate.toFixed(0)}%</div>
+                      </div>
+                      <div className="text-right w-20">
+                        <div className="text-[10px] text-zinc-500 uppercase">Profit</div>
                         <div className={`font-mono font-bold ${t.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(t.profit)}</div>
                       </div>
                     </div>
@@ -579,61 +595,60 @@ export default function StatsPage() {
           </div>
 
           <div>
-            <div className="flex items-center justify-center mb-6 px-1">
-              <h3 className="font-bold text-xl text-white">Po Športih</h3>
+            <div className="flex items-center justify-center mb-4">
+              <h3 className="font-bold text-lg text-white">Po Športih</h3>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               {statsBySport.map((s) => (
-                <div key={s.name} className="rounded-xl bg-zinc-900/30 border border-zinc-800/50 p-4 hover:bg-zinc-800/50 transition-colors text-center">
-                  <div className="flex justify-center items-center gap-2 mb-2">
-                    <span className="text-xs font-bold text-zinc-500 tracking-wider uppercase">{s.name}</span>
-                    {s.profit > 0 ? <TrendingUp className="w-3 h-3 text-emerald-500" /> : <TrendingUp className="w-3 h-3 text-rose-500 rotate-180" />}
+                <div key={s.name} className="rounded-xl bg-zinc-900/30 border border-zinc-800/50 p-3 hover:bg-zinc-800/50 transition-colors text-center">
+                  <div className="flex justify-center items-center gap-1 mb-1">
+                    <span className="text-[10px] font-bold text-zinc-500 tracking-wider uppercase">{s.name}</span>
+                    {s.profit > 0 ? <TrendingUp className="w-2.5 h-2.5 text-emerald-500" /> : <TrendingUp className="w-2.5 h-2.5 text-rose-500 rotate-180" />}
                   </div>
-                  <div className="flex flex-col items-center gap-1">
-                    <span className={`text-lg font-bold ${s.profit >= 0 ? "text-white" : "text-zinc-400"}`}>{eur(s.profit)}</span>
-                    <span className="text-xs text-zinc-500">{s.n} stav • Kvota: {s.avgOdds.toFixed(2)}</span>
-                  </div>
+                  <span className={`text-base font-bold block ${s.profit >= 0 ? "text-white" : "text-zinc-400"}`}>{eur(s.profit)}</span>
+                  <span className="text-[10px] text-zinc-500">{s.n} stav • {s.avgOdds.toFixed(2)} • {s.winRate.toFixed(0)}%</span>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
-          <div className="p-6 border-b border-zinc-800/50 flex items-center justify-center gap-3">
-            <TableIcon className="w-5 h-5 text-zinc-400" />
-            <h3 className="font-bold text-white">Zadnje Stave</h3>
+        {/* Zadnje stave */}
+        <section className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
+          <div className="p-4 border-b border-zinc-800/50 flex items-center justify-center gap-2">
+            <TableIcon className="w-4 h-4 text-zinc-400" />
+            <h3 className="font-bold text-sm text-white">Zadnje Stave</h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-zinc-900/50 text-xs text-zinc-500 uppercase tracking-wider">
-                  <th className="p-4 font-semibold text-center">Datum</th>
-                  <th className="p-4 font-semibold text-center">Šport</th>
-                  <th className="p-4 font-semibold text-center">Tipster</th>
-                  <th className="p-4 font-semibold text-center">Stavnica</th>
-                  <th className="p-4 font-semibold text-center">Efekt. Kvota</th>
-                  <th className="p-4 font-semibold text-center">Vplačilo</th>
-                  <th className="p-4 font-semibold text-center">Stanje</th>
-                  <th className="p-4 font-semibold text-center">Profit</th>
+                <tr className="bg-zinc-900/50 text-[10px] text-zinc-500 uppercase tracking-wider">
+                  <th className="p-3 font-semibold text-center">Datum</th>
+                  <th className="p-3 font-semibold text-center">Šport</th>
+                  <th className="p-3 font-semibold text-center">Tipster</th>
+                  <th className="p-3 font-semibold text-center">Stavnica</th>
+                  <th className="p-3 font-semibold text-center">Efekt. Kvota</th>
+                  <th className="p-3 font-semibold text-center">Vplačilo</th>
+                  <th className="p-3 font-semibold text-center">Stanje</th>
+                  <th className="p-3 font-semibold text-center">Profit</th>
                 </tr>
               </thead>
-              <tbody className="text-sm divide-y divide-zinc-800/50">
+              <tbody className="divide-y divide-zinc-800/50">
                 {stats.settled.slice().reverse().slice(0, 10).map((row) => {
                   const effOdds = calcEffectiveOdds(row);
                   const stake = hasBack(row) ? row.vplacilo1 : row.vplacilo2;
                   return (
-                    <tr key={row.id} className="hover:bg-zinc-800/30 transition-colors group">
-                      <td className="p-4 text-zinc-300 font-medium text-center">{new Date(row.datum).toLocaleDateString("sl-SI")}</td>
-                      <td className="p-4 text-zinc-400 text-center">{row.sport}</td>
-                      <td className="p-4 text-center">
-                        <span className="px-2 py-1 rounded-md bg-zinc-800 text-xs font-bold text-zinc-300 border border-zinc-700">{row.tipster}</span>
+                    <tr key={row.id} className="hover:bg-zinc-800/30 transition-colors">
+                      <td className="p-3 text-zinc-300 text-center">{new Date(row.datum).toLocaleDateString("sl-SI")}</td>
+                      <td className="p-3 text-zinc-400 text-center">{row.sport}</td>
+                      <td className="p-3 text-center">
+                        <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-bold text-zinc-300 border border-zinc-700">{row.tipster}</span>
                       </td>
-                      <td className="p-4 text-zinc-400 text-xs text-center">{row.stavnica}</td>
-                      <td className="p-4 text-center font-mono text-amber-400 font-semibold">{effOdds !== null ? effOdds.toFixed(2) : '-'}</td>
-                      <td className="p-4 text-center font-mono text-zinc-300">{eur(stake)}</td>
-                      <td className="p-4 text-center">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${
+                      <td className="p-3 text-zinc-400 text-center">{row.stavnica}</td>
+                      <td className="p-3 text-center font-mono text-amber-400 font-semibold">{effOdds !== null ? effOdds.toFixed(2) : '-'}</td>
+                      <td className="p-3 text-center font-mono text-zinc-300">{eur(stake)}</td>
+                      <td className="p-3 text-center">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${
                           row.wl === 'WIN' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
                           row.wl === 'LOSS' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 
                           'bg-zinc-800 text-zinc-500 border-zinc-700'
@@ -641,7 +656,7 @@ export default function StatsPage() {
                           {row.wl}
                         </span>
                       </td>
-                      <td className={`p-4 text-center font-mono font-bold ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      <td className={`p-3 text-center font-mono font-bold ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                         {eur(calcProfit(row))}
                       </td>
                     </tr>
@@ -652,7 +667,7 @@ export default function StatsPage() {
           </div>
         </section>
 
-        <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
+        <footer className="mt-8 pt-6 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
           <p>© 2024 DDTips Analytics. Vse pravice pridržane.</p>
           <p className="font-mono">Last updated: {new Date().toLocaleTimeString()}</p>
         </footer>

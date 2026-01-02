@@ -18,7 +18,6 @@ import {
   Target, 
   Trophy, 
   BarChart3, 
-  Building2, 
   Users, 
   Activity,
   Zap,
@@ -114,29 +113,61 @@ function calcProfit(b: Bet): number {
   return 0;
 }
 
+// Izračun tveganja (risk) za stavo
+function calcRisk(b: Bet): number {
+  const hasBackBet = hasBack(b);
+  const hasLayBet = hasLay(b);
+
+  const backStake = b.vplacilo1 || 0;
+  const layStake = b.vplacilo2 || 0;
+  const layOdds = b.lay_kvota || 0;
+  const layLiability = (layOdds - 1) * layStake;
+
+  // Samo back - tveganje je backStake
+  if (hasBackBet && !hasLayBet) {
+    return backStake;
+  }
+  
+  // Samo lay - tveganje je layLiability
+  if (!hasBackBet && hasLayBet) {
+    return layLiability;
+  }
+  
+  // Back + Lay - tveganje je layLiability (max izguba)
+  if (hasBackBet && hasLayBet) {
+    return layLiability;
+  }
+  
+  return 0;
+}
+
 function calcEffectiveOdds(b: Bet): number | null {
+  const risk = calcRisk(b);
+  if (risk <= 0) return null;
+  
+  const kom = b.komisija || 0;
+  const hasBackBet = hasBack(b);
+  const hasLayBet = hasLay(b);
+
   const backStake = b.vplacilo1 || 0;
   const backOdds = b.kvota1 || 0;
   const layStake = b.vplacilo2 || 0;
   const layOdds = b.lay_kvota || 0;
   const layLiability = (layOdds - 1) * layStake;
-  const kom = b.komisija || 0;
 
-  const hasBackBet = hasBack(b);
-  const hasLayBet = hasLay(b);
-
+  // Samo back - efektivna = backOdds
   if (hasBackBet && !hasLayBet) {
     return backOdds;
   }
   
+  // Samo lay - efektivna = 1 + layStake / layLiability
   if (!hasBackBet && hasLayBet) {
-    if (layLiability <= 0) return null;
     const profit = layStake - kom;
     return 1 + profit / layLiability;
   }
   
+  // Back + Lay - efektivna = 1 + profitOnWin / layLiability
   if (hasBackBet && hasLayBet) {
-    if (layLiability <= 0) return null;
     const backProfit = backStake * (backOdds - 1);
     const profitOnWin = backProfit - layLiability - kom;
     return 1 + profitOnWin / layLiability;
@@ -154,6 +185,7 @@ function buildStats(rows: Bet[]) {
 
   const profit = settled.reduce((acc, r) => acc + calcProfit(r), 0);
 
+  // Povprečna efektivna kvota
   const effectiveOdds = settled.map(r => calcEffectiveOdds(r)).filter(o => o !== null) as number[];
   const avgOdds = effectiveOdds.length > 0 
     ? effectiveOdds.reduce((acc, o) => acc + o, 0) / effectiveOdds.length 
@@ -161,14 +193,14 @@ function buildStats(rows: Bet[]) {
 
   const bankroll = CAPITAL_TOTAL + profit;
 
-  const totalStakes = settled.reduce((acc, r) => {
-    if (hasBack(r)) return acc + r.vplacilo1;
-    if (hasLay(r)) return acc + r.vplacilo2;
-    return acc;
-  }, 0);
-  const roiPercent = totalStakes === 0 ? 0 : (profit / totalStakes) * 100;
+  // ROI = profit / skupno tveganje (risk)
+  const totalRisk = settled.reduce((acc, r) => acc + calcRisk(r), 0);
+  const roiPercent = totalRisk === 0 ? 0 : (profit / totalRisk) * 100;
 
   const donosNaKapital = ((bankroll - CAPITAL_TOTAL) / CAPITAL_TOTAL) * 100;
+
+  // Win rate
+  const winRate = n > 0 ? (wins / n) * 100 : 0;
 
   const profitByBook = new Map<string, number>();
   settled.forEach((r) => {
@@ -217,7 +249,7 @@ function buildStats(rows: Bet[]) {
     profit, n, wins, losses, avgOdds, bankroll, balanceByBook,
     profitBySport, profitByTipster, profitPrematch, profitLive,
     prematchCount: prematch.length, liveCount: live.length,
-    roiPercent, donosNaKapital
+    roiPercent, donosNaKapital, winRate
   };
 }
 
@@ -243,27 +275,27 @@ function MetricCard({ title, value, subtitle, trend, icon, accentColor = "emeral
 
   return (
     <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${gradients[accentColor]} border backdrop-blur-md transition-all duration-300 hover:-translate-y-1`}>
-      <div className="p-6 text-center">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <div className={`p-2 rounded-lg bg-white/5 ${textColors[accentColor]}`}>
+      <div className="p-5 text-center">
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <div className={`p-1.5 rounded-lg bg-white/5 ${textColors[accentColor]}`}>
             {icon}
           </div>
-          <span className="text-xs font-bold tracking-wider uppercase text-zinc-500">{title}</span>
+          <span className="text-[10px] font-bold tracking-wider uppercase text-zinc-500">{title}</span>
         </div>
         
-        <div className="flex items-center justify-center gap-3">
-          <span className={`${big ? "text-3xl md:text-4xl" : "text-2xl"} font-bold tracking-tight text-white`}>
+        <div className="flex items-center justify-center gap-2">
+          <span className={`${big ? "text-2xl md:text-3xl" : "text-xl"} font-bold tracking-tight text-white`}>
             {value}
           </span>
           {trend && trend !== "neutral" && (
             <div className={`flex items-center text-sm font-medium ${trend === "up" ? "text-emerald-400" : "text-rose-400"}`}>
-              {trend === "up" ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+              {trend === "up" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             </div>
           )}
         </div>
         
         {subtitle && (
-          <p className="mt-2 text-sm text-zinc-400 font-medium">{subtitle}</p>
+          <p className="mt-1 text-xs text-zinc-400 font-medium">{subtitle}</p>
         )}
       </div>
     </div>
@@ -276,13 +308,13 @@ function DataTable({ title, data, icon }: {
   const maxProfit = Math.max(...data.map(d => Math.abs(d.profit)));
   
   return (
-    <div className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-center gap-3">
+    <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
+      <div className="px-4 py-3 border-b border-zinc-800/50 flex items-center justify-center gap-2">
         {icon && <div className="text-zinc-400">{icon}</div>}
-        <h3 className="text-sm font-bold tracking-widest uppercase text-zinc-300">{title}</h3>
+        <h3 className="text-xs font-bold tracking-widest uppercase text-zinc-300">{title}</h3>
       </div>
       
-      <div className="p-4 space-y-1">
+      <div className="p-3 space-y-1">
         {data.map((item, idx) => {
           const barWidth = maxProfit > 0 ? (Math.abs(item.profit) / maxProfit) * 100 : 0;
           const isPositive = item.profit >= 0;
@@ -290,17 +322,17 @@ function DataTable({ title, data, icon }: {
           return (
             <div 
               key={idx} 
-              className="relative flex items-center justify-between px-4 py-3 rounded-xl hover:bg-white/5 transition-colors group"
+              className="relative flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/5 transition-colors group"
             >
               <div 
-                className={`absolute left-0 top-0 bottom-0 rounded-xl transition-all duration-500 ${isPositive ? "bg-emerald-500/10" : "bg-rose-500/10"}`}
+                className={`absolute left-0 top-0 bottom-0 rounded-lg transition-all duration-500 ${isPositive ? "bg-emerald-500/10" : "bg-rose-500/10"}`}
                 style={{ width: `${barWidth}%` }}
               />
               
-              <span className="relative z-10 text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">
+              <span className="relative z-10 text-xs font-medium text-zinc-300 group-hover:text-white transition-colors">
                 {item.label}
               </span>
-              <span className={`relative z-10 text-sm font-semibold tabular-nums ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
+              <span className={`relative z-10 text-xs font-semibold tabular-nums ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
                 {item.value}
               </span>
             </div>
@@ -316,27 +348,14 @@ function BookCard({ book }: { book: { name: string; start: number; profit: numbe
   const percentChange = book.start > 0 ? ((book.balance - book.start) / book.start * 100) : 0;
   
   return (
-    <div className="group relative overflow-hidden rounded-xl bg-zinc-900/50 border border-zinc-800/50 p-4 transition-all duration-300 hover:bg-zinc-800 hover:border-zinc-700">
-      <div className="text-center">
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <span className="text-xs font-bold tracking-widest uppercase text-zinc-500">{book.name}</span>
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isPositive ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
-            {isPositive ? "+" : ""}{percentChange.toFixed(1)}%
-          </span>
-        </div>
-        
-        <div className="mb-2">
-          <span className={`text-xl font-bold tracking-tight ${isPositive ? "text-white" : "text-zinc-400"}`}>
-            {eur(book.balance)}
-          </span>
-        </div>
-        
-        <div className="text-xs text-zinc-500">
-          <span className={`font-semibold ${isPositive ? "text-emerald-400/80" : "text-rose-400/80"}`}>
-            {isPositive ? "+" : ""}{eur(book.profit)}
-          </span>
-        </div>
+    <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900/50 border border-zinc-800/50 hover:bg-zinc-800 transition-colors">
+      <div className="flex flex-col">
+        <span className="text-[10px] font-bold tracking-wider uppercase text-zinc-400">{book.name}</span>
+        <span className={`text-[10px] ${isPositive ? "text-emerald-500" : "text-rose-500"}`}>
+          {isPositive ? "+" : ""}{eur(book.profit)} ({percentChange >= 0 ? "+" : ""}{percentChange.toFixed(1)}%)
+        </span>
       </div>
+      <span className="font-mono text-sm font-medium text-white">{eur(book.balance)}</span>
     </div>
   );
 }
@@ -418,133 +437,72 @@ export default function HomePage() {
   })).sort((a, b) => b.profit - a.profit);
 
   const timingData = [
-    {
-      label: `Prematch (${stats.prematchCount})`,
-      value: eur(stats.profitPrematch),
-      profit: stats.profitPrematch
-    },
-    {
-      label: `Live (${stats.liveCount})`,
-      value: eur(stats.profitLive),
-      profit: stats.profitLive
-    }
+    { label: `Prematch (${stats.prematchCount})`, value: eur(stats.profitPrematch), profit: stats.profitPrematch },
+    { label: `Live (${stats.liveCount})`, value: eur(stats.profitLive), profit: stats.profitLive }
   ];
-
-  const winRate = stats.n > 0 ? (stats.wins / stats.n * 100).toFixed(1) : "0";
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
 
-      <div className="relative max-w-[1400px] mx-auto px-4 md:px-8 py-8 md:py-12">
+      <div className="relative max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-10">
         
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div className="text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-                <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                    <Activity className="w-5 h-5 text-emerald-400" />
-                </div>
-                <span className="text-xs font-bold text-emerald-500 tracking-widest uppercase">Live Dashboard</span>
+            <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+              <div className="p-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                <Activity className="w-4 h-4 text-emerald-400" />
+              </div>
+              <span className="text-[10px] font-bold text-emerald-500 tracking-widest uppercase">Live Dashboard</span>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-2">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-1">
               DDTips <span className="text-zinc-600">Overview</span>
             </h1>
-            <p className="text-zinc-400 font-medium">Pregled celotnega portfelja stav</p>
+            <p className="text-zinc-400 text-sm font-medium">Pregled celotnega portfelja stav</p>
           </div>
           
           <button
             onClick={loadRows}
-            className="group p-3 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)] self-center md:self-auto"
+            className="group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)] self-center md:self-auto"
           >
-            <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
           </button>
         </header>
 
         {/* Row 1: Začetni kapital + Trenutno stanje */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
-          <MetricCard
-            title="Začetni kapital"
-            value={eur(CAPITAL_TOTAL)}
-            icon={<DollarSign className="w-5 h-5" />}
-            accentColor="violet"
-            big
-          />
-          <MetricCard
-            title="Trenutno stanje"
-            value={eur(stats.bankroll)}
-            trend={stats.bankroll >= CAPITAL_TOTAL ? "up" : "down"}
-            icon={<Wallet className="w-5 h-5" />}
-            accentColor={stats.bankroll >= CAPITAL_TOTAL ? "emerald" : "rose"}
-            big
-          />
+        <section className="grid grid-cols-2 gap-4 mb-4">
+          <MetricCard title="Začetni kapital" value={eur(CAPITAL_TOTAL)} icon={<DollarSign className="w-4 h-4" />} accentColor="violet" big />
+          <MetricCard title="Trenutno stanje" value={eur(stats.bankroll)} trend={stats.bankroll >= CAPITAL_TOTAL ? "up" : "down"} icon={<Wallet className="w-4 h-4" />} accentColor={stats.bankroll >= CAPITAL_TOTAL ? "emerald" : "rose"} big />
         </section>
 
         {/* Row 2: Celoten profit + ROI + Donos na kapital */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6">
-          <MetricCard
-            title="Celoten profit"
-            value={eur(stats.profit)}
-            trend={stats.profit >= 0 ? "up" : "down"}
-            icon={<TrendingUp className="w-5 h-5" />}
-            accentColor="emerald"
-          />
-          <MetricCard
-            title="ROI"
-            value={`${stats.roiPercent.toFixed(2)}%`}
-            subtitle="Return on investment"
-            icon={<Target className="w-5 h-5" />}
-            accentColor="sky"
-          />
-          <MetricCard
-            title="Donos na kapital"
-            value={`${stats.donosNaKapital.toFixed(2)}%`}
-            trend={stats.donosNaKapital >= 0 ? "up" : "down"}
-            icon={<BarChart3 className="w-5 h-5" />}
-            accentColor="amber"
-          />
+        <section className="grid grid-cols-3 gap-4 mb-4">
+          <MetricCard title="Celoten profit" value={eur(stats.profit)} trend={stats.profit >= 0 ? "up" : "down"} icon={<TrendingUp className="w-4 h-4" />} accentColor="emerald" />
+          <MetricCard title="ROI" value={`${stats.roiPercent.toFixed(2)}%`} subtitle="Profit / Tveganje" icon={<Target className="w-4 h-4" />} accentColor="sky" />
+          <MetricCard title="Donos na kapital" value={`${stats.donosNaKapital.toFixed(2)}%`} trend={stats.donosNaKapital >= 0 ? "up" : "down"} icon={<BarChart3 className="w-4 h-4" />} accentColor="amber" />
         </section>
 
         {/* Row 3: Skupaj stav + Win/Loss + Win Rate + Povprečna kvota */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8">
-          <MetricCard
-            title="Skupaj stav"
-            value={String(stats.n)}
-            icon={<Activity className="w-5 h-5" />}
-            accentColor="emerald"
-          />
-          <MetricCard
-            title="Win / Loss"
-            value={`${stats.wins} / ${stats.losses}`}
-            icon={<Trophy className="w-5 h-5" />}
-            accentColor="sky"
-          />
-          <MetricCard
-            title="Win Rate"
-            value={`${winRate}%`}
-            icon={<Zap className="w-5 h-5" />}
-            accentColor="violet"
-          />
-          <MetricCard
-            title="Povp. Efekt. Kvota"
-            value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"}
-            icon={<Target className="w-5 h-5" />}
-            accentColor="amber"
-          />
+        <section className="grid grid-cols-4 gap-4 mb-6">
+          <MetricCard title="Skupaj stav" value={String(stats.n)} icon={<Activity className="w-4 h-4" />} accentColor="emerald" />
+          <MetricCard title="Win / Loss" value={`${stats.wins} / ${stats.losses}`} icon={<Trophy className="w-4 h-4" />} accentColor="sky" />
+          <MetricCard title="Win Rate" value={`${stats.winRate.toFixed(1)}%`} icon={<Zap className="w-4 h-4" />} accentColor="violet" />
+          <MetricCard title="Povp. Efekt. Kvota" value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"} icon={<Target className="w-4 h-4" />} accentColor="amber" />
         </section>
 
         {/* Graf + Stavnice - 50/50 layout */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
           {/* Chart */}
-          <div className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6">
-            <div className="flex items-center justify-center mb-6">
+          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5">
+            <div className="flex items-center justify-center mb-4">
               <div className="text-center">
-                <h3 className="text-lg font-bold text-white">Rast Profita</h3>
-                <p className="text-sm text-zinc-500">Kumulativni pregled po mesecih</p>
+                <h3 className="text-sm font-bold text-white">Rast Profita</h3>
+                <p className="text-xs text-zinc-500">Kumulativni pregled po mesecih</p>
               </div>
             </div>
             
-            <div className="h-[280px] w-full">
+            <div className="h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartMonthly}>
                   <defs>
@@ -554,87 +512,54 @@ export default function HomePage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis 
-                    dataKey="monthName" 
-                    stroke="#52525b" 
-                    fontSize={11} 
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis 
-                    stroke="#52525b" 
-                    fontSize={11} 
-                    tickLine={false} 
-                    axisLine={false}
-                    tickFormatter={(val) => `€${val}`}
-                  />
+                  <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
+                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
                     itemStyle={{ color: '#fff' }}
                     labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
                     formatter={(value: number | undefined) => [eur(value ?? 0), "Kumulativno"]}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="cumulative" 
-                    stroke="#10b981" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorProfit)" 
-                    dot={{ fill: "#10b981", strokeWidth: 0, r: 3 }}
-                    activeDot={{ r: 5, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }}
-                  />
+                  <Area type="monotone" dataKey="cumulative" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorProfit)" dot={{ fill: "#10b981", strokeWidth: 0, r: 3 }} activeDot={{ r: 5, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* Stavnice */}
-          <div className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6 flex flex-col">
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500"><Wallet className="w-5 h-5" /></div>
+          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="p-1.5 bg-amber-500/10 rounded-lg text-amber-500"><Wallet className="w-4 h-4" /></div>
               <div className="text-center">
-                <h3 className="text-lg font-bold text-white">Stanja Stavnic</h3>
-                <p className="text-sm text-zinc-500">Razporeditev kapitala</p>
+                <h3 className="text-sm font-bold text-white">Stanja Stavnic</h3>
+                <p className="text-xs text-zinc-500">Razporeditev kapitala</p>
               </div>
             </div>
 
-            <div className="flex-1 grid grid-cols-2 gap-3 content-start">
+            <div className="flex-1 space-y-2">
               {stats.balanceByBook.map((book) => (
                 <BookCard key={book.name} book={book} />
               ))}
             </div>
             
-            <div className="mt-4 pt-4 border-t border-zinc-800">
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-sm font-medium text-zinc-500">Skupna banka</span>
-                <span className="text-2xl font-bold text-white tracking-tight">{eur(stats.balanceByBook.reduce((a, b) => a + b.balance, 0))}</span>
+            <div className="mt-3 pt-3 border-t border-zinc-800">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-zinc-500">Skupna banka</span>
+                <span className="text-lg font-bold text-white">{eur(stats.balanceByBook.reduce((a, b) => a + b.balance, 0))}</span>
               </div>
             </div>
           </div>
         </section>
 
         {/* Data Tables */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <DataTable
-            title="Po športih"
-            data={sportData}
-            icon={<Activity className="w-4 h-4" />}
-          />
-          <DataTable
-            title="Po tipsterjih"
-            data={tipsterData}
-            icon={<Users className="w-4 h-4" />}
-          />
-          <DataTable
-            title="Po času"
-            data={timingData}
-            icon={<Clock className="w-4 h-4" />}
-          />
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <DataTable title="Po športih" data={sportData} icon={<Activity className="w-3 h-3" />} />
+          <DataTable title="Po tipsterjih" data={tipsterData} icon={<Users className="w-3 h-3" />} />
+          <DataTable title="Po času" data={timingData} icon={<Clock className="w-3 h-3" />} />
         </section>
 
         {/* Footer */}
-        <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
+        <footer className="mt-8 pt-6 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
           <p>© 2024 DDTips Analytics. Vse pravice pridržane.</p>
           <p className="font-mono">Last updated: {new Date().toLocaleTimeString()}</p>
         </footer>
