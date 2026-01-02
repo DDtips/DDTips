@@ -62,7 +62,7 @@ const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATL
 const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"];
 
 function normBook(x: string) {
-  return (x || "").toUpperCase().replace(/\s+/g, "");
+  return (x || "").toUpperCase().replace(/\s+/g, "").replace(/-/g, "");
 }
 
 function eur(n: number) {
@@ -81,82 +81,68 @@ function hasBack(b: Bet) {
   return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0;
 }
 
-// Nova funkcija za izračun efektivne kvote
-function calcEffectiveOdds(b: Bet): number | null {
-  const hasBackBet = hasBack(b);
-  const hasLayBet = hasLay(b);
-  
-  // Samo back kvota
-  if (hasBackBet && !hasLayBet) {
-    return b.kvota1;
-  }
-  
-  // Samo lay kvota - efektivna kvota = layLiability / layStake + 1
-  // Primer: lay 1.20 za 100€ -> zmagaš 100€, zgubiš 20€ -> efektivna = 100/20 + 1 = 6
-  if (!hasBackBet && hasLayBet) {
-    const layLiability = (b.lay_kvota - 1) * b.vplacilo2;
-    if (layLiability <= 0) return null;
-    return b.vplacilo2 / layLiability + 1;
-  }
-  
-  // Oboje - back + lay (trading)
-  if (hasBackBet && hasLayBet) {
-    const layLiability = (b.lay_kvota - 1) * b.vplacilo2;
-    const netStake = b.vplacilo1 - b.vplacilo2; // koliko smo dejansko vložili
-    const potentialWin = (b.kvota1 - 1) * b.vplacilo1 - layLiability;
-    
-    if (netStake <= 0) {
-      // Že imamo profit ne glede na izid (arb)
-      return null;
-    }
-    
-    return potentialWin / netStake + 1;
-  }
-  
-  return null;
-}
-
 function calcProfit(b: Bet): number {
   const kom = b.komisija || 0;
   if (b.wl !== "WIN" && b.wl !== "LOSS") return 0;
 
+  const backStake = b.vplacilo1 || 0;
+  const backOdds = b.kvota1 || 0;
+  const layStake = b.vplacilo2 || 0;
+  const layOdds = b.lay_kvota || 0;
+  const layLiability = (layOdds - 1) * layStake;
+
   const hasBackBet = hasBack(b);
   const hasLayBet = hasLay(b);
 
-  // Samo lay (brez back)
   if (!hasBackBet && hasLayBet) {
-    const layLiability = (b.lay_kvota - 1) * b.vplacilo2;
-    if (b.wl === "WIN") {
-      // Pri SAMO lay: WIN pomeni da je selection IZGUBIL (mi smo layali)
-      // Torej mi dobimo layStake
-      return b.vplacilo2 - kom;
-    } else {
-      // LOSS pomeni da je selection ZMAGAL, mi zgubimo liability
-      return -layLiability - kom;
-    }
+    if (b.wl === "WIN") return layStake - kom;
+    return -layLiability - kom;
   }
 
-  // Samo back (brez lay)
   if (hasBackBet && !hasLayBet) {
-    if (b.wl === "WIN") return b.vplacilo1 * (b.kvota1 - 1) - kom;
-    if (b.wl === "LOSS") return -b.vplacilo1 - kom;
-    return 0;
+    if (b.wl === "WIN") return backStake * (backOdds - 1) - kom;
+    return -backStake - kom;
   }
 
-  // Back + Lay (trading)
   if (hasBackBet && hasLayBet) {
-    const layLiability = (b.lay_kvota - 1) * b.vplacilo2;
-    
     if (b.wl === "WIN") {
-      // Back zadel, lay zgubil
-      return b.vplacilo1 * (b.kvota1 - 1) - layLiability - kom;
-    } else {
-      // Back zgubil, lay zadel
-      return -b.vplacilo1 + b.vplacilo2 - kom;
+      return backStake * (backOdds - 1) - layLiability - kom;
     }
+    return -backStake + layStake - kom;
   }
 
   return 0;
+}
+
+function calcEffectiveOdds(b: Bet): number | null {
+  const backStake = b.vplacilo1 || 0;
+  const backOdds = b.kvota1 || 0;
+  const layStake = b.vplacilo2 || 0;
+  const layOdds = b.lay_kvota || 0;
+  const layLiability = (layOdds - 1) * layStake;
+  const kom = b.komisija || 0;
+
+  const hasBackBet = hasBack(b);
+  const hasLayBet = hasLay(b);
+
+  if (hasBackBet && !hasLayBet) {
+    return backOdds;
+  }
+  
+  if (!hasBackBet && hasLayBet) {
+    if (layLiability <= 0) return null;
+    const profit = layStake - kom;
+    return 1 + profit / layLiability;
+  }
+  
+  if (hasBackBet && hasLayBet) {
+    if (layLiability <= 0) return null;
+    const backProfit = backStake * (backOdds - 1);
+    const profitOnWin = backProfit - layLiability - kom;
+    return 1 + profitOnWin / layLiability;
+  }
+  
+  return null;
 }
 
 function buildStats(rows: Bet[]) {
@@ -168,7 +154,6 @@ function buildStats(rows: Bet[]) {
 
   const profit = settled.reduce((acc, r) => acc + calcProfit(r), 0);
 
-  // Povprečna efektivna kvota
   const effectiveOdds = settled.map(r => calcEffectiveOdds(r)).filter(o => o !== null) as number[];
   const avgOdds = effectiveOdds.length > 0 
     ? effectiveOdds.reduce((acc, o) => acc + o, 0) / effectiveOdds.length 
@@ -194,12 +179,16 @@ function buildStats(rows: Bet[]) {
   const balanceByBook: { name: string; start: number; profit: number; balance: number }[] = [];
 
   Object.entries(BOOK_START).forEach(([name, start]) => {
-    const p = profitByBook.get(name) ?? 0;
+    const normalizedName = normBook(name);
+    const p = profitByBook.get(normalizedName) ?? 0;
     balanceByBook.push({ name, start, profit: p, balance: start + p });
   });
 
-  profitByBook.forEach((p, name) => {
-    if (!(name in BOOK_START)) balanceByBook.push({ name, start: 0, profit: p, balance: p });
+  profitByBook.forEach((p, key) => {
+    const exists = Object.keys(BOOK_START).some(name => normBook(name) === key);
+    if (!exists) {
+      balanceByBook.push({ name: key, start: 0, profit: p, balance: p });
+    }
   });
 
   balanceByBook.sort((a, b) => b.balance - a.balance);
@@ -225,40 +214,16 @@ function buildStats(rows: Bet[]) {
   const profitLive = live.reduce((acc, r) => acc + calcProfit(r), 0);
 
   return { 
-    profit, 
-    n, 
-    wins, 
-    losses, 
-    avgOdds, 
-    bankroll, 
-    balanceByBook,
-    profitBySport,
-    profitByTipster,
-    profitPrematch,
-    profitLive,
-    prematchCount: prematch.length,
-    liveCount: live.length,
-    roiPercent, 
-    donosNaKapital
+    profit, n, wins, losses, avgOdds, bankroll, balanceByBook,
+    profitBySport, profitByTipster, profitPrematch, profitLive,
+    prematchCount: prematch.length, liveCount: live.length,
+    roiPercent, donosNaKapital
   };
 }
 
-function MetricCard({ 
-  title, 
-  value, 
-  subtitle,
-  trend,
-  icon,
-  accentColor = "emerald",
-  big = false
-}: { 
-  title: string; 
-  value: string; 
-  subtitle?: string;
-  trend?: "up" | "down" | "neutral";
-  icon?: React.ReactNode;
-  accentColor?: "emerald" | "amber" | "rose" | "sky" | "violet";
-  big?: boolean;
+function MetricCard({ title, value, subtitle, trend, icon, accentColor = "emerald", big = false }: { 
+  title: string; value: string; subtitle?: string; trend?: "up" | "down" | "neutral";
+  icon?: React.ReactNode; accentColor?: "emerald" | "amber" | "rose" | "sky" | "violet"; big?: boolean;
 }) {
   const gradients = {
     emerald: "from-emerald-500/10 to-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40",
@@ -305,14 +270,8 @@ function MetricCard({
   );
 }
 
-function DataTable({ 
-  title, 
-  data, 
-  icon
-}: { 
-  title: string; 
-  data: { label: string; value: string; profit: number }[];
-  icon?: React.ReactNode;
+function DataTable({ title, data, icon }: { 
+  title: string; data: { label: string; value: string; profit: number }[]; icon?: React.ReactNode;
 }) {
   const maxProfit = Math.max(...data.map(d => Math.abs(d.profit)));
   
@@ -475,13 +434,11 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
-      {/* Ambient Background */}
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
 
       <div className="relative max-w-[1400px] mx-auto px-4 md:px-8 py-8 md:py-12">
         
-        {/* Header */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div className="text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
@@ -569,101 +526,92 @@ export default function HomePage() {
             accentColor="violet"
           />
           <MetricCard
-            title="Povp. Efektivna Kvota"
+            title="Povp. Efekt. Kvota"
             value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"}
             icon={<Target className="w-5 h-5" />}
             accentColor="amber"
           />
         </section>
 
-        {/* Main Chart Section - enak kot stats */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* Chart */}
-            <div className="lg:col-span-2 rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6 md:p-8">
-                <div className="flex items-center justify-center md:justify-between mb-8">
-                    <div className="text-center md:text-left">
-                        <h3 className="text-lg font-bold text-white">Rast Profita</h3>
-                        <p className="text-sm text-zinc-500">Kumulativni pregled po mesecih</p>
-                    </div>
-                    <div className="hidden md:flex gap-2">
-                         <div className="flex items-center gap-2 text-xs text-zinc-500">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Profit
-                        </div>
-                    </div>
-                </div>
-                
-                <div className="h-[300px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={chartMonthly}>
-                            <defs>
-                                <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                            <XAxis 
-                                dataKey="monthName" 
-                                stroke="#52525b" 
-                                fontSize={12} 
-                                tickLine={false}
-                                axisLine={false}
-                                interval={0}
-                                angle={-45}
-                                textAnchor="end"
-                                height={60}
-                            />
-                            <YAxis 
-                                stroke="#52525b" 
-                                fontSize={12} 
-                                tickLine={false} 
-                                axisLine={false}
-                                tickFormatter={(val) => `€${val}`}
-                            />
-                            <Tooltip 
-                                contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
-                                itemStyle={{ color: '#fff' }}
-                                labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
-                                formatter={(value: number | undefined) => [eur(value ?? 0), "Kumulativno"]}
-                                labelFormatter={(label) => `Mesec: ${label}`}
-                            />
-                            <Area 
-                                type="monotone" 
-                                dataKey="cumulative" 
-                                stroke="#10b981" 
-                                strokeWidth={2}
-                                fillOpacity={1} 
-                                fill="url(#colorProfit)" 
-                                dot={{ fill: "#10b981", strokeWidth: 0, r: 4 }}
-                                activeDot={{ r: 6, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }}
-                            />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
+        {/* Graf + Stavnice - 50/50 layout */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Chart */}
+          <div className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6">
+            <div className="flex items-center justify-center mb-6">
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-white">Rast Profita</h3>
+                <p className="text-sm text-zinc-500">Kumulativni pregled po mesecih</p>
+              </div>
+            </div>
+            
+            <div className="h-[280px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartMonthly}>
+                  <defs>
+                    <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <XAxis 
+                    dataKey="monthName" 
+                    stroke="#52525b" 
+                    fontSize={11} 
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    stroke="#52525b" 
+                    fontSize={11} 
+                    tickLine={false} 
+                    axisLine={false}
+                    tickFormatter={(val) => `€${val}`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
+                    itemStyle={{ color: '#fff' }}
+                    labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
+                    formatter={(value: number | undefined) => [eur(value ?? 0), "Kumulativno"]}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="cumulative" 
+                    stroke="#10b981" 
+                    strokeWidth={2}
+                    fillOpacity={1} 
+                    fill="url(#colorProfit)" 
+                    dot={{ fill: "#10b981", strokeWidth: 0, r: 3 }}
+                    activeDot={{ r: 5, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Stavnice */}
+          <div className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6 flex flex-col">
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500"><Wallet className="w-5 h-5" /></div>
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-white">Stanja Stavnic</h3>
+                <p className="text-sm text-zinc-500">Razporeditev kapitala</p>
+              </div>
             </div>
 
-            {/* Bankroll / Bookies */}
-            <div className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6 md:p-8 flex flex-col">
-                <div className="flex items-center justify-center gap-3 mb-6">
-                    <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500"><Wallet className="w-5 h-5" /></div>
-                    <div className="text-center">
-                        <h3 className="text-lg font-bold text-white">Stanja Stavnic</h3>
-                        <p className="text-sm text-zinc-500">Razporeditev kapitala</p>
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-                    {stats.balanceByBook.map((book) => (
-                        <BookCard key={book.name} book={book} />
-                    ))}
-                </div>
-                <div className="mt-6 pt-6 border-t border-zinc-800">
-                    <div className="flex flex-col items-center gap-1">
-                        <span className="text-sm font-medium text-zinc-500">Skupna banka</span>
-                        <span className="text-2xl font-bold text-white tracking-tight">{eur(stats.balanceByBook.reduce((a, b) => a + b.balance, 0))}</span>
-                    </div>
-                </div>
+            <div className="flex-1 grid grid-cols-2 gap-3 content-start">
+              {stats.balanceByBook.map((book) => (
+                <BookCard key={book.name} book={book} />
+              ))}
             </div>
+            
+            <div className="mt-4 pt-4 border-t border-zinc-800">
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-sm font-medium text-zinc-500">Skupna banka</span>
+                <span className="text-2xl font-bold text-white tracking-tight">{eur(stats.balanceByBook.reduce((a, b) => a + b.balance, 0))}</span>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* Data Tables */}
