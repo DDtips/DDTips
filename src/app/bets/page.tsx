@@ -537,163 +537,190 @@ export default function BetsPage() {
             <span className="text-xs text-zinc-500 bg-zinc-800 px-3 py-1 rounded-full ml-2">{computed.withProfit.length} vrstic</span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-         <thead>
-  <tr className="border-b border-zinc-800/50 bg-zinc-900/50">
-    <th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">
-      Datum
-    </th>
-    <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
-      Status
-    </th>
+<div className="overflow-x-auto">
+  <table className="w-full text-xs">
+    <thead>
+      <tr className="border-b border-zinc-800/50 bg-zinc-900/50">
+        <th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">
+          Datum
+        </th>
+        <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
+          Status
+        </th>
 
-    {/* Dogodek + Tip skupaj */}
-    <th
-      className="text-left py-3 px-2 font-bold tracking-wider uppercase text-zinc-500"
-      style={{ minWidth: "220px" }}
-    >
-      Dogodek / Tip
-    </th>
+        <th
+          className="text-left py-3 px-2 font-bold tracking-wider uppercase text-zinc-500"
+          style={{ minWidth: "220px" }}
+        >
+          Dogodek / Tip
+        </th>
 
-    <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
-      Back
-    </th>
-    <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
-      Vplač.
-    </th>
-    <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
-      Lay
-    </th>
-    <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
-      Vplač.
-    </th>
-    <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
-      Efekt.
-    </th>
-    <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
-      Kom.
-    </th>
-    <th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">
-      Profit
-    </th>
-<th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Šport</th>
-<th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Tipster</th>
+        <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
+          Back
+        </th>
+        <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
+          Vplač.
+        </th>
+        <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
+          Lay
+        </th>
+        <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
+          Vplač.
+        </th>
+        <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
+          Efekt.
+        </th>
+        <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
+          Kom.
+        </th>
+        <th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">
+          Profit
+        </th>
 
-{/* ČAS prestavljen sem */}
-<th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">
-  Čas
-</th>
+        <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
+          Šport
+        </th>
+        <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">
+          Tipster
+        </th>
 
-<th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500">
-  Stavnica
-</th>
+        {/* ČAS je med Tipster in Stavnica */}
+        <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">
+          Čas
+        </th>
 
-<th className="w-[36px]"></th>
+        <th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500">
+          Stavnica
+        </th>
 
-  </tr>
-</thead>
+        <th className="w-[36px]"></th>
+      </tr>
+    </thead>
 
-              <tbody>
-                {computed.withProfit.map((r, idx) => (
-                  <tr
-  key={r.id}
-  className={`border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors group ${
-    idx % 2 === 0 ? "bg-zinc-900/20" : "bg-zinc-900/40"
-  }`}
->
-  <td className="py-2.5 px-2 text-zinc-300 text-center whitespace-nowrap">
-    {formatDateSlovenian(r.datum)}
-  </td>
+    <tbody>
+      {computed.withProfit.map((r, idx) => (
+        <tr
+          key={r.id}
+          className={`border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors group ${
+            idx % 2 === 0 ? "bg-zinc-900/20" : "bg-zinc-900/40"
+          }`}
+        >
+          {/* Datum */}
+          <td className="py-2 px-2 text-zinc-300 text-center whitespace-nowrap">
+            {formatDateSlovenian(r.datum)}
+          </td>
 
-  <td className="py-2.5 px-1 text-center">
-    <StatusBadge wl={r.wl} onClick={() => openEdit(r)} />
-  </td>
+          {/* Status */}
+          <td className="py-2 px-1 text-center">
+            <StatusBadge wl={r.wl} onClick={() => openEdit(r)} />
+          </td>
 
-  {/* Dogodek + Tip skupaj (bolj kompaktno) */}
- <td className="py-2 px-2 text-left">
-  <div className="space-y-0">
+          {/* Dogodek + Tip skupaj */}
+          <td className="py-2 px-2 text-left">
+            <div className="space-y-0">
+              <TooltipCell text={r.dogodek} className="text-white font-semibold" />
+              <TooltipCell text={r.tip} className="text-zinc-400 text-[11px]" />
+            </div>
+          </td>
 
-      <TooltipCell text={r.dogodek} className="text-white font-semibold" />
-      <TooltipCell text={r.tip} className="text-zinc-400 text-[11px]" />
-    </div>
-  </td>
+          {/* Back kvota */}
+          <td className="py-2 px-1 text-white font-semibold tabular-nums text-center">
+            {r.kvota1 > 0 ? r.kvota1.toFixed(2) : "-"}
+          </td>
 
-  {/* NOVO: Čas (PREMATCH/LIVE) */}
-<td className="py-2 px-1 text-center">
-  <span
-    className={`px-2 py-1 rounded-lg text-[10px] font-bold border whitespace-nowrap ${
-      r.cas_stave === "LIVE"
-        ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
-        : "bg-zinc-500/10 text-zinc-200 border-zinc-500/25"
-    }`}
-  >
-    {r.cas_stave}
-  </span>
-</td>
+          {/* Back vplačilo */}
+          <td className="py-2 px-1 text-zinc-300 tabular-nums text-center whitespace-nowrap">
+            {r.vplacilo1 > 0 ? eurCompact(r.vplacilo1) : "-"}
+          </td>
 
+          {/* Lay kvota */}
+          <td className="py-2 px-1 text-sky-400 font-semibold tabular-nums text-center">
+            {(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : "-"}
+          </td>
 
-  <td className="py-2.5 px-1 text-white font-semibold tabular-nums text-center">
-    {r.kvota1 > 0 ? r.kvota1.toFixed(2) : "-"}
-  </td>
-  <td className="py-2.5 px-1 text-zinc-300 tabular-nums text-center whitespace-nowrap">
-    {r.vplacilo1 > 0 ? eurCompact(r.vplacilo1) : "-"}
-  </td>
-  <td className="py-2.5 px-1 text-sky-400 font-semibold tabular-nums text-center">
-    {(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : "-"}
-  </td>
-  <td className="py-2.5 px-1 text-sky-300 tabular-nums text-center whitespace-nowrap">
-    {(r.vplacilo2 ?? 0) > 0 ? eurCompact(r.vplacilo2 ?? 0) : "-"}
-  </td>
-  <td className="py-2.5 px-1 text-amber-400 font-semibold tabular-nums text-center">
-    {r.effectiveOdds !== null ? r.effectiveOdds.toFixed(2) : "-"}
-  </td>
-  <td className="py-2.5 px-1 text-zinc-500 tabular-nums text-center">
-    {(r.komisija ?? 0) > 0 ? eurCompact(r.komisija ?? 0) : "-"}
-  </td>
+          {/* Lay vplačilo */}
+          <td className="py-2 px-1 text-sky-300 tabular-nums text-center whitespace-nowrap">
+            {(r.vplacilo2 ?? 0) > 0 ? eurCompact(r.vplacilo2 ?? 0) : "-"}
+          </td>
 
-  <td
-    className={`py-2.5 px-2 font-bold tabular-nums text-center whitespace-nowrap ${
-      r.profit >= 0 ? "text-emerald-400" : "text-rose-400"
-    }`}
-  >
-    {eurCompact(r.profit)}
-  </td>
+          {/* Efektivna */}
+          <td className="py-2 px-1 text-amber-400 font-semibold tabular-nums text-center">
+            {r.effectiveOdds !== null ? r.effectiveOdds.toFixed(2) : "-"}
+          </td>
 
-  <td className="py-2 px-1 text-center">
-  <span className="px-2 py-1 rounded-lg bg-zinc-800/70 text-[10px] font-bold text-zinc-200 border border-zinc-700 whitespace-nowrap">
-    {r.sport}
-  </span>
-</td>
+          {/* Komisija */}
+          <td className="py-2 px-1 text-zinc-500 tabular-nums text-center whitespace-nowrap">
+            {(r.komisija ?? 0) > 0 ? eurCompact(r.komisija ?? 0) : "-"}
+          </td>
 
+          {/* Profit (poudarjen) */}
+          <td className="py-2 px-2 text-center whitespace-nowrap">
+            <span
+              className={`inline-flex items-center px-2.5 py-1 rounded-xl font-extrabold tabular-nums text-sm border shadow-sm ${
+                r.profit >= 0
+                  ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30 shadow-emerald-500/10"
+                  : "bg-rose-500/10 text-rose-300 border-rose-500/30 shadow-rose-500/10"
+              }`}
+            >
+              {eurCompact(r.profit)}
+            </span>
+          </td>
 
-  <td className="py-2.5 px-1 text-center">
-    <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-bold text-zinc-300 border border-zinc-700">
-      {r.tipster}
-    </span>
-  </td>
+          {/* Šport badge */}
+          <td className="py-2 px-1 text-center">
+            <span className="px-2 py-1 rounded-lg bg-zinc-800/70 text-[10px] font-bold text-zinc-200 border border-zinc-700 whitespace-nowrap">
+              {r.sport}
+            </span>
+          </td>
 
-  {/* STAVNICA: center */}
-<td className="py-2 px-2 text-zinc-300 text-center whitespace-nowrap">{r.stavnica}</td>
+          {/* Tipster badge */}
+          <td className="py-2 px-1 text-center">
+            <span className="px-2 py-1 rounded-lg bg-zinc-800/70 text-[10px] font-bold text-zinc-200 border border-zinc-700 whitespace-nowrap">
+              {r.tipster}
+            </span>
+          </td>
 
+          {/* Čas badge (PRAVO MESTO!) */}
+          <td className="py-2 px-1 text-center">
+            <span
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold border whitespace-nowrap ${
+                r.cas_stave === "LIVE"
+                  ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
+                  : "bg-zinc-500/10 text-zinc-200 border-zinc-500/25"
+              }`}
+            >
+              {r.cas_stave}
+            </span>
+          </td>
 
-  <td className="py-2.5 px-1 text-center">
-    <button
-      onClick={() => deleteBet(r.id)}
-      className="p-1.5 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all duration-300"
-    >
-      <Trash2 className="w-3.5 h-3.5" />
-    </button>
-  </td>
-</tr>
+          {/* Stavnica center */}
+          <td className="py-2 px-2 text-zinc-300 text-center whitespace-nowrap">
+            {r.stavnica}
+          </td>
 
-                ))}
-                {!computed.withProfit.length && (
-                  <tr><td colSpan={15} className="py-12 text-center text-zinc-600">Ni stav za izbrani mesec.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {/* Delete */}
+          <td className="py-2 px-1 text-center">
+            <button
+              onClick={() => deleteBet(r.id)}
+              className="p-1.5 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all duration-300"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </td>
+        </tr>
+      ))}
+
+      {!computed.withProfit.length && (
+        <tr>
+          <td colSpan={15} className="py-12 text-center text-zinc-600">
+            Ni stav za izbrani mesec.
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</div>
+
         </section>
 
         <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
