@@ -45,7 +45,6 @@ type Bet = {
 };
 
 const CAPITAL_TOTAL = 9000;
-
 const BOOK_START: Record<string, number> = {
   SHARP: 2000,
   PINNACLE: 2000,
@@ -75,12 +74,6 @@ function hasBack(b: Bet) {
   return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0;
 }
 
-/**
- * PROFIT = celoten profit posla (stave + trading).
- * Če imaš back+lay, profit je odvisen od izida back-a (wl):
- * - WIN: back dobi, lay izgubi (liability)
- * - LOSS: back izgubi stake, lay dobi stake
- */
 function calcProfit(b: Bet): number {
   const kom = b.komisija || 0;
   if (b.wl !== "WIN" && b.wl !== "LOSS") return 0;
@@ -94,19 +87,16 @@ function calcProfit(b: Bet): number {
   const hasBackBet = hasBack(b);
   const hasLayBet = hasLay(b);
 
-  // only lay
   if (!hasBackBet && hasLayBet) {
     if (b.wl === "WIN") return layStake - kom;
     return -layLiability - kom;
   }
 
-  // only back
   if (hasBackBet && !hasLayBet) {
     if (b.wl === "WIN") return backStake * (backOdds - 1) - kom;
     return -backStake - kom;
   }
 
-  // back + lay
   if (hasBackBet && hasLayBet) {
     if (b.wl === "WIN") {
       return backStake * (backOdds - 1) - layLiability - kom;
@@ -127,11 +117,10 @@ function calcRisk(b: Bet): number {
 
   if (hasBackBet && !hasLayBet) return backStake;
   if (!hasBackBet && hasLayBet) return layLiability;
-  if (hasBackBet && hasLayBet) return layLiability; // najvišje tveganje je liability
+  if (hasBackBet && hasLayBet) return layLiability;
   return 0;
 }
 
-// (za zdaj obdrži kot prej – povprečje efektivnih kvot boš kasneje ločil za trade/stave)
 function calcEffectiveOdds(b: Bet): number | null {
   const risk = calcRisk(b);
   if (risk <= 0) return null;
@@ -193,9 +182,7 @@ function buildStats(rows: Bet[]) {
 
   profitByBook.forEach((p, key) => {
     const exists = Object.keys(BOOK_START).some((name) => normBook(name) === key);
-    if (!exists) {
-      balanceByBook.push({ name: key, start: 0, profit: p, balance: p });
-    }
+    if (!exists) balanceByBook.push({ name: key, start: 0, profit: p, balance: p });
   });
 
   balanceByBook.sort((a, b) => b.balance - a.balance);
@@ -283,21 +270,13 @@ function MetricCard({
         </div>
 
         <div className="flex items-center justify-center gap-2">
-          {/* številke vedno bele + večje pri big */}
-          <span
-            className={`${
-              big ? "text-3xl md:text-4xl drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)]" : "text-xl"
-            } font-bold tracking-tight text-white`}
-          >
+          {/* ✅ POVEČANE številke za big */}
+          <span className={`${big ? "text-4xl md:text-5xl" : "text-xl"} font-bold tracking-tight text-white`}>
             {value}
           </span>
 
           {trend && trend !== "neutral" && (
-            <div
-              className={`flex items-center text-sm font-medium ${
-                trend === "up" ? "text-emerald-400" : "text-rose-400"
-              }`}
-            >
+            <div className={`flex items-center text-sm font-medium ${trend === "up" ? "text-emerald-400" : "text-rose-400"}`}>
               {trend === "up" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             </div>
           )}
@@ -386,7 +365,7 @@ export default function HomePage() {
 
   const stats = useMemo(() => buildStats(rows), [rows]);
 
-  // Dnevni graf = kumulativni profit tekočega meseca (celoten profit iz calcProfit)
+  // Dnevni graf za tekoči mesec (kumulativno)
   const chartDaily = useMemo(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -417,7 +396,7 @@ export default function HomePage() {
     return arr;
   }, [rows]);
 
-  // Mesečni graf = rast profita (kumulativno) 2026 (celoten profit iz calcProfit)
+  // Mesečni graf: RAST profita (kumulativno) za leto 2026 (linija)
   const chartMonthly = useMemo(() => {
     const settled = rows
       .filter((r) => {
@@ -511,7 +490,6 @@ export default function HomePage() {
             </h1>
             <p className="text-zinc-400 text-sm font-medium">Pregled celotnega portfelja stav</p>
           </div>
-
           <button
             onClick={loadRows}
             className="group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)] self-center md:self-auto"
@@ -539,14 +517,14 @@ export default function HomePage() {
           />
         </section>
 
-        {/* Row 2 (profit + donos večji, številke bele) */}
+        {/* Row 2 (✅ profit + donos sta bigger) */}
         <section className="grid grid-cols-3 gap-4 mb-4">
           <MetricCard
             title="Celoten profit"
             value={eur(stats.profit)}
             trend={stats.profit >= 0 ? "up" : "down"}
             icon={<TrendingUp className="w-4 h-4" />}
-            accentColor={stats.profit >= 0 ? "emerald" : "rose"}
+            accentColor="emerald"
             big
           />
           <MetricCard
@@ -561,7 +539,7 @@ export default function HomePage() {
             value={`${stats.donosNaKapital.toFixed(2)}%`}
             trend={stats.donosNaKapital >= 0 ? "up" : "down"}
             icon={<BarChart3 className="w-4 h-4" />}
-            accentColor={stats.donosNaKapital >= 0 ? "emerald" : "rose"}
+            accentColor="amber"
             big
           />
         </section>
@@ -574,7 +552,7 @@ export default function HomePage() {
           <MetricCard title="Povp. Efekt. Kvota" value={stats.avgOdds ? stats.avgOdds.toFixed(2) : "-"} icon={<Target className="w-4 h-4" />} accentColor="amber" />
         </section>
 
-        {/* Charts + Books layout (equal heights) */}
+        {/* Charts + Books layout */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 items-stretch">
           {/* LEFT */}
           <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col">
@@ -586,7 +564,6 @@ export default function HomePage() {
                   <p className="text-xs text-zinc-500">Kumulativni pregled po dnevih</p>
                 </div>
               </div>
-
               <div className="h-[220px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartDaily}>
@@ -600,7 +577,12 @@ export default function HomePage() {
                     <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
                     <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: "#18181b", borderColor: "#27272a", borderRadius: "12px", fontSize: "12px" }}
+                      contentStyle={{
+                        backgroundColor: "#18181b",
+                        borderColor: "#27272a",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                      }}
                       itemStyle={{ color: "#fff" }}
                       labelStyle={{ color: "#a1a1aa", marginBottom: "4px" }}
                       formatter={(value: number | undefined) => [eur(value ?? 0), "Kumulativno"]}
@@ -622,7 +604,7 @@ export default function HomePage() {
 
             <div className="my-5 border-t border-zinc-800/50" />
 
-            {/* Monthly (bigger, line, cumulative) */}
+            {/* Monthly */}
             <div className="flex-1 flex flex-col">
               <div className="flex items-center justify-center mb-4">
                 <div className="text-center">
@@ -644,7 +626,12 @@ export default function HomePage() {
                     <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
                     <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: "#18181b", borderColor: "#27272a", borderRadius: "12px", fontSize: "12px" }}
+                      contentStyle={{
+                        backgroundColor: "#18181b",
+                        borderColor: "#27272a",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                      }}
                       itemStyle={{ color: "#fff" }}
                       labelStyle={{ color: "#a1a1aa", marginBottom: "4px" }}
                       formatter={(value: number | undefined) => [eur(value ?? 0), "Kumulativno"]}
@@ -665,7 +652,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* RIGHT: bookmakers */}
+          {/* RIGHT */}
           <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col">
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div className="rounded-2xl bg-white/5 border border-white/10 p-3 text-center">
