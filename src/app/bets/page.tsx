@@ -20,8 +20,8 @@ import {
   X,
   Check,
   Percent,
-  Pencil, // Dodana ikona za urejanje
-  ArrowRight
+  Pencil,
+  ChevronDown // Dodana ikona za lepši select
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -189,7 +189,7 @@ function SelectField({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm appearance-none focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all duration-200 cursor-pointer"
+          className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm appearance-none focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all duration-200 cursor-pointer pr-8"
         >
           {options.map((opt) => (
             <option key={opt} value={opt} className="bg-zinc-900 text-white">
@@ -197,9 +197,9 @@ function SelectField({
             </option>
           ))}
         </select>
-        {/* Custom arrow icon styling helper */}
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-           <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        {/* Custom arrow icon */}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
+           <ChevronDown className="w-4 h-4" />
         </div>
       </div>
     </div>
@@ -217,7 +217,7 @@ function StatusBadge({ wl, onClick }: { wl: WL; onClick?: () => void }) {
   return (
     <button
       onClick={onClick}
-      className={`px-2.5 py-1 rounded-md text-[10px] font-bold border ${styles[wl]} transition-all duration-300 hover:brightness-125 cursor-pointer`}
+      className={`px-2.5 py-1 rounded-md text-xs font-bold border ${styles[wl]} transition-all duration-300 hover:brightness-125 cursor-pointer`}
     >
       {wl}
     </button>
@@ -422,22 +422,19 @@ export default function BetsPage() {
 
       <div className="relative max-w-[1800px] mx-auto px-4 md:px-6 py-8 md:py-12">
         
-        {/* HEADER - Minimalističen */}
-        <header className="flex items-center justify-between mb-8 mt-2 h-10">
-          <h1 className="text-2xl font-bold tracking-tight text-white/90">
-            Stave
-          </h1>
+        {/* HEADER - Minimalističen (Odstranjen napis Stave) */}
+        <div className="flex justify-end mb-6 mt-4 h-10">
           <button
             onClick={loadBets}
             className="group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
           </button>
-        </header>
+        </div>
 
         {msg && <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center">{msg}</div>}
 
-        {/* ADD FORM - POLEPŠANA */}
+        {/* ADD FORM */}
         <section className="mb-10">
           <div className="rounded-3xl border border-zinc-800/60 bg-gradient-to-b from-zinc-900 to-black p-1 shadow-2xl">
             <div className="rounded-[20px] bg-zinc-900/50 p-6 backdrop-blur-md">
@@ -449,6 +446,7 @@ export default function BetsPage() {
                 <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Nova Stava</h2>
               </div>
 
+              {/* Vnosna polja ostanejo enaka ... */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
                 <InputField label="Datum" value={datum} onChange={setDatum} type="date" icon={<Calendar className="w-3 h-3" />} />
                 <SelectField label="Status" value={wl} onChange={(v) => setWl(v as WL)} options={["OPEN", "WIN", "LOSS", "VOID"]} icon={<Trophy className="w-3 h-3" />} />
@@ -470,7 +468,6 @@ export default function BetsPage() {
                 <div className="hidden md:block" />
               </div>
 
-              {/* DYNAMIC FIELDS */}
               {(mode === "TRADING" || (mode === "BET" && betSide === "BACK")) && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 p-4 rounded-xl bg-zinc-950/30 border border-zinc-800/30">
                   <InputField label="Back Kvota" value={kvota1} onChange={setKvota1} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} />
@@ -508,25 +505,30 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* MONTH STATS */}
+        {/* MONTH STATS & FILTER (Prenovljen filter) */}
         <section className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex items-center gap-4">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-400">
-               <Filter className="w-4 h-4" />
+          <div className="col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex items-center gap-4 group relative">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
+               <Filter className="w-5 h-5" />
             </div>
-            <div className="flex-1">
-               <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 block mb-1">Filter Meseca</label>
-               <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-full bg-transparent text-white font-medium focus:outline-none cursor-pointer"
-                >
-                  {availableMonths.map((month) => (
-                    <option key={month} value={month} className="bg-zinc-900">
-                      {new Date(month + "-01").toLocaleDateString("sl-SI", { year: "numeric", month: "long" })}
-                    </option>
-                  ))}
-                </select>
+            <div className="flex-1 relative">
+               <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 block mb-1 group-focus-within:text-emerald-500 transition-colors">Filter Meseca</label>
+               <div className="relative">
+                 <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="w-full appearance-none bg-zinc-950/50 border border-zinc-800 text-white text-sm font-medium py-2 pl-3 pr-10 rounded-lg focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 cursor-pointer transition-all hover:bg-zinc-900/80"
+                  >
+                    {availableMonths.map((month) => (
+                      <option key={month} value={month} className="bg-zinc-900">
+                        {new Date(month + "-01").toLocaleDateString("sl-SI", { year: "numeric", month: "long" })}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500 group-hover:text-zinc-300 transition-colors">
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+               </div>
             </div>
           </div>
 
@@ -550,7 +552,7 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* TABLE */}
+        {/* TABLE (Povečana pisava, preimenovan stolpec) */}
         <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -561,7 +563,8 @@ export default function BetsPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            {/* TUKAJ: text-sm namesto text-xs */}
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-800/50 bg-zinc-900/50">
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">Datum</th>
@@ -574,7 +577,8 @@ export default function BetsPage() {
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Vplač.</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Kom.</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">Profit</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Info</th>
+                  {/* TUKAJ: Preimenovan stolpec */}
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Tipster / Šport</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Stavnica</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Akcija</th>
                 </tr>
@@ -586,15 +590,16 @@ export default function BetsPage() {
 
                   return (
                     <tr key={r.id} className={`border-b border-zinc-800/30 hover:bg-zinc-800/40 transition-colors group ${idx % 2 === 0 ? "bg-zinc-900/20" : "bg-transparent"}`}>
+                      {/* Povečani teksti v celicah (text-sm ali odstranjen text-[10px]) */}
                       <td className="py-3 px-3 text-zinc-400 text-center whitespace-nowrap">{formatDateSlovenian(r.datum)}</td>
                       <td className="py-3 px-3 text-center"><StatusBadge wl={r.wl} onClick={() => openEdit(r)} /></td>
                       <td className="py-3 px-3 text-center">
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${rowMode === "TRADING" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-sky-500/10 text-sky-400 border-sky-500/20"}`}>{rowMode}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold border ${rowMode === "TRADING" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-sky-500/10 text-sky-400 border-sky-500/20"}`}>{rowMode}</span>
                       </td>
                       <td className="py-3 px-4 text-center">
                         <div className="space-y-0.5">
                           <TooltipCell text={r.dogodek} className="text-white font-medium" />
-                          <TooltipCell text={r.tip} className="text-zinc-500 text-[10px]" />
+                          <TooltipCell text={r.tip} className="text-zinc-500 text-xs" />
                         </div>
                       </td>
                       <td className="py-3 px-3 text-zinc-300 font-medium text-center">{r.kvota1 > 0 ? r.kvota1.toFixed(2) : "-"}</td>
@@ -607,20 +612,19 @@ export default function BetsPage() {
                       </td>
                       <td className="py-3 px-3 text-center">
                         <div className="flex flex-col items-center gap-1">
-                           <span className="text-[9px] px-1 bg-zinc-800 text-zinc-400 rounded">{r.sport}</span>
-                           <span className="text-[9px] px-1 bg-zinc-800 text-zinc-400 rounded">{r.tipster}</span>
+                           <span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-300 rounded">{r.tipster}</span>
+                           <span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">{r.sport}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-zinc-400 text-center text-[10px]">{r.stavnica}</td>
+                      <td className="py-3 px-3 text-zinc-400 text-center text-xs">{r.stavnica}</td>
                       
-                      {/* ACTION COLUMN */}
                       <td className="py-3 px-2 text-center">
                          <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                             <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-blue-500/20 text-zinc-400 hover:text-blue-400 transition-colors" title="Uredi rezultat">
-                               <Pencil className="w-3.5 h-3.5" />
+                               <Pencil className="w-4 h-4" />
                             </button>
                             <button onClick={() => deleteBet(r.id)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors" title="Izbriši">
-                               <Trash2 className="w-3.5 h-3.5" />
+                               <Trash2 className="w-4 h-4" />
                             </button>
                          </div>
                       </td>
@@ -638,7 +642,7 @@ export default function BetsPage() {
         </footer>
       </div>
 
-      {/* EDIT MODAL */}
+      {/* EDIT MODAL (Brez sprememb) */}
       {editOpen && (
         <div onClick={() => setEditOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200">
