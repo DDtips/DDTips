@@ -21,7 +21,7 @@ import {
   Check,
   Percent,
   Pencil,
-  ChevronDown // Dodana ikona za lepši select
+  ChevronDown 
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -132,7 +132,72 @@ function getCurrentMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-// --- KOMPONENTE UI ---
+// --- NOVO: CUSTOM MONTH SELECT (Brez modrega ozadja) ---
+
+function MonthSelect({
+  value,
+  onChange,
+  options
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: string[];
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Helper za lep izpis meseca
+  const getLabel = (m: string) => new Date(m + "-01").toLocaleDateString("sl-SI", { year: "numeric", month: "long" });
+
+  return (
+    <div className="relative w-full">
+      {/* Trigger Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`
+          w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-bold transition-all duration-200 capitalize
+          ${isOpen 
+            ? "bg-zinc-900 border-emerald-500/50 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)]" 
+            : "bg-zinc-950/50 border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-700 hover:text-white"}
+        `}
+      >
+        <span>{getLabel(value)}</span>
+        <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isOpen ? "rotate-180 text-emerald-500" : ""}`} />
+      </button>
+
+      {/* Backdrop (invisible) to close on click outside */}
+      {isOpen && (
+        <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+      )}
+
+      {/* Dropdown Options */}
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+          <div className="max-h-[240px] overflow-y-auto custom-scrollbar py-1">
+            {options.map((month) => (
+              <button
+                key={month}
+                onClick={() => {
+                  onChange(month);
+                  setIsOpen(false);
+                }}
+                className={`
+                  w-full text-left px-4 py-2.5 text-sm font-medium transition-colors capitalize border-l-2
+                  ${month === value 
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500" 
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-white border-transparent"}
+                `}
+              >
+                {getLabel(month)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- OSTALE KOMPONENTE UI ---
 
 function InputField({
   label,
@@ -197,7 +262,6 @@ function SelectField({
             </option>
           ))}
         </select>
-        {/* Custom arrow icon */}
         <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
            <ChevronDown className="w-4 h-4" />
         </div>
@@ -420,9 +484,25 @@ export default function BetsPage() {
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
 
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #27272a;
+          border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #3f3f46;
+        }
+      `}</style>
+
       <div className="relative max-w-[1800px] mx-auto px-4 md:px-6 py-8 md:py-12">
         
-        {/* HEADER - Minimalističen (Odstranjen napis Stave) */}
+        {/* HEADER - Minimalističen */}
         <div className="flex justify-end mb-6 mt-4 h-10">
           <button
             onClick={loadBets}
@@ -446,7 +526,7 @@ export default function BetsPage() {
                 <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Nova Stava</h2>
               </div>
 
-              {/* Vnosna polja ostanejo enaka ... */}
+              {/* Vnosna polja */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
                 <InputField label="Datum" value={datum} onChange={setDatum} type="date" icon={<Calendar className="w-3 h-3" />} />
                 <SelectField label="Status" value={wl} onChange={(v) => setWl(v as WL)} options={["OPEN", "WIN", "LOSS", "VOID"]} icon={<Trophy className="w-3 h-3" />} />
@@ -505,30 +585,20 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* MONTH STATS & FILTER (Prenovljen filter) */}
+        {/* MONTH STATS & FILTER */}
         <section className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex items-center gap-4 group relative">
             <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
                <Filter className="w-5 h-5" />
             </div>
             <div className="flex-1 relative">
-               <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 block mb-1 group-focus-within:text-emerald-500 transition-colors">Filter Meseca</label>
-               <div className="relative">
-                 <select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="w-full appearance-none bg-zinc-950/50 border border-zinc-800 text-white text-sm font-medium py-2 pl-3 pr-10 rounded-lg focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 cursor-pointer transition-all hover:bg-zinc-900/80"
-                  >
-                    {availableMonths.map((month) => (
-                      <option key={month} value={month} className="bg-zinc-900">
-                        {new Date(month + "-01").toLocaleDateString("sl-SI", { year: "numeric", month: "long" })}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500 group-hover:text-zinc-300 transition-colors">
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-               </div>
+               <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 block mb-1">Filter Meseca</label>
+               {/* CUSTOM MONTH SELECT */}
+               <MonthSelect 
+                  value={selectedMonth} 
+                  onChange={setSelectedMonth} 
+                  options={availableMonths} 
+               />
             </div>
           </div>
 
@@ -552,7 +622,7 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* TABLE (Povečana pisava, preimenovan stolpec) */}
+        {/* TABLE */}
         <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -563,7 +633,6 @@ export default function BetsPage() {
           </div>
 
           <div className="overflow-x-auto">
-            {/* TUKAJ: text-sm namesto text-xs */}
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-800/50 bg-zinc-900/50">
@@ -577,7 +646,6 @@ export default function BetsPage() {
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Vplač.</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Kom.</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">Profit</th>
-                  {/* TUKAJ: Preimenovan stolpec */}
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Tipster / Šport</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Stavnica</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Akcija</th>
@@ -590,7 +658,6 @@ export default function BetsPage() {
 
                   return (
                     <tr key={r.id} className={`border-b border-zinc-800/30 hover:bg-zinc-800/40 transition-colors group ${idx % 2 === 0 ? "bg-zinc-900/20" : "bg-transparent"}`}>
-                      {/* Povečani teksti v celicah (text-sm ali odstranjen text-[10px]) */}
                       <td className="py-3 px-3 text-zinc-400 text-center whitespace-nowrap">{formatDateSlovenian(r.datum)}</td>
                       <td className="py-3 px-3 text-center"><StatusBadge wl={r.wl} onClick={() => openEdit(r)} /></td>
                       <td className="py-3 px-3 text-center">
@@ -642,7 +709,7 @@ export default function BetsPage() {
         </footer>
       </div>
 
-      {/* EDIT MODAL (Brez sprememb) */}
+      {/* EDIT MODAL */}
       {editOpen && (
         <div onClick={() => setEditOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200">
