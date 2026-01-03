@@ -132,7 +132,7 @@ function getCurrentMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-// --- NOVO: CUSTOM MONTH SELECT (Brez modrega ozadja) ---
+// --- CUSTOM MONTH SELECT ---
 
 function MonthSelect({
   value,
@@ -145,12 +145,10 @@ function MonthSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Helper za lep izpis meseca
   const getLabel = (m: string) => new Date(m + "-01").toLocaleDateString("sl-SI", { year: "numeric", month: "long" });
 
   return (
     <div className="relative w-full">
-      {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
@@ -164,14 +162,12 @@ function MonthSelect({
         <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isOpen ? "rotate-180 text-emerald-500" : ""}`} />
       </button>
 
-      {/* Backdrop (invisible) to close on click outside */}
       {isOpen && (
         <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
       )}
 
-      {/* Dropdown Options */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute top-full left-0 right-0 mt-2 z-[100] bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
           <div className="max-h-[240px] overflow-y-auto custom-scrollbar py-1">
             {options.map((month) => (
               <button
@@ -312,6 +308,9 @@ export default function BetsPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // STATE ZA PRIKAZ OBRAZCA
+  const [showAddForm, setShowAddForm] = useState(false);
+
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
 
   // Form states
@@ -426,6 +425,7 @@ export default function BetsPage() {
     if (error) { setMsg(error.message); return; }
     setRows((prev) => [data as BetRow, ...prev]);
     resetForm();
+    setShowAddForm(false); // Zapri obrazec po uspešnem dodajanju
   }
 
   async function deleteBet(id: string) {
@@ -502,11 +502,25 @@ export default function BetsPage() {
 
       <div className="relative max-w-[1800px] mx-auto px-4 md:px-6 py-8 md:py-12">
         
-        {/* HEADER - Minimalističen */}
-        <div className="flex justify-end mb-6 mt-4 h-10">
+        {/* HEADER */}
+        <div className="flex justify-end items-center gap-3 mb-6 mt-4 h-10">
+          {/* GUMB ZA ODPIRANJE OBRAZCA */}
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className={`
+              flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 border
+              ${showAddForm 
+                ? "bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700" 
+                : "bg-emerald-500 text-black border-emerald-400 hover:bg-emerald-400 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"}
+            `}
+          >
+            {showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {showAddForm ? "Zapri" : "Nova Stava"}
+          </button>
+
           <button
             onClick={loadBets}
-            className="group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
+            className="group p-2.5 bg-zinc-900 text-zinc-400 border border-zinc-800 rounded-xl hover:text-white hover:border-zinc-700 transition-all duration-200"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
           </button>
@@ -514,8 +528,8 @@ export default function BetsPage() {
 
         {msg && <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center">{msg}</div>}
 
-        {/* ADD FORM */}
-        <section className="mb-10">
+        {/* ADD FORM - Z ANIMACIJO SKRIVANJA */}
+        <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAddForm ? 'max-h-[1000px] opacity-100 mb-10' : 'max-h-0 opacity-0 mb-0'}`}>
           <div className="rounded-3xl border border-zinc-800/60 bg-gradient-to-b from-zinc-900 to-black p-1 shadow-2xl">
             <div className="rounded-[20px] bg-zinc-900/50 p-6 backdrop-blur-md">
               
@@ -526,7 +540,7 @@ export default function BetsPage() {
                 <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Nova Stava</h2>
               </div>
 
-              {/* Vnosna polja */}
+              {/* Vnosna polja ... (enako kot prej) */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
                 <InputField label="Datum" value={datum} onChange={setDatum} type="date" icon={<Calendar className="w-3 h-3" />} />
                 <SelectField label="Status" value={wl} onChange={(v) => setWl(v as WL)} options={["OPEN", "WIN", "LOSS", "VOID"]} icon={<Trophy className="w-3 h-3" />} />
@@ -583,10 +597,10 @@ export default function BetsPage() {
               </div>
             </div>
           </div>
-        </section>
+        </div>
 
-        {/* MONTH STATS & FILTER */}
-        <section className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* MONTH STATS & FILTER - Z-INDEX FIX */}
+        <section className="relative z-30 mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex items-center gap-4 group relative">
             <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
                <Filter className="w-5 h-5" />
@@ -622,8 +636,8 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* TABLE */}
-        <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
+        {/* TABLE - Z-INDEX FIX */}
+        <section className="relative z-10 rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
                <Activity className="w-4 h-4 text-zinc-400" />
