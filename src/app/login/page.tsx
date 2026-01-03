@@ -3,10 +3,21 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { Mail, Lock, LogIn, UserPlus, AlertCircle, TrendingUp } from "lucide-react";
+import { 
+  Mail, 
+  Lock, 
+  ArrowRight, 
+  Loader2, 
+  TrendingUp, 
+  CheckCircle2, 
+  XCircle 
+} from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  
+  // State za način delovanja: 'login' ali 'register'
+  const [view, setView] = useState<"login" | "register">("login");
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,13 +30,16 @@ export default function LoginPage() {
   }
 
   function validate(): string | null {
-    if (!cleanEmail(email)) return "Vpiši email.";
-    if (!password) return "Vpiši geslo.";
-    if (password.length < 6) return "Geslo mora imeti vsaj 6 znakov.";
+    if (!cleanEmail(email)) return "Prosimo, vpišite veljaven email naslov.";
+    if (!password) return "Prosimo, vpišite geslo.";
+    if (password.length < 6) return "Geslo mora vsebovati vsaj 6 znakov.";
     return null;
   }
 
-  async function signUp() {
+  // Enotna funkcija za obdelavo obrazca
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    
     const v = validate();
     if (v) {
       setMsg(v);
@@ -36,188 +50,194 @@ export default function LoginPage() {
     setLoading(true);
     setMsg(null);
 
-    const { data, error } = await supabase.auth.signUp({
-      email: cleanEmail(email),
-      password,
-    });
+    try {
+      if (view === "register") {
+        // --- LOGIKA REGISTRACIJE ---
+        const { data, error } = await supabase.auth.signUp({
+          email: cleanEmail(email),
+          password,
+        });
 
-    setLoading(false);
+        if (error) throw error;
 
-    if (error) {
-      console.log("SIGNUP ERROR:", error);
-      setMsg(error.message);
+        if (!data.session) {
+          setMsg("Uspešno! Preverite email za potrditev računa.");
+          setMsgType("success");
+        } else {
+          setMsg("Račun ustvarjen! Preusmerjanje...");
+          setMsgType("success");
+          setTimeout(() => router.replace("/"), 1000);
+        }
+
+      } else {
+        // --- LOGIKA PRIJAVE ---
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail(email),
+          password,
+        });
+
+        if (error) throw error;
+
+        if (!data.session) {
+          setMsg("Prijava ni uspela. Preverite podatke.");
+          setMsgType("error");
+        } else {
+          setMsg("Dobrodošli nazaj!");
+          setMsgType("success");
+          setTimeout(() => router.replace("/"), 500);
+        }
+      }
+    } catch (error: any) {
+      console.error("AUTH ERROR:", error);
+      setMsg(view === "login" ? "Napačen email ali geslo." : error.message);
       setMsgType("error");
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    if (!data.session) {
-      setMsg("Registracija uspešna ✅ Preveri email in potrdi račun, nato se prijavi.");
-      setMsgType("success");
-      return;
-    }
-
-    setMsg("Registracija uspešna! 🎉");
-    setMsgType("success");
-    
-    setTimeout(() => {
-      router.replace("/");
-    }, 500);
-  }
-
-  async function signIn() {
-    const v = validate();
-    if (v) {
-      setMsg(v);
-      setMsgType("error");
-      return;
-    }
-
-    setLoading(true);
-    setMsg(null);
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: cleanEmail(email),
-      password,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      console.log("SIGNIN ERROR:", error);
-      setMsg("Napačen email ali geslo.");
-      setMsgType("error");
-      return;
-    }
-
-    if (!data.session) {
-      setMsg("Prijava neuspešna. Preveri email in geslo.");
-      setMsgType("error");
-      return;
-    }
-
-    setMsg("Prijava uspešna! 🎉");
-    setMsgType("success");
-    
-    setTimeout(() => {
-      router.replace("/");
-    }, 500);
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-zinc-950 antialiased">
-      {/* Background - enako kot home stran */}
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-black" />
-      <div className="fixed inset-0 opacity-30" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E\")" }} />
+    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-black font-sans selection:bg-emerald-500/30">
+      
+      {/* --- Ozadje --- */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-emerald-600/20 rounded-full blur-[120px] mix-blend-screen animate-pulse" style={{ animationDuration: '4s' }} />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-teal-900/20 rounded-full blur-[120px] mix-blend-screen" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150"></div>
+      </div>
 
-      {/* Login Card */}
-      <div className="relative w-full max-w-md">
-        <div className="relative rounded-2xl bg-zinc-900/90 border border-zinc-800 backdrop-blur-sm p-8 shadow-2xl">
+      {/* --- Kartica --- */}
+      <div className="relative z-10 w-full max-w-[420px] p-6 sm:p-0">
+        <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-xl shadow-2xl ring-1 ring-white/10">
+          
           {/* Header */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30 rounded-2xl mb-4">
-              <TrendingUp className="w-8 h-8 text-emerald-400" />
+          <div className="p-8 pb-6 text-center">
+            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/20">
+              <TrendingUp className="h-7 w-7 text-white" />
             </div>
-            <h1 className="text-3xl font-light tracking-tight text-white mb-2">
-              DDTips
+            <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              Dobrodošli na DDTips
             </h1>
-            <p className="text-zinc-500 text-sm">
-              Match Analysis & Picks
+            <p className="mt-2 text-sm text-zinc-400">
+              Napredna analitika in športni nasveti.
             </p>
           </div>
 
-          {/* Form */}
-          <div className="space-y-5">
-            {/* Email Input */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">
-                Email naslov
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  type="email"
-                  autoComplete="email"
-                  placeholder="ime@domena.com"
-                  className="w-full pl-11 pr-4 py-3 bg-zinc-800/80 border border-zinc-700/50 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-800 transition-all duration-300"
-                />
-              </div>
-            </div>
-
-            {/* Password Input */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold tracking-[0.1em] uppercase text-zinc-400">
-                Geslo
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className="w-full pl-11 pr-4 py-3 bg-zinc-800/80 border border-zinc-700/50 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-800 transition-all duration-300"
-                />
-              </div>
-            </div>
-
-            {/* Message */}
-            {msg && (
-              <div className={`flex items-start gap-3 p-4 rounded-xl ${
-                msgType === "error" 
-                  ? "bg-rose-500/10 border border-rose-500/30" 
-                  : "bg-emerald-500/10 border border-emerald-500/30"
-              }`}>
-                <AlertCircle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
-                  msgType === "error" ? "text-rose-400" : "text-emerald-400"
-                }`} />
-                <p className={`text-sm ${
-                  msgType === "error" ? "text-rose-400" : "text-emerald-400"
-                }`}>
-                  {msg}
-                </p>
-              </div>
-            )}
-
-            {/* Buttons */}
-            <div className="flex gap-3 pt-2">
+          {/* Tabs (Preklopnik) */}
+          <div className="px-8">
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-zinc-950/50 p-1">
               <button
-                type="button"
-                onClick={signIn}
-                disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-emerald-600/20 hover:shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                onClick={() => { setView("login"); setMsg(null); }}
+                className={`flex items-center justify-center rounded-lg py-2.5 text-sm font-medium transition-all duration-200 ${
+                  view === "login" 
+                    ? "bg-zinc-800 text-white shadow-sm" 
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                }`}
               >
-                <LogIn className="w-4 h-4" />
-                {loading ? "Prijavljam..." : "Prijava"}
+                Prijava
               </button>
-
               <button
-                type="button"
-                onClick={signUp}
-                disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-zinc-800 border border-zinc-700/50 text-zinc-300 font-semibold rounded-xl hover:bg-zinc-700 hover:text-white hover:border-zinc-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                onClick={() => { setView("register"); setMsg(null); }}
+                className={`flex items-center justify-center rounded-lg py-2.5 text-sm font-medium transition-all duration-200 ${
+                  view === "register" 
+                    ? "bg-zinc-800 text-white shadow-sm" 
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                }`}
               >
-                <UserPlus className="w-4 h-4" />
                 Registracija
               </button>
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="mt-8 pt-6 border-t border-zinc-800">
-            <p className="text-center text-zinc-600 text-sm">
-              Imate težave s prijavo?{" "}
-              <button className="text-zinc-400 font-medium hover:text-emerald-400 transition-colors">
-                Ponastavite geslo
+          {/* Form */}
+          <div className="p-8 pt-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-300 ml-1">Email</label>
+                <div className="group relative">
+                  <div className="pointer-events-none absolute left-3 top-3.5 text-zinc-500 transition-colors group-focus-within:text-emerald-500">
+                    <Mail className="h-5 w-5" />
+                  </div>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="vas@email.com"
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-950/50 py-3 pl-10 pr-4 text-sm text-zinc-200 placeholder-zinc-600 transition-all focus:border-emerald-500/50 focus:bg-zinc-900 focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-xs font-medium text-zinc-300">Geslo</label>
+                  {view === "login" && (
+                    <button type="button" className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">
+                      Pozabljeno geslo?
+                    </button>
+                  )}
+                </div>
+                <div className="group relative">
+                  <div className="pointer-events-none absolute left-3 top-3.5 text-zinc-500 transition-colors group-focus-within:text-emerald-500">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-950/50 py-3 pl-10 pr-4 text-sm text-zinc-200 placeholder-zinc-600 transition-all focus:border-emerald-500/50 focus:bg-zinc-900 focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
+                  />
+                </div>
+              </div>
+
+              {/* Status Message */}
+              {msg && (
+                <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
+                  msgType === "error" 
+                    ? "border-red-500/20 bg-red-500/10 text-red-400" 
+                    : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                } animate-in fade-in slide-in-from-top-2 duration-300`}>
+                  {msgType === "error" ? <XCircle className="h-5 w-5 shrink-0" /> : <CheckCircle2 className="h-5 w-5 shrink-0" />}
+                  <p>{msg}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-emerald-500 hover:shadow-emerald-500/25 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 mt-2"
+              >
+                {/* Shine effect */}
+                <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent z-0" />
+                
+                <span className="relative z-10 flex items-center gap-2">
+                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {!loading && (view === "login" ? "Prijava" : "Ustvari račun")}
+                  {!loading && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />}
+                </span>
               </button>
+            </form>
+          </div>
+
+          {/* Footer area */}
+          <div className="border-t border-zinc-800 bg-zinc-900/50 p-6 text-center">
+            <p className="text-xs text-zinc-500">
+              Z nadaljevanjem se strinjate s{' '}
+              <a href="#" className="underline decoration-zinc-700 underline-offset-2 hover:text-zinc-300">Pogoji uporabe</a>
+              {' '}in{' '}
+              <a href="#" className="underline decoration-zinc-700 underline-offset-2 hover:text-zinc-300">Zasebnostjo</a>.
             </p>
           </div>
         </div>
-
-        {/* Subtle glow effect */}
-        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600/10 via-transparent to-emerald-600/10 rounded-2xl blur-xl -z-10" />
+        
+        {/* Copyright / Extra info */}
+        <div className="mt-8 text-center">
+          <p className="text-xs text-zinc-600">
+            &copy; {new Date().getFullYear()} DDTips. Vse pravice pridržane.
+          </p>
+        </div>
       </div>
     </div>
   );

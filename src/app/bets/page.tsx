@@ -126,38 +126,6 @@ function calcProfit(b: BetRow): number {
   return 0;
 }
 
-function calcEffectiveOdds(b: BetRow): number | null {
-  const hasBackBet = hasBack(b);
-  const hasLayBet = hasLay(b);
-
-  const backStake = b.vplacilo1 || 0;
-  const backOdds = b.kvota1 || 0;
-  const layStake = b.vplacilo2 || 0;
-  const layOdds = b.lay_kvota || 0;
-  const layLiability = (layOdds - 1) * layStake;
-  const kom = Number(b.komisija ?? 0);
-
-  // samo back → efektivna = back kvota
-  if (hasBackBet && !hasLayBet) return backOdds;
-
-  // samo lay → efektivna = 1 + (profit / liability)
-  if (!hasBackBet && hasLayBet) {
-    if (layLiability <= 0) return null;
-    const profit = layStake - kom;
-    return 1 + profit / layLiability;
-  }
-
-  // trading (back + lay) → efektivna glede na “risk” = lay liability
-  if (hasBackBet && hasLayBet) {
-    if (layLiability <= 0) return null;
-    const backProfit = backStake * (backOdds - 1);
-    const profitOnWin = backProfit - layLiability - kom;
-    return 1 + profitOnWin / layLiability;
-  }
-
-  return null;
-}
-
 function getCurrentMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -306,7 +274,7 @@ export default function BetsPage() {
     })();
   }, []);
 
-  // Ko preklopiš mode, počistimo neuporabna polja (da ne ostanejo “skrita” vnosna stanja)
+  // Ko preklopiš mode, počistimo neuporabna polja (da ne ostanejo "skrita" vnosna stanja)
   useEffect(() => {
     if (mode === "TRADING") {
       // trading rabi oba; pustimo betSide pri miru (ni pomemben)
@@ -481,7 +449,6 @@ export default function BetsPage() {
     const withProfit = filteredRows.map((r) => ({
       ...r,
       profit: calcProfit(r),
-      effectiveOdds: calcEffectiveOdds(r),
     }));
     return { withProfit };
   }, [filteredRows]);
@@ -688,7 +655,6 @@ export default function BetsPage() {
                   <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Vplač.</th>
                   <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Lay</th>
                   <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Vplač.</th>
-                  <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Efekt.</th>
                   <th className="text-center py-3 px-1 font-bold tracking-wider uppercase text-zinc-500">Kom.</th>
                   <th className="text-center py-3 px-2 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">Profit</th>
 
@@ -748,8 +714,6 @@ export default function BetsPage() {
 
                       <td className="py-2 px-1 text-sky-300 tabular-nums text-center whitespace-nowrap">{(r.vplacilo2 ?? 0) > 0 ? eurCompact(r.vplacilo2 ?? 0) : "-"}</td>
 
-                      <td className="py-2 px-1 text-amber-400 font-semibold tabular-nums text-center">{r.effectiveOdds !== null ? r.effectiveOdds.toFixed(2) : "-"}</td>
-
                       <td className="py-2 px-1 text-zinc-500 tabular-nums text-center whitespace-nowrap">{(r.komisija ?? 0) > 0 ? eurCompact(r.komisija ?? 0) : "-"}</td>
 
                       <td className="py-2 px-2 text-center whitespace-nowrap">
@@ -798,7 +762,7 @@ export default function BetsPage() {
 
                 {!computed.withProfit.length && (
                   <tr>
-                    <td colSpan={15} className="py-12 text-center text-zinc-600">
+                    <td colSpan={14} className="py-12 text-center text-zinc-600">
                       Ni stav za izbrani mesec.
                     </td>
                   </tr>
