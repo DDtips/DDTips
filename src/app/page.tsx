@@ -27,6 +27,8 @@ import {
   Wallet,
 } from "lucide-react";
 
+// --- TIPOVI IN KONSTANTE ---
+
 type WL = "OPEN" | "WIN" | "LOSS" | "VOID";
 
 type Bet = {
@@ -57,6 +59,8 @@ const BOOK_START: Record<string, number> = {
 
 const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"];
 const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"];
+
+// --- POMOŽNE FUNKCIJE ---
 
 function normBook(x: string) {
   return (x || "").toUpperCase().replace(/\s+/g, "").replace(/-/g, "");
@@ -130,13 +134,10 @@ function buildStats(rows: Bet[]) {
   const wins = settled.filter((r) => r.wl === "WIN").length;
   const losses = settled.filter((r) => r.wl === "LOSS").length;
 
-  // skupni profit = stave + trading (vse, kar je v rows)
   const profit = settled.reduce((acc, r) => acc + calcProfit(r), 0);
-
   const bankroll = CAPITAL_TOTAL + profit;
-
   const totalRisk = settled.reduce((acc, r) => acc + calcRisk(r), 0);
-  const roiPercent = totalRisk === 0 ? 0 : (profit / totalRisk) * 100; // (ne prikazujemo na Home, ampak naj ostane)
+  const roiPercent = totalRisk === 0 ? 0 : (profit / totalRisk) * 100;
   const donosNaKapital = ((bankroll - CAPITAL_TOTAL) / CAPITAL_TOTAL) * 100;
   const winRate = n > 0 ? (wins / n) * 100 : 0;
 
@@ -199,6 +200,8 @@ function buildStats(rows: Bet[]) {
     liveCount: live.length,
   };
 }
+
+// --- KOMPONENTE UI ---
 
 function MetricCard({
   title,
@@ -308,6 +311,8 @@ function DataTable({
   );
 }
 
+// --- GLAVNA STRAN ---
+
 export default function HomePage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
@@ -335,7 +340,6 @@ export default function HomePage() {
 
   const stats = useMemo(() => buildStats(rows), [rows]);
 
-  // Dnevni graf (tekoči mesec) – KUMULATIVNO: skupni profit (stave + trading)
   const chartDaily = useMemo(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -366,7 +370,6 @@ export default function HomePage() {
     return arr;
   }, [rows]);
 
-  // Mesečni graf: RAST profita (kumulativno) – skupni profit (stave + trading)
   const chartMonthly = useMemo(() => {
     const settled = rows
       .filter((r) => {
@@ -458,23 +461,15 @@ export default function HomePage() {
       `}</style>
 
       <div className="relative max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-10">
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-          <div className="text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
-              <div className="p-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                <Activity className="w-4 h-4 text-emerald-400" />
-              </div>
-              <span className="text-[10px] font-bold text-emerald-500 tracking-widest uppercase">Live Dashboard</span>
-            </div>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-1">
-              DDTips <span className="text-zinc-600">Overview</span>
-            </h1>
-            <p className="text-zinc-400 text-sm font-medium">Pregled celotnega portfelja (stave + trading)</p>
-          </div>
-
+        
+        {/* HEADER PO MERI */}
+        <header className="flex flex-col gap-2 mb-8 mt-6">
+          <h1 className="text-3xl font-bold tracking-tight text-white">
+            DDTips
+          </h1>
           <button
             onClick={loadRows}
-            className="group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)] self-center md:self-auto"
+            className="absolute top-10 right-4 group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
           </button>
@@ -529,8 +524,9 @@ export default function HomePage() {
 
         {/* Charts + Books layout */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 items-stretch">
+          
           {/* LEFT: charts */}
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col">
+          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col h-full">
             {/* Daily */}
             <div>
               <div className="flex items-center justify-center mb-4">
@@ -553,6 +549,7 @@ export default function HomePage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                     <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
                     <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
+                    {/* BUILD ERROR FIX: Dodan ?? 0 */}
                     <Tooltip
                       contentStyle={{ backgroundColor: "#18181b", borderColor: "#27272a", borderRadius: "12px", fontSize: "12px" }}
                       itemStyle={{ color: "#fff" }}
@@ -598,6 +595,7 @@ export default function HomePage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                     <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
                     <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
+                    {/* BUILD ERROR FIX: Dodan ?? 0 */}
                     <Tooltip
                       contentStyle={{ backgroundColor: "#18181b", borderColor: "#27272a", borderRadius: "12px", fontSize: "12px" }}
                       itemStyle={{ color: "#fff" }}
@@ -620,59 +618,60 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* RIGHT: bookmakers */}
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col">
-            {/* top mini cards */}
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="rounded-2xl bg-white/5 border border-white/10 p-3 text-center">
-                <div className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Začetno</div>
-                <div className="text-sm font-mono text-zinc-200">{eur(CAPITAL_TOTAL)}</div>
+          {/* RIGHT: bookmakers (PRENOVLJENO) */}
+          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex flex-col h-full min-h-[500px]">
+            {/* Summary cards at top of right panel */}
+             <div className="grid grid-cols-3 gap-2 mb-4">
+              <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
+                <div className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Začetno</div>
+                <div className="text-xs font-mono text-zinc-200">{eur(CAPITAL_TOTAL)}</div>
               </div>
 
-              <div className="rounded-2xl bg-white/5 border border-white/10 p-3 text-center">
-                <div className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Skupna banka</div>
-                <div className={`text-sm font-mono font-semibold ${skupnaBankaIsUp ? "text-emerald-300" : "text-rose-300"}`}>
+              <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
+                <div className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Skupna banka</div>
+                <div className={`text-xs font-mono font-semibold ${skupnaBankaIsUp ? "text-emerald-300" : "text-rose-300"}`}>
                   {eur(skupnaBanka)}
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-white/5 border border-white/10 p-3 text-center">
-                <div className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Profit</div>
-                <div className={`text-sm font-mono font-semibold ${profitIsUp ? "text-emerald-300" : "text-rose-300"}`}>
+              <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
+                <div className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Profit</div>
+                <div className={`text-xs font-mono font-semibold ${profitIsUp ? "text-emerald-300" : "text-rose-300"}`}>
                   {eur(stats.profit)}
                 </div>
               </div>
             </div>
 
-            {/* books list */}
+            {/* GRID 2 COLUMNS FOR BOOKMAKERS */}
             <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
                 {stats.balanceByBook.map((book) => {
                   const isPositive = book.profit >= 0;
 
                   return (
                     <div
                       key={book.name}
-                      className="rounded-xl bg-zinc-900/60 border border-zinc-800/50 backdrop-blur-sm p-3 hover:border-zinc-700 transition-all duration-200"
+                      className="col-span-1 rounded-xl bg-zinc-900/60 border border-zinc-800/50 backdrop-blur-sm p-4 hover:border-zinc-700 transition-all duration-200 flex flex-col justify-between"
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-xs font-bold text-white tracking-wide">{book.name}</h4>
-                        <div className={`flex items-center gap-1 text-[11px] font-semibold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
-                          {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                          {eur(book.profit)}
-                        </div>
+                      {/* Name Centered Top */}
+                      <div className="text-center mb-4">
+                        <h4 className="text-sm font-extrabold text-white tracking-wide uppercase">{book.name}</h4>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
-                          <div className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Začetno</div>
-                          <div className="text-[11px] font-mono text-zinc-300">{eur(book.start)}</div>
+                      {/* Bottom Row: Start left, Current right */}
+                      <div className="flex items-end justify-between">
+                        {/* Left: Start */}
+                        <div className="flex flex-col items-start">
+                          <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-0.5">Začetno</span>
+                          <span className="text-xs font-mono text-zinc-400">{eur(book.start)}</span>
                         </div>
-                        <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
-                          <div className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Trenutno</div>
-                          <div className={`text-[12px] font-mono font-semibold ${isPositive ? "text-emerald-300" : "text-rose-300"}`}>
+
+                        {/* Right: Current */}
+                        <div className="flex flex-col items-end">
+                           <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-0.5">Trenutno</span>
+                           <span className={`text-sm font-mono font-bold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
                             {eur(book.balance)}
-                          </div>
+                          </span>
                         </div>
                       </div>
                     </div>
