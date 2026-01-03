@@ -462,18 +462,15 @@ export default function HomePage() {
 
       <div className="relative max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-10">
         
-        {/* HEADER PO MERI */}
-        <header className="flex flex-col gap-2 mb-8 mt-6">
-          <h1 className="text-3xl font-bold tracking-tight text-white">
-            DDTips
-          </h1>
+        {/* HEADER PO MERI (Odstranjen napis) */}
+        <div className="relative mb-8 mt-2 h-10">
           <button
             onClick={loadRows}
-            className="absolute top-10 right-4 group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
+            className="absolute top-0 right-0 group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
           </button>
-        </header>
+        </div>
 
         {/* Row 1 */}
         <section className="grid grid-cols-2 gap-4 mb-4">
@@ -618,7 +615,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* RIGHT: bookmakers (PRENOVLJENO) */}
+          {/* RIGHT: bookmakers (PRENOVLJENO & POLEPŠANO) */}
           <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex flex-col h-full min-h-[500px]">
             {/* Summary cards at top of right panel */}
              <div className="grid grid-cols-3 gap-2 mb-4">
@@ -642,36 +639,52 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* GRID 2 COLUMNS FOR BOOKMAKERS */}
+            {/* GRID 2 COLUMNS FOR BOOKMAKERS - VISUAL REFRESH */}
             <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
               <div className="grid grid-cols-2 gap-3">
                 {stats.balanceByBook.map((book) => {
                   const isPositive = book.profit >= 0;
+                  // Barvna tema glede na profit
+                  const themeClasses = isPositive
+                    ? "border-emerald-500/20 hover:border-emerald-500/50 bg-gradient-to-br from-zinc-900/80 to-emerald-950/20 shadow-[0_0_15px_-5px_rgba(16,185,129,0.1)]"
+                    : "border-rose-500/20 hover:border-rose-500/50 bg-gradient-to-br from-zinc-900/80 to-rose-950/20 shadow-[0_0_15px_-5px_rgba(244,63,94,0.1)]";
+                  
+                  const textTheme = isPositive ? "text-emerald-400" : "text-rose-400";
 
                   return (
                     <div
                       key={book.name}
-                      className="col-span-1 rounded-xl bg-zinc-900/60 border border-zinc-800/50 backdrop-blur-sm p-4 hover:border-zinc-700 transition-all duration-200 flex flex-col justify-between"
+                      className={`col-span-1 rounded-2xl border backdrop-blur-md p-4 transition-all duration-300 group hover:-translate-y-0.5 flex flex-col justify-between min-h-[110px] ${themeClasses}`}
                     >
                       {/* Name Centered Top */}
-                      <div className="text-center mb-4">
-                        <h4 className="text-sm font-extrabold text-white tracking-wide uppercase">{book.name}</h4>
+                      <div className="text-center mb-3">
+                        <h4 className={`text-sm font-black tracking-wide uppercase ${isPositive ? 'text-emerald-100' : 'text-rose-100'}`}>
+                          {book.name}
+                        </h4>
+                        <div className={`h-px w-1/3 mx-auto mt-2 ${isPositive ? 'bg-emerald-500/30' : 'bg-rose-500/30'}`}></div>
                       </div>
 
                       {/* Bottom Row: Start left, Current right */}
                       <div className="flex items-end justify-between">
                         {/* Left: Start */}
                         <div className="flex flex-col items-start">
-                          <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-0.5">Začetno</span>
-                          <span className="text-xs font-mono text-zinc-400">{eur(book.start)}</span>
+                          <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Začetno</span>
+                          <span className="text-xs font-mono text-zinc-400 font-medium">{eur(book.start)}</span>
                         </div>
 
-                        {/* Right: Current */}
+                        {/* Right: Current (BIGGER & BOLDER) */}
                         <div className="flex flex-col items-end">
                            <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-0.5">Trenutno</span>
-                           <span className={`text-sm font-mono font-bold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
-                            {eur(book.balance)}
-                          </span>
+                           <div className="flex items-center gap-1">
+                              {isPositive ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : <ArrowDownRight className="w-3 h-3 text-rose-400" />}
+                              <span className={`text-base font-mono font-black ${textTheme}`}>
+                              {eur(book.balance)}
+                              </span>
+                           </div>
+                           {/* Majhen profit indicator spodaj */}
+                           <span className={`text-[9px] font-medium opacity-70 ${textTheme}`}>
+                              ({isPositive ? "+" : ""}{eur(book.profit)})
+                           </span>
                         </div>
                       </div>
                     </div>
