@@ -506,9 +506,10 @@ export default function BetsPage() {
       <div className="relative max-w-[1800px] mx-auto px-4 md:px-6 py-8 md:py-12">
         
         {/* HEADER - FILTER MESECA + REFRESH */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8 mt-4">
-          {/* LEVO: Filter meseca */}
-          <div className="w-full md:w-64 relative z-30">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8 mt-4 relative">
+          
+          {/* LEVO: Filter meseca - POPRAVLJEN Z-INDEX NA z-[100] */}
+          <div className="w-full md:w-64 relative z-[100]">
              <MonthSelect 
                 value={selectedMonth} 
                 onChange={setSelectedMonth} 
@@ -517,7 +518,7 @@ export default function BetsPage() {
           </div>
 
           {/* DESNO: Refresh gumb */}
-          <div className="flex justify-end w-full md:w-auto">
+          <div className="flex justify-end w-full md:w-auto relative z-10">
             <button
               onClick={loadBets}
               className="group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
@@ -530,7 +531,7 @@ export default function BetsPage() {
         {msg && <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center">{msg}</div>}
 
         {/* ADD FORM */}
-        <section className="mb-10">
+        <section className="mb-10 relative z-0">
           <div className="rounded-3xl border border-zinc-800/60 bg-gradient-to-b from-zinc-900 to-black p-1 shadow-2xl">
             <div className="rounded-[20px] bg-zinc-900/50 p-6 backdrop-blur-md">
               
