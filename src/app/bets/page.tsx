@@ -154,13 +154,16 @@ function MonthSelect({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-bold transition-all duration-200 capitalize
+          w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-sm font-bold transition-all duration-200 capitalize
           ${isOpen 
             ? "bg-zinc-900 border-emerald-500/50 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)]" 
-            : "bg-zinc-950/50 border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-700 hover:text-white"}
+            : "bg-zinc-950 border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-700 hover:text-white"}
         `}
       >
-        <span>{getLabel(value)}</span>
+        <span className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-emerald-500" />
+            {getLabel(value)}
+        </span>
         <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isOpen ? "rotate-180 text-emerald-500" : ""}`} />
       </button>
 
@@ -502,14 +505,26 @@ export default function BetsPage() {
 
       <div className="relative max-w-[1800px] mx-auto px-4 md:px-6 py-8 md:py-12">
         
-        {/* HEADER - Minimalističen */}
-        <div className="flex justify-end mb-6 mt-4 h-10">
-          <button
-            onClick={loadBets}
-            className="group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
-          </button>
+        {/* HEADER - FILTER MESECA + REFRESH */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8 mt-4">
+          {/* LEVO: Filter meseca */}
+          <div className="w-full md:w-64 relative z-30">
+             <MonthSelect 
+                value={selectedMonth} 
+                onChange={setSelectedMonth} 
+                options={availableMonths} 
+             />
+          </div>
+
+          {/* DESNO: Refresh gumb */}
+          <div className="flex justify-end w-full md:w-auto">
+            <button
+              onClick={loadBets}
+              className="group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
+            </button>
+          </div>
         </div>
 
         {msg && <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center">{msg}</div>}
@@ -585,23 +600,8 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* MONTH STATS & FILTER */}
-        <section className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex items-center gap-4 group relative">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
-               <Filter className="w-5 h-5" />
-            </div>
-            <div className="flex-1 relative">
-               <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 block mb-1">Filter Meseca</label>
-               {/* CUSTOM MONTH SELECT */}
-               <MonthSelect 
-                  value={selectedMonth} 
-                  onChange={setSelectedMonth} 
-                  options={availableMonths} 
-               />
-            </div>
-          </div>
-
+        {/* MONTH STATS (Filter removed from here) */}
+        <section className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 backdrop-blur-sm p-4 text-center">
             <span className="text-[10px] font-bold tracking-widest uppercase text-emerald-400/80 block mb-1">Profit</span>
             <span className={`text-xl font-bold ${monthlyStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(monthlyStats.profit)}</span>
