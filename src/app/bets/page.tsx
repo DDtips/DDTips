@@ -648,7 +648,7 @@ export default function BetsPage() {
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Status</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Tip stave</th>
 
-                  <th className="text-left py-4 px-4 font-bold tracking-wider uppercase text-zinc-500" style={{ minWidth: "240px" }}>
+                  <th className="text-center py-4 px-4 font-bold tracking-wider uppercase text-zinc-500" style={{ minWidth: "200px" }}>
                     Dogodek / Tip
                   </th>
 
@@ -689,7 +689,7 @@ export default function BetsPage() {
 
                       <td className="py-3 px-3 text-center">
                         <span
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border whitespace-nowrap ${
+                          className={`inline-flex items-center justify-center w-[90px] py-1.5 rounded-lg text-xs font-bold border whitespace-nowrap ${
                             rowMode === "TRADING"
                               ? "bg-violet-500/15 text-violet-300 border-violet-500/30"
                               : "bg-sky-500/15 text-sky-300 border-sky-500/30"
@@ -699,7 +699,7 @@ export default function BetsPage() {
                         </span>
                       </td>
 
-                      <td className="py-3 px-4 text-left">
+                      <td className="py-3 px-4 text-center">
                         <div className="space-y-0.5">
                           <TooltipCell text={r.dogodek} className="text-white font-semibold text-sm" />
                           <TooltipCell text={r.tip} className="text-zinc-400 text-xs" />
@@ -729,16 +729,16 @@ export default function BetsPage() {
                       </td>
 
                       <td className="py-3 px-3 text-center">
-                        <span className="px-2.5 py-1.5 rounded-lg bg-zinc-800/70 text-xs font-bold text-zinc-200 border border-zinc-700 whitespace-nowrap">{r.sport}</span>
+                        <span className="inline-flex items-center justify-center w-[90px] py-1.5 rounded-lg bg-zinc-800/70 text-xs font-bold text-zinc-200 border border-zinc-700 whitespace-nowrap">{r.sport}</span>
                       </td>
 
                       <td className="py-3 px-3 text-center">
-                        <span className="px-2.5 py-1.5 rounded-lg bg-zinc-800/70 text-xs font-bold text-zinc-200 border border-zinc-700 whitespace-nowrap">{r.tipster}</span>
+                        <span className="inline-flex items-center justify-center w-[90px] py-1.5 rounded-lg bg-zinc-800/70 text-xs font-bold text-zinc-200 border border-zinc-700 whitespace-nowrap">{r.tipster}</span>
                       </td>
 
                       <td className="py-3 px-3 text-center">
                         <span
-                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border whitespace-nowrap ${
+                          className={`inline-flex items-center justify-center w-[90px] py-1.5 rounded-lg text-xs font-bold border whitespace-nowrap ${
                             r.cas_stave === "LIVE" ? "bg-sky-500/15 text-sky-300 border-sky-500/30" : "bg-zinc-500/10 text-zinc-200 border-zinc-500/25"
                           }`}
                         >
