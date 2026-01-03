@@ -14,10 +14,15 @@ import {
 } from "recharts";
 import {
   TrendingUp,
+  DollarSign,
+  Trophy,
   Activity,
+  Zap,
+  RefreshCw,
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
+  Calendar,
   Layers,
 } from "lucide-react";
 
@@ -205,11 +210,10 @@ export default function HomePage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                 <XAxis dataKey="date" stroke="#52525b" fontSize={12} tickLine={false} axisLine={false} minTickGap={50} />
                 <YAxis stroke="#52525b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `€${v}`} />
-                {/* POPRAVEK JE SPODAJ: dodan `number | undefined` in `value ?? 0` */}
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px' }}
                   itemStyle={{ color: '#fff' }}
-                  formatter={(value: number | undefined) => [eur(value ?? 0), "Profit"]}
+                  formatter={(val: number) => [eur(val), "Profit"]}
                 />
                 <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fill="url(#grad)" activeDot={{r: 6, fill: "#fff"}} />
               </AreaChart>
