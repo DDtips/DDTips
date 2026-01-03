@@ -28,8 +28,6 @@ import {
   Target,
   TrendingUp,
   Percent,
-  ArrowUpRight,
-  ArrowDownRight,
   Scale
 } from "lucide-react";
 
@@ -171,7 +169,6 @@ function buildStats(rows: Bet[]) {
   const monthlyMap = new Map<string, number>();
   settled.forEach(b => {
     const d = new Date(b.datum);
-    const key = d.toLocaleDateString('sl-SI', { month: 'short', year: '2-digit' }); // npr "jan 26"
     // Za sortiranje rabimo YYYY-MM
     const sortKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}`; 
     monthlyMap.set(sortKey, (monthlyMap.get(sortKey) || 0) + calcProfit(b));
@@ -479,7 +476,6 @@ export default function StatsPage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">Rast Profita</h3>
-                
                 <p className="text-xs text-zinc-500 mt-1">Kumulativni pregled uspešnosti</p>
               </div>
               <div className="text-right">
@@ -503,7 +499,7 @@ export default function StatsPage() {
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
                     itemStyle={{ color: '#fff' }}
-                    formatter={(value: number) => [eurDec(value), "Profit"]}
+                    formatter={(value: number | undefined) => [eurDec(value || 0), "Profit"]}
                   />
                   <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
                 </AreaChart>
@@ -515,7 +511,6 @@ export default function StatsPage() {
           <div className="lg:col-span-1 rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6">
             <div className="mb-6">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider">Mesečni Donos</h3>
-              
               <p className="text-xs text-zinc-500 mt-1">Uspešnost po mesecih</p>
             </div>
             <div className="h-[300px] w-full">
@@ -526,7 +521,7 @@ export default function StatsPage() {
                   <Tooltip 
                     cursor={{fill: 'rgba(255,255,255,0.05)'}}
                     contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
-                    formatter={(value: number) => [eurDec(value), "Profit"]}
+                    formatter={(value: number | undefined) => [eurDec(value || 0), "Profit"]}
                   />
                   <ReferenceLine y={0} stroke="#52525b" />
                   <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
