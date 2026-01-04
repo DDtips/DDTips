@@ -20,7 +20,7 @@ export default function Header() {
 
   const isActive = (href: string) => pathname === href;
 
-  // Reusable NavItem komponenta za čistejšo kodo
+  // Reusable NavItem komponenta
   const NavItem = ({ href, icon: Icon, label, variant = "default" }: any) => {
     const active = isActive(href);
     const isLogout = variant === "logout";
@@ -63,7 +63,7 @@ export default function Header() {
   return (
     <header
       className={`
-        fixed top-0 inset-x-0 z-50 transition-all duration-500 border-b
+        fixed top-0 inset-x-0 z-[100] transition-all duration-500 border-b
         ${
           scrolled
             ? "bg-[#0B1120]/80 backdrop-blur-xl border-slate-800/60 shadow-2xl shadow-black/50 py-3"
@@ -71,28 +71,22 @@ export default function Header() {
         }
       `}
     >
-      {/* Ambient Background Glow (Optional aesthetics) */}
+      {/* Ambient Background Glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-20 bg-green-500/5 blur-[100px] pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-6">
+      <div className="max-w-[1600px] mx-auto px-6">
         <div className="flex items-center justify-between">
-          {/* Logo Section */}
-          <Link href="/" className="relative group z-10">
-            {/* Logo Glow Effect */}
-            <div className="absolute inset-0 bg-green-500/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            
-            <div className="relative transform transition-transform duration-300 group-hover:scale-105">
-              <img
-                src="/ddtips-logo.png"
-                alt="DD Tips"
-                style={{
-                  height: scrolled ? 55 : 65, // Logo se malo pomanjša ob skrolanju
-                  width: "auto",
-                  filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.15)) brightness(1.1)",
-                  transition: "height 0.3s ease"
-                }}
-              />
-            </div>
+          
+          {/* --- LOGO SEKCIJA (POPRAVLJENO) --- */}
+          <Link href="/" className="relative group z-10 flex items-center">
+            <img
+              src="/images/logo-full.png" // Preveri, če je pot točna!
+              alt="DD Tips"
+              className={`
+                w-auto object-contain transition-all duration-300
+                ${scrolled ? "h-10" : "h-14"} 
+              `}
+            />
           </Link>
 
           {/* Navigation Pill Container */}
