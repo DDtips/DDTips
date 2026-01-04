@@ -28,9 +28,9 @@ import {
   Target,
   TrendingUp,
   Percent,
-  Scale,
+  ArrowRightLeft,
   Hash,
-  ArrowRightLeft
+  Scale
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -469,7 +469,10 @@ export default function StatsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
                   <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
-                  <Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }} formatter={(value: number) => [eurDec(value), "Profit"]} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
+                    formatter={(value: number | undefined) => [eurDec(value || 0), "Profit"]}
+                  />
                   <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -482,7 +485,11 @@ export default function StatsPage() {
                 <BarChart data={totalStats.monthlyChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis dataKey="name" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }} formatter={(value: number) => [eurDec(value), "Profit"]} />
+                  <Tooltip 
+                    cursor={{fill: 'rgba(255,255,255,0.05)'}} 
+                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
+                    formatter={(value: number | undefined) => [eurDec(value || 0), "Profit"]}
+                  />
                   <ReferenceLine y={0} stroke="#52525b" />
                   <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
                     {totalStats.monthlyChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? '#10b981' : '#f43f5e'} />)}
