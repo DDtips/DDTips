@@ -4,33 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  ReferenceLine,
-  Cell
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, ReferenceLine, Cell
 } from "recharts";
 import {
-  Calendar,
-  Filter,
-  Users,
-  Building2,
-  Clock,
-  Activity,
-  RefreshCw,
-  Layers,
-  Target,
-  TrendingUp,
-  Percent,
-  ArrowRightLeft,
-  Hash,
-  Scale
+  Calendar, Filter, Users, Building2, Clock, Activity, RefreshCw, Layers,
+  Target, TrendingUp, Percent, ArrowRightLeft, Hash, Scale
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -118,11 +97,9 @@ function buildStats(rows: Bet[]) {
   const growth = (profit / TOTAL_START_BANK) * 100;
   const avgOdds = n > 0 ? settled.reduce((acc, r) => acc + (r.kvota1 || 0), 0) / n : 0;
 
-  // Split Pre/Live
   const preProfit = settled.filter(r => r.cas_stave === "PREMATCH").reduce((acc, r) => acc + calcProfit(r), 0);
   const liveProfit = settled.filter(r => r.cas_stave === "LIVE").reduce((acc, r) => acc + calcProfit(r), 0);
 
-  // Chart Data
   let runningProfit = 0;
   const chartData = settled.sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime()).map((b) => {
     runningProfit += calcProfit(b);
@@ -143,7 +120,6 @@ function buildStats(rows: Bet[]) {
   return { profit, n, wins, losses, roi, winRate, growth, avgOdds, chartData, monthlyChartData, settled, preProfit, liveProfit };
 }
 
-// Funkcija za grupiranje po tipsterju/športu
 function getBreakdown(rows: Bet[], key: 'tipster' | 'sport') {
   const groups = new Set(rows.map(r => r[key]).filter(Boolean));
   const data = Array.from(groups).map(item => {
@@ -162,15 +138,21 @@ function getBreakdown(rows: Bet[], key: 'tipster' | 'sport') {
 
 // --- KOMPONENTE ---
 
-function StatMetric({ label, value, subValue, color = "text-white", icon }: any) {
+function StatMetric({ label, value, subValue, color = "text-white", icon, inlineSub }: any) {
   return (
     <div className="flex flex-col items-center justify-center p-2 text-center">
-      <div className="flex items-center gap-1 mb-1 text-zinc-500 justify-center">
+      <div className="flex items-center gap-1 mb-2 text-zinc-500 justify-center">
         {icon}
-        <span className="text-[9px] font-bold tracking-widest uppercase">{label}</span>
+        <span className="text-[10px] font-bold tracking-widest uppercase">{label}</span>
       </div>
-      <span className={`text-xl md:text-2xl font-black ${color}`}>{value}</span>
-      {subValue && <span className="text-[10px] font-medium text-zinc-500 mt-1">{subValue}</span>}
+      <div className="flex items-baseline gap-2">
+        {/* POVEČAN TEXT (3xl na 4xl) */}
+        <span className={`text-3xl md:text-4xl font-black ${color}`}>{value}</span>
+        {/* INLINE SUBVALUE (za Win/Loss zraven številke) */}
+        {inlineSub && <span className="text-lg font-bold text-zinc-500">{inlineSub}</span>}
+      </div>
+      {/* STANDARD SUBVALUE (spodaj) */}
+      {subValue && !inlineSub && <span className="text-xs font-bold text-zinc-500 mt-1">{subValue}</span>}
     </div>
   );
 }
@@ -193,46 +175,79 @@ function BigStatCard({ title, stats, variant = "main" }: { title: string; stats:
 
   return (
     <div className={`relative rounded-2xl border bg-gradient-to-br ${gradient} backdrop-blur-xl overflow-hidden`}>
-      <div className="p-4">
+      <div className="p-6">
         {/* Header */}
-        <div className="flex items-center justify-center gap-2 mb-2">
+        <div className="flex items-center justify-center gap-2 mb-4">
           {icon}
-          <h3 className="text-xs font-bold tracking-[0.2em] text-zinc-400 uppercase">{title}</h3>
+          <h3 className="text-sm font-bold tracking-[0.2em] text-zinc-400 uppercase">{title}</h3>
         </div>
 
         {/* Glavni Profit */}
-        <div className="text-center mb-4">
-          <div className={`text-4xl md:text-5xl font-black tracking-tight ${profitColor} drop-shadow-2xl`}>
+        <div className="text-center mb-6">
+          <div className={`text-5xl md:text-6xl font-black tracking-tight ${profitColor} drop-shadow-2xl`}>
             {eur(stats.profit)}
           </div>
-          <div className="text-[10px] font-bold text-zinc-500 mt-1 uppercase tracking-wider">Neto Profit</div>
+          <div className="text-xs font-bold text-zinc-500 mt-2 uppercase tracking-wider">Neto Profit</div>
         </div>
 
-        {/* Prematch / Live Breakdown (Samo za Betting/Trading) */}
+        {/* Prematch / Live Breakdown - POVEČANI NAPISI */}
         {variant !== "main" && (
-           <div className="flex justify-center gap-4 mb-4 text-[10px] text-zinc-400 border-b border-white/5 pb-2">
-              <span>PRE: <span className={stats.preProfit >=0 ? "text-emerald-400":"text-rose-400"}>{eur(stats.preProfit)}</span></span>
+           <div className="flex justify-center gap-6 mb-6 text-sm font-bold text-zinc-300 border-b border-white/5 pb-4">
+              <span>PREMATCH: <span className={stats.preProfit >=0 ? "text-emerald-400":"text-rose-400"}>{eur(stats.preProfit)}</span></span>
               <span>LIVE: <span className={stats.liveProfit >=0 ? "text-emerald-400":"text-rose-400"}>{eur(stats.liveProfit)}</span></span>
            </div>
         )}
 
         {/* Grid Statistike */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-2 pt-2">
-          <StatMetric label="Število Stav" value={stats.n} subValue={`${stats.wins}W - ${stats.losses}L`} icon={<Hash className="w-3 h-3" />} />
-          <StatMetric label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} color="text-zinc-200" icon={<Activity className="w-3 h-3" />} />
-          
-          {variant === "betting" ? (
-             <StatMetric label="Povp. Kvota" value={stats.avgOdds.toFixed(2)} color="text-sky-400" icon={<Target className="w-3 h-3" />} />
-          ) : (
-             <StatMetric label="Rast Kap." value={`${stats.growth >= 0 ? "+" : ""}${stats.growth.toFixed(1)}%`} color={stats.growth >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<Percent className="w-3 h-3" />} />
-          )}
+        {/* MAIN: 3 Stolpci (Levo: Št, Sredina: Donos, Desno: WR) */}
+        {variant === "main" && (
+          <div className="grid grid-cols-3 gap-4 pt-2 border-t border-white/5">
+             {/* LEVO: Število stav + W/L zraven */}
+             <StatMetric 
+                label="Število Stav" 
+                value={stats.n} 
+                inlineSub={`${stats.wins}W - ${stats.losses}L`} 
+                icon={<Hash className="w-4 h-4" />} 
+             />
+             
+             {/* SREDINA: Donos kapitala */}
+             <StatMetric 
+                label="Rast Kapitala" 
+                value={`${stats.growth >= 0 ? "+" : ""}${stats.growth.toFixed(1)}%`} 
+                color={stats.growth >= 0 ? "text-emerald-400" : "text-rose-400"} 
+                icon={<Percent className="w-4 h-4" />} 
+             />
 
-          {(variant === "betting" || variant === "trading") ? (
-             <StatMetric label="ROI" value={`${stats.roi.toFixed(1)}%`} color={stats.roi >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<TrendingUp className="w-3 h-3" />} />
-          ) : (
-             <StatMetric label="ROI" value={`${stats.roi.toFixed(1)}%`} color={stats.roi >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<TrendingUp className="w-3 h-3" />} />
-          )}
-        </div>
+             {/* DESNO: Win Rate */}
+             <StatMetric 
+                label="Win Rate" 
+                value={`${stats.winRate.toFixed(0)}%`} 
+                color="text-zinc-200" 
+                icon={<Activity className="w-4 h-4" />} 
+             />
+          </div>
+        )}
+
+        {/* SUB-CARDS (Betting/Trading): 3 ali 4 stolpci */}
+        {variant !== "main" && (
+          <div className={`grid ${variant === 'betting' ? 'grid-cols-4' : 'grid-cols-3'} gap-4 pt-2 border-t border-white/5`}>
+             <StatMetric label="Število Stav" value={stats.n} subValue={`${stats.wins}W - ${stats.losses}L`} icon={<Hash className="w-4 h-4" />} />
+             <StatMetric label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} color="text-zinc-200" icon={<Activity className="w-4 h-4" />} />
+             
+             {/* Betting ima Kvoto in ROI */}
+             {variant === "betting" && (
+               <>
+                 <StatMetric label="Povp. Kvota" value={stats.avgOdds.toFixed(2)} color="text-sky-400" icon={<Target className="w-4 h-4" />} />
+                 <StatMetric label="ROI" value={`${stats.roi.toFixed(1)}%`} color={stats.roi >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<TrendingUp className="w-4 h-4" />} />
+               </>
+             )}
+
+             {/* Trading ima samo Rast namesto ROI (ali pa nič, če tako želiš, ampak da zapolnimo prostor damo Rast) */}
+             {variant === "trading" && (
+                <StatMetric label="Rast Kap." value={`${stats.growth >= 0 ? "+" : ""}${stats.growth.toFixed(1)}%`} color={stats.growth >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<Percent className="w-4 h-4" />} />
+             )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -272,14 +287,12 @@ function SelectField({ label, value, onChange, options, icon }: any) {
   );
 }
 
-// --- GLAVNA STRAN ---
 export default function StatsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Filtri
   const [sport, setSport] = useState("ALL");
   const [tipster, setTipster] = useState("ALL");
   const [stavnica, setStavnica] = useState("ALL");
@@ -314,8 +327,6 @@ export default function StatsPage() {
       if (appliedFilters.cas !== "ALL" && r.cas_stave !== appliedFilters.cas) return false;
       if (appliedFilters.fromDate && r.datum < appliedFilters.fromDate) return false;
       if (appliedFilters.toDate && r.datum > appliedFilters.toDate) return false;
-      
-      // Kvota Filter (Logic: Back kvota za betting)
       if (getMode(r) === "BET") {
          if (appliedFilters.minKvota && r.kvota1 < parseFloat(appliedFilters.minKvota)) return false;
          if (appliedFilters.maxKvota && r.kvota1 > parseFloat(appliedFilters.maxKvota)) return false;
@@ -324,7 +335,6 @@ export default function StatsPage() {
     });
   }, [rows, appliedFilters]);
 
-  // Logika za Breakdown
   const bettingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "BET"), [filteredRows]);
   const tradingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "TRADING"), [filteredRows]);
 
@@ -334,6 +344,24 @@ export default function StatsPage() {
 
   const tipsterBreakdown = useMemo(() => getBreakdown(filteredRows, 'tipster'), [filteredRows]);
   const sportBreakdown = useMemo(() => getBreakdown(filteredRows, 'sport'), [filteredRows]);
+
+  // --- IZRAČUN SKUPNIH SEŠTEVKOV ZA TABELO ---
+  const tipsterTotals = useMemo(() => {
+    return tipsterBreakdown.reduce((acc, curr) => ({
+      bet: acc.bet + curr.bettingProfit,
+      trade: acc.trade + curr.tradingProfit,
+      total: acc.total + curr.totalProfit
+    }), { bet: 0, trade: 0, total: 0 });
+  }, [tipsterBreakdown]);
+
+  const sportTotals = useMemo(() => {
+    return sportBreakdown.reduce((acc, curr) => ({
+      bet: acc.bet + curr.bettingProfit,
+      trade: acc.trade + curr.tradingProfit,
+      total: acc.total + curr.totalProfit
+    }), { bet: 0, trade: 0, total: 0 });
+  }, [sportBreakdown]);
+
 
   const handleApplyFilters = () => {
     setAppliedFilters({ sport, tipster, stavnica, cas, fromDate, toDate, minKvota, maxKvota });
@@ -353,7 +381,7 @@ export default function StatsPage() {
       
       <div className="relative max-w-[1600px] mx-auto px-4 md:px-8 pb-10">
         
-        {/* HEADER & FILTER BAR - Premaknjeno bolj dol (pt-24) */}
+        {/* FILTER BAR - Spuščeno nižje (pt-24) */}
         <div className="pt-24 pb-6 flex justify-end relative z-50">
            <div className="flex gap-2">
             <button
@@ -380,7 +408,6 @@ export default function StatsPage() {
               <SelectField label="Tipster" value={tipster} onChange={setTipster} options={["ALL", ...TIPSTERJI]} icon={<Users className="w-3 h-3" />} />
               <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3 h-3" />} />
               <SelectField label="Čas" value={cas} onChange={setCas} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3 h-3" />} />
-              {/* NOVO: Kvota Filter */}
               <InputField label="Min Kvota" value={minKvota} onChange={setMinKvota} placeholder="1.00" icon={<Scale className="w-3 h-3" />} />
               <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="10.00" icon={<Scale className="w-3 h-3" />} />
             </div>
@@ -404,14 +431,15 @@ export default function StatsPage() {
 
         {/* --- BREAKDOWN LISTE (Tipsterji & Športi) --- */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+            
             {/* TIPSTER BREAKDOWN */}
-            <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5">
+            <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col h-full">
                 <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2">
                     <Users className="w-4 h-4 text-emerald-500" />
                     <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Tipsterji</h3>
                 </div>
-                <div className="space-y-1">
-                    <div className="grid grid-cols-4 text-[10px] font-bold text-zinc-500 uppercase px-2 mb-2">
+                <div className="flex-1 space-y-1 overflow-y-auto max-h-[300px] custom-scrollbar">
+                    <div className="grid grid-cols-4 text-[10px] font-bold text-zinc-500 uppercase px-2 mb-2 sticky top-0 bg-[#09090b] z-10 py-2">
                         <span>Ime</span>
                         <span className="text-right text-sky-500">Bet Profit</span>
                         <span className="text-right text-violet-500">Trad Profit</span>
@@ -426,16 +454,23 @@ export default function StatsPage() {
                         </div>
                     ))}
                 </div>
+                {/* FOOTER - SALDO */}
+                <div className="mt-2 pt-3 border-t border-zinc-700 grid grid-cols-4 text-xs font-black uppercase px-2 bg-zinc-900/50 py-2 rounded-b-xl">
+                    <span className="text-zinc-400">SKUPAJ</span>
+                    <span className={`text-right font-mono ${tipsterTotals.bet>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(tipsterTotals.bet)}</span>
+                    <span className={`text-right font-mono ${tipsterTotals.trade>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(tipsterTotals.trade)}</span>
+                    <span className={`text-right font-mono text-emerald-400`}>{eurDec(tipsterTotals.total)}</span>
+                </div>
             </div>
 
             {/* SPORT BREAKDOWN */}
-            <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5">
+            <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col h-full">
                 <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2">
                     <Activity className="w-4 h-4 text-emerald-500" />
                     <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Športi</h3>
                 </div>
-                <div className="space-y-1">
-                    <div className="grid grid-cols-4 text-[10px] font-bold text-zinc-500 uppercase px-2 mb-2">
+                <div className="flex-1 space-y-1 overflow-y-auto max-h-[300px] custom-scrollbar">
+                    <div className="grid grid-cols-4 text-[10px] font-bold text-zinc-500 uppercase px-2 mb-2 sticky top-0 bg-[#09090b] z-10 py-2">
                         <span>Šport</span>
                         <span className="text-right text-sky-500">Bet Profit</span>
                         <span className="text-right text-violet-500">Trad Profit</span>
@@ -449,6 +484,13 @@ export default function StatsPage() {
                             <span className={`text-right font-mono font-bold ${t.totalProfit>=0?"text-emerald-400":"text-rose-400"}`}>{eurDec(t.totalProfit)}</span>
                         </div>
                     ))}
+                </div>
+                {/* FOOTER - SALDO */}
+                <div className="mt-2 pt-3 border-t border-zinc-700 grid grid-cols-4 text-xs font-black uppercase px-2 bg-zinc-900/50 py-2 rounded-b-xl">
+                    <span className="text-zinc-400">SKUPAJ</span>
+                    <span className={`text-right font-mono ${sportTotals.bet>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(sportTotals.bet)}</span>
+                    <span className={`text-right font-mono ${sportTotals.trade>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(sportTotals.trade)}</span>
+                    <span className={`text-right font-mono text-emerald-400`}>{eurDec(sportTotals.total)}</span>
                 </div>
             </div>
         </section>
