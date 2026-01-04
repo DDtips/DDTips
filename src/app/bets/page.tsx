@@ -147,12 +147,12 @@ function MonthSelect({
   const getLabel = (m: string) => new Date(m + "-01").toLocaleDateString("sl-SI", { year: "numeric", month: "long" });
 
   return (
-    <div className="relative w-full z-[100]">
+    <div className="relative w-full">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-sm font-bold transition-all duration-200 capitalize ${isOpen ? "bg-zinc-900 border-emerald-500/50 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)]" : "bg-zinc-950 border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-700 hover:text-white"}`}
+        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-bold transition-all duration-200 capitalize ${isOpen ? "bg-zinc-900 border-emerald-500/50 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)]" : "bg-zinc-950/50 border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-700 hover:text-white"}`}
       >
-        <span className="flex items-center gap-2"><Filter className="w-4 h-4 text-emerald-500" />{getLabel(value)}</span>
+        <span>{getLabel(value)}</span>
         <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isOpen ? "rotate-180 text-emerald-500" : ""}`} />
       </button>
       {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
@@ -243,7 +243,7 @@ export default function BetsPage() {
   const [statusEditId, setStatusEditId] = useState<string | null>(null);
   const [statusEditWl, setStatusEditWl] = useState<WL>("OPEN");
 
-  // FULL Edit states (Popravek vseh podatkov)
+  // FULL Edit states
   const [fullEditOpen, setFullEditOpen] = useState(false);
   const [editingBet, setEditingBet] = useState<BetRow | null>(null);
 
@@ -306,15 +306,9 @@ export default function BetsPage() {
     setRows((prev) => prev.filter((r) => r.id !== id));
   }
 
-  // Odpiranje modalov
   function openStatusEdit(b: BetRow) { setStatusEditId(b.id); setStatusEditWl(b.wl); setStatusEditOpen(true); }
-  
-  function openFullEdit(b: BetRow) {
-    setEditingBet({ ...b }); // Kopija objekta za urejanje
-    setFullEditOpen(true);
-  }
+  function openFullEdit(b: BetRow) { setEditingBet({ ...b }); setFullEditOpen(true); }
 
-  // Shranjevanje statusa (hitri edit)
   async function saveStatusEdit() {
     if (!statusEditId) return;
     const { error } = await supabase.from("bets").update({ wl: statusEditWl }).eq("id", statusEditId);
@@ -323,37 +317,21 @@ export default function BetsPage() {
     setStatusEditOpen(false); setStatusEditId(null);
   }
 
-  // Shranjevanje celotne stave (full edit)
   async function saveFullEdit() {
     if (!editingBet) return;
     setMsg(null);
-
-    // Validacija
     if (!editingBet.dogodek.trim() || !editingBet.tip.trim()) { alert("Manjka dogodek ali tip."); return; }
 
     const { error } = await supabase.from("bets").update({
-      datum: editingBet.datum,
-      wl: editingBet.wl,
-      dogodek: editingBet.dogodek,
-      tip: editingBet.tip,
-      sport: editingBet.sport,
-      cas_stave: editingBet.cas_stave,
-      tipster: editingBet.tipster,
-      stavnica: editingBet.stavnica,
-      mode: editingBet.mode,
-      kvota1: editingBet.kvota1,
-      vplacilo1: editingBet.vplacilo1,
-      lay_kvota: editingBet.lay_kvota,
-      vplacilo2: editingBet.vplacilo2,
-      komisija: editingBet.komisija
+      datum: editingBet.datum, wl: editingBet.wl, dogodek: editingBet.dogodek, tip: editingBet.tip,
+      sport: editingBet.sport, cas_stave: editingBet.cas_stave, tipster: editingBet.tipster, stavnica: editingBet.stavnica,
+      mode: editingBet.mode, kvota1: editingBet.kvota1, vplacilo1: editingBet.vplacilo1,
+      lay_kvota: editingBet.lay_kvota, vplacilo2: editingBet.vplacilo2, komisija: editingBet.komisija
     }).eq("id", editingBet.id);
 
     if (error) { alert("Napaka pri shranjevanju: " + error.message); return; }
-
-    // Posodobi lokalno tabelo
     setRows((prev) => prev.map((r) => (r.id === editingBet.id ? editingBet : r)));
-    setFullEditOpen(false);
-    setEditingBet(null);
+    setFullEditOpen(false); setEditingBet(null);
   }
 
   const filteredRows = useMemo(() => rows.filter((r) => r.datum.startsWith(selectedMonth)), [rows, selectedMonth]);
@@ -386,15 +364,11 @@ export default function BetsPage() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
       `}</style>
 
-      {/* --- POPRAVEK: pt-32 poveča odmik od headerja --- */}
+      {/* --- Povečan padding zgoraj (pt-32) da se izognemo headerju --- */}
       <div className="relative max-w-[1800px] mx-auto px-4 md:px-6 pt-32 pb-12">
         
-        {/* HEADER - FILTER MESECA */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8 relative">
-          <div className="w-full md:w-64 relative z-[100]">
-             <MonthSelect value={selectedMonth} onChange={setSelectedMonth} options={availableMonths} />
-          </div>
-        </div>
+        {/* --- HEADER PRAZEN (FILTER ODSTRANJEN) --- */}
+        <div className="h-6"></div>
 
         {msg && <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center">{msg}</div>}
 
@@ -456,8 +430,20 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* MONTH STATS */}
-        <section className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* --- MONTH STATS + FILTER NAZAJ SPODAJ (GRID 2-5) --- */}
+        <section className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
+          
+          {/* FILTER JE ZDAJ TUKAJ (prva dva stolpca) */}
+          <div className="col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex items-center gap-4 group relative z-50">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
+               <Filter className="w-5 h-5" />
+            </div>
+            <div className="flex-1 relative">
+               <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 block mb-1">Filter Meseca</label>
+               <MonthSelect value={selectedMonth} onChange={setSelectedMonth} options={availableMonths} />
+            </div>
+          </div>
+
           <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 backdrop-blur-sm p-4 text-center">
             <span className="text-[10px] font-bold tracking-widest uppercase text-emerald-400/80 block mb-1">Profit</span>
             <span className={`text-xl font-bold ${monthlyStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(monthlyStats.profit)}</span>
@@ -503,7 +489,6 @@ export default function BetsPage() {
                   return (
                     <tr key={r.id} className={`border-b border-zinc-800/30 hover:bg-zinc-800/40 transition-colors group ${idx % 2 === 0 ? "bg-zinc-900/20" : "bg-transparent"}`}>
                       <td className="py-3 px-3 text-zinc-400 text-center whitespace-nowrap">{formatDateSlovenian(r.datum)}</td>
-                      {/* Klik na status odpre Status Edit */}
                       <td className="py-3 px-3 text-center"><StatusBadge wl={r.wl} onClick={() => openStatusEdit(r)} /></td>
                       <td className="py-3 px-3 text-center">
                         <span className={`px-2 py-0.5 rounded text-xs font-bold border ${rowMode === "TRADING" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-sky-500/10 text-sky-400 border-sky-500/20"}`}>{rowMode}</span>
@@ -519,7 +504,6 @@ export default function BetsPage() {
                       <td className="py-3 px-3 text-zinc-400 text-center text-xs">{r.stavnica}</td>
                       <td className="py-3 px-2 text-center">
                          <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            {/* POPRAVEK: Klik na svinčnik odpre Full Edit Modal */}
                             <button onClick={() => openFullEdit(r)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-blue-500/20 text-zinc-400 hover:text-blue-400 transition-colors" title="Uredi podrobnosti"><Pencil className="w-4 h-4" /></button>
                             <button onClick={() => deleteBet(r.id)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors" title="Izbriši"><Trash2 className="w-4 h-4" /></button>
                          </div>
@@ -532,13 +516,13 @@ export default function BetsPage() {
           </div>
         </section>
 
+        {/* MODALS & FOOTER (Ostalo nespremenjeno) */}
         <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
           <p>© 2024 DDTips Analytics. Vse pravice pridržane.</p>
           <p className="font-mono">Last updated: {new Date().toLocaleTimeString()}</p>
         </footer>
       </div>
 
-      {/* STATUS EDIT MODAL (Klik na badge) */}
       {statusEditOpen && (
         <div onClick={() => setStatusEditOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
           <div onClick={(e) => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200">
@@ -562,7 +546,6 @@ export default function BetsPage() {
         </div>
       )}
 
-      {/* FULL EDIT MODAL (Klik na svinčnik) */}
       {fullEditOpen && editingBet && (
         <div onClick={() => setFullEditOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
           <div onClick={(e) => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-4xl w-full shadow-2xl animate-in fade-in zoom-in duration-200 overflow-y-auto max-h-[90vh]">
@@ -570,29 +553,22 @@ export default function BetsPage() {
               <h3 className="text-lg font-bold text-white flex items-center gap-2"><Pencil className="w-5 h-5 text-emerald-500"/> Uredi podrobnosti stave</h3>
               <button onClick={() => setFullEditOpen(false)} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-4 h-4 text-zinc-400" /></button>
             </div>
-
             <div className="space-y-4">
-               {/* Datum, Status, Šport, Čas */}
                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <InputField label="Datum" value={editingBet.datum} onChange={(v: string) => setEditingBet({...editingBet, datum: v})} type="date" icon={<Calendar className="w-3 h-3" />} />
                   <SelectField label="Status" value={editingBet.wl} onChange={(v: any) => setEditingBet({...editingBet, wl: v})} options={["OPEN", "WIN", "LOSS", "VOID"]} icon={<Trophy className="w-3 h-3" />} />
                   <SelectField label="Šport" value={editingBet.sport} onChange={(v: any) => setEditingBet({...editingBet, sport: v})} options={SPORTI} icon={<Target className="w-3 h-3" />} />
                   <SelectField label="Čas" value={editingBet.cas_stave} onChange={(v: any) => setEditingBet({...editingBet, cas_stave: v})} options={PRELIVE} icon={<Clock className="w-3 h-3" />} />
                </div>
-
-               {/* Dogodek, Tip */}
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InputField label="Dogodek" value={editingBet.dogodek} onChange={(v: string) => setEditingBet({...editingBet, dogodek: v})} />
                   <InputField label="Tip" value={editingBet.tip} onChange={(v: string) => setEditingBet({...editingBet, tip: v})} />
                </div>
-
-               {/* Kvote in Vložki */}
                <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                      <SelectField label="Tip vnosa" value={editingBet.mode || "BET"} onChange={(v: any) => setEditingBet({...editingBet, mode: v})} options={MODES} icon={<Activity className="w-3 h-3" />} />
                      <InputField label="Komisija" value={editingBet.komisija?.toString() || "0"} onChange={(v: string) => setEditingBet({...editingBet, komisija: parseNum(v)})} icon={<Percent className="w-3 h-3" />} />
                   </div>
-                  
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                      <InputField label="Back Kvota" value={editingBet.kvota1?.toString()} onChange={(v: string) => setEditingBet({...editingBet, kvota1: parseNum(v)})} icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} />
                      <InputField label="Back Vplačilo" value={editingBet.vplacilo1?.toString()} onChange={(v: string) => setEditingBet({...editingBet, vplacilo1: parseNum(v)})} icon={<DollarSign className="w-3 h-3 text-emerald-500" />} />
@@ -600,14 +576,11 @@ export default function BetsPage() {
                      <InputField label="Lay Vplačilo" value={editingBet.vplacilo2?.toString() || ""} onChange={(v: string) => setEditingBet({...editingBet, vplacilo2: parseNum(v)})} icon={<DollarSign className="w-3 h-3 text-rose-500" />} />
                   </div>
                </div>
-
-               {/* Tipster, Stavnica */}
                <div className="grid grid-cols-2 gap-4">
                   <SelectField label="Tipster" value={editingBet.tipster} onChange={(v: any) => setEditingBet({...editingBet, tipster: v})} options={TIPSTERJI} icon={<Users className="w-3 h-3" />} />
                   <SelectField label="Stavnica" value={editingBet.stavnica} onChange={(v: any) => setEditingBet({...editingBet, stavnica: v})} options={STAVNICE} icon={<Building2 className="w-3 h-3" />} />
                </div>
             </div>
-
             <div className="flex gap-3 mt-8 pt-4 border-t border-zinc-800">
               <button onClick={() => setFullEditOpen(false)} className="px-6 py-2.5 bg-zinc-950 border border-zinc-800 text-zinc-300 font-bold rounded-xl hover:bg-zinc-900 transition-all">Prekliči</button>
               <button onClick={saveFullEdit} className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 ml-auto"><Save className="w-4 h-4" /> Shrani Spremembe</button>
