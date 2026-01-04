@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import {
@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import {
   Calendar, Filter, Users, Building2, Clock, Activity, RefreshCw, Layers,
-  Target, TrendingUp, Percent, ArrowRightLeft, Hash, Scale
+  Target, TrendingUp, Percent, ArrowRightLeft, Hash, Scale, ChevronDown, Check
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -138,17 +138,77 @@ function getBreakdown(rows: Bet[], key: 'tipster' | 'sport') {
 
 // --- KOMPONENTE ---
 
+// MultiSelect Dropdown Komponenta
+function MultiSelectField({ label, options, selected, onChange, icon }: { label: string, options: string[], selected: string[], onChange: (val: string[]) => void, icon?: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Zapri dropdown, če klikneš ven
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleOption = (opt: string) => {
+    if (selected.includes(opt)) {
+      onChange(selected.filter(s => s !== opt));
+    } else {
+      onChange([...selected, opt]);
+    }
+  };
+
+  return (
+    <div className="space-y-1 relative" ref={dropdownRef}>
+      <label className="flex items-center gap-1 text-[9px] font-bold tracking-widest uppercase text-zinc-500">
+        {icon} {label}
+      </label>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-2 py-2 bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-xs flex items-center justify-between hover:border-zinc-700 transition-colors"
+      >
+        <span className="truncate">
+          {selected.length === 0 ? "VSI" : selected.length === 1 ? selected[0] : `${selected.length} izbrano`}
+        </span>
+        <ChevronDown className="w-3 h-3 text-zinc-500" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 w-full mt-1 bg-[#09090b] border border-zinc-800 rounded-lg shadow-xl z-[100] max-h-60 overflow-y-auto">
+           {options.map(opt => {
+             const isSelected = selected.includes(opt);
+             return (
+               <div 
+                 key={opt} 
+                 onClick={() => toggleOption(opt)}
+                 className={`px-3 py-2 text-xs flex items-center justify-between cursor-pointer hover:bg-zinc-800 transition-colors ${isSelected ? "text-emerald-400 font-bold" : "text-zinc-400"}`}
+               >
+                 <span>{opt}</span>
+                 {isSelected && <Check className="w-3 h-3" />}
+               </div>
+             )
+           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StatMetric({ label, value, subValue, color = "text-white", icon, inlineSub }: any) {
   return (
     <div className="flex flex-col items-center justify-center p-2 text-center">
       <div className="flex items-center gap-1 mb-2 text-zinc-500 justify-center">
         {icon}
-        <span className="text-[10px] font-bold tracking-widest uppercase">{label}</span>
+        <span className="text-[9px] font-bold tracking-widest uppercase">{label}</span>
       </div>
-      <div className="flex items-baseline gap-2">
-        {/* POVEČAN TEXT (3xl na 4xl) */}
+      <div className="flex items-baseline gap-2 justify-center flex-wrap">
+        {/* POVEČAN TEXT */}
         <span className={`text-3xl md:text-4xl font-black ${color}`}>{value}</span>
-        {/* INLINE SUBVALUE (za Win/Loss zraven številke) */}
+        {/* INLINE SUBVALUE (popravek za W/L zraven) */}
         {inlineSub && <span className="text-lg font-bold text-zinc-500">{inlineSub}</span>}
       </div>
       {/* STANDARD SUBVALUE (spodaj) */}
@@ -179,7 +239,7 @@ function BigStatCard({ title, stats, variant = "main" }: { title: string; stats:
         {/* Header */}
         <div className="flex items-center justify-center gap-2 mb-4">
           {icon}
-          <h3 className="text-sm font-bold tracking-[0.2em] text-zinc-400 uppercase">{title}</h3>
+          <h3 className="text-xs font-bold tracking-[0.2em] text-zinc-400 uppercase">{title}</h3>
         </div>
 
         {/* Glavni Profit */}
@@ -190,7 +250,7 @@ function BigStatCard({ title, stats, variant = "main" }: { title: string; stats:
           <div className="text-xs font-bold text-zinc-500 mt-2 uppercase tracking-wider">Neto Profit</div>
         </div>
 
-        {/* Prematch / Live Breakdown - POVEČANI NAPISI */}
+        {/* Prematch / Live Breakdown */}
         {variant !== "main" && (
            <div className="flex justify-center gap-6 mb-6 text-sm font-bold text-zinc-300 border-b border-white/5 pb-4">
               <span>PREMATCH: <span className={stats.preProfit >=0 ? "text-emerald-400":"text-rose-400"}>{eur(stats.preProfit)}</span></span>
@@ -199,26 +259,20 @@ function BigStatCard({ title, stats, variant = "main" }: { title: string; stats:
         )}
 
         {/* Grid Statistike */}
-        {/* MAIN: 3 Stolpci (Levo: Št, Sredina: Donos, Desno: WR) */}
         {variant === "main" && (
           <div className="grid grid-cols-3 gap-4 pt-2 border-t border-white/5">
-             {/* LEVO: Število stav + W/L zraven */}
              <StatMetric 
                 label="Število Stav" 
                 value={stats.n} 
                 inlineSub={`${stats.wins}W - ${stats.losses}L`} 
                 icon={<Hash className="w-4 h-4" />} 
              />
-             
-             {/* SREDINA: Donos kapitala */}
              <StatMetric 
                 label="Rast Kapitala" 
                 value={`${stats.growth >= 0 ? "+" : ""}${stats.growth.toFixed(1)}%`} 
                 color={stats.growth >= 0 ? "text-emerald-400" : "text-rose-400"} 
                 icon={<Percent className="w-4 h-4" />} 
              />
-
-             {/* DESNO: Win Rate */}
              <StatMetric 
                 label="Win Rate" 
                 value={`${stats.winRate.toFixed(0)}%`} 
@@ -228,13 +282,17 @@ function BigStatCard({ title, stats, variant = "main" }: { title: string; stats:
           </div>
         )}
 
-        {/* SUB-CARDS (Betting/Trading): 3 ali 4 stolpci */}
         {variant !== "main" && (
           <div className={`grid ${variant === 'betting' ? 'grid-cols-4' : 'grid-cols-3'} gap-4 pt-2 border-t border-white/5`}>
-             <StatMetric label="Število Stav" value={stats.n} subValue={`${stats.wins}W - ${stats.losses}L`} icon={<Hash className="w-4 h-4" />} />
+             {/* TU JE POPRAVEK: inlineSub uporabimo tudi tukaj, da je W/L zraven številke */}
+             <StatMetric 
+                label="Število Stav" 
+                value={stats.n} 
+                inlineSub={`${stats.wins}W - ${stats.losses}L`} 
+                icon={<Hash className="w-4 h-4" />} 
+             />
              <StatMetric label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} color="text-zinc-200" icon={<Activity className="w-4 h-4" />} />
              
-             {/* Betting ima Kvoto in ROI */}
              {variant === "betting" && (
                <>
                  <StatMetric label="Povp. Kvota" value={stats.avgOdds.toFixed(2)} color="text-sky-400" icon={<Target className="w-4 h-4" />} />
@@ -242,7 +300,6 @@ function BigStatCard({ title, stats, variant = "main" }: { title: string; stats:
                </>
              )}
 
-             {/* Trading ima samo Rast namesto ROI (ali pa nič, če tako želiš, ampak da zapolnimo prostor damo Rast) */}
              {variant === "trading" && (
                 <StatMetric label="Rast Kap." value={`${stats.growth >= 0 ? "+" : ""}${stats.growth.toFixed(1)}%`} color={stats.growth >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<Percent className="w-4 h-4" />} />
              )}
@@ -293,16 +350,16 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const [sport, setSport] = useState("ALL");
-  const [tipster, setTipster] = useState("ALL");
+  // Spremenjeno stanje za Multi-Select (Array stringov)
+  const [selectedSports, setSelectedSports] = useState<string[]>([]);
+  const [selectedTipsters, setSelectedTipsters] = useState<string[]>([]);
+  
   const [stavnica, setStavnica] = useState("ALL");
   const [cas, setCas] = useState<"ALL" | Cas>("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [minKvota, setMinKvota] = useState("");
   const [maxKvota, setMaxKvota] = useState("");
-
-  const [appliedFilters, setAppliedFilters] = useState({ sport: "ALL", tipster: "ALL", stavnica: "ALL", cas: "ALL" as "ALL"|Cas, fromDate: "", toDate: "", minKvota: "", maxKvota: "" });
 
   useEffect(() => {
     (async () => {
@@ -321,19 +378,22 @@ export default function StatsPage() {
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
-      if (appliedFilters.sport !== "ALL" && r.sport !== appliedFilters.sport) return false;
-      if (appliedFilters.tipster !== "ALL" && r.tipster !== appliedFilters.tipster) return false;
-      if (appliedFilters.stavnica !== "ALL" && r.stavnica !== appliedFilters.stavnica) return false;
-      if (appliedFilters.cas !== "ALL" && r.cas_stave !== appliedFilters.cas) return false;
-      if (appliedFilters.fromDate && r.datum < appliedFilters.fromDate) return false;
-      if (appliedFilters.toDate && r.datum > appliedFilters.toDate) return false;
+      // Multi-Select Logic: Če je array prazen, pomeni VSI. Če ni prazen, mora biti v arrayu.
+      if (selectedSports.length > 0 && !selectedSports.includes(r.sport)) return false;
+      if (selectedTipsters.length > 0 && !selectedTipsters.includes(r.tipster)) return false;
+
+      if (stavnica !== "ALL" && r.stavnica !== stavnica) return false;
+      if (cas !== "ALL" && r.cas_stave !== cas) return false;
+      if (fromDate && r.datum < fromDate) return false;
+      if (toDate && r.datum > toDate) return false;
+      
       if (getMode(r) === "BET") {
-         if (appliedFilters.minKvota && r.kvota1 < parseFloat(appliedFilters.minKvota)) return false;
-         if (appliedFilters.maxKvota && r.kvota1 > parseFloat(appliedFilters.maxKvota)) return false;
+         if (minKvota && r.kvota1 < parseFloat(minKvota)) return false;
+         if (maxKvota && r.kvota1 > parseFloat(maxKvota)) return false;
       }
       return true;
     });
-  }, [rows, appliedFilters]);
+  }, [rows, selectedSports, selectedTipsters, stavnica, cas, fromDate, toDate, minKvota, maxKvota]);
 
   const bettingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "BET"), [filteredRows]);
   const tradingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "TRADING"), [filteredRows]);
@@ -345,7 +405,6 @@ export default function StatsPage() {
   const tipsterBreakdown = useMemo(() => getBreakdown(filteredRows, 'tipster'), [filteredRows]);
   const sportBreakdown = useMemo(() => getBreakdown(filteredRows, 'sport'), [filteredRows]);
 
-  // --- IZRAČUN SKUPNIH SEŠTEVKOV ZA TABELO ---
   const tipsterTotals = useMemo(() => {
     return tipsterBreakdown.reduce((acc, curr) => ({
       bet: acc.bet + curr.bettingProfit,
@@ -362,16 +421,11 @@ export default function StatsPage() {
     }), { bet: 0, trade: 0, total: 0 });
   }, [sportBreakdown]);
 
-
-  const handleApplyFilters = () => {
-    setAppliedFilters({ sport, tipster, stavnica, cas, fromDate, toDate, minKvota, maxKvota });
-    setFiltersOpen(false);
-  };
-
   const handleClearFilters = () => {
-    setSport("ALL"); setTipster("ALL"); setStavnica("ALL"); setCas("ALL"); setFromDate(""); setToDate(""); setMinKvota(""); setMaxKvota("");
-    setAppliedFilters({ sport: "ALL", tipster: "ALL", stavnica: "ALL", cas: "ALL", fromDate: "", toDate: "", minKvota: "", maxKvota: "" });
+    setSelectedSports([]); setSelectedTipsters([]); setStavnica("ALL"); setCas("ALL"); setFromDate(""); setToDate(""); setMinKvota(""); setMaxKvota("");
   };
+
+  const hasActiveFilters = selectedSports.length > 0 || selectedTipsters.length > 0 || stavnica !== "ALL" || cas !== "ALL" || fromDate !== "" || toDate !== "" || minKvota !== "" || maxKvota !== "";
 
   if (loading && rows.length === 0) return <div className="min-h-screen flex items-center justify-center bg-black"><div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" /></div>;
 
@@ -381,7 +435,7 @@ export default function StatsPage() {
       
       <div className="relative max-w-[1600px] mx-auto px-4 md:px-8 pb-10">
         
-        {/* FILTER BAR - Spuščeno nižje (pt-24) */}
+        {/* FILTER BAR */}
         <div className="pt-24 pb-6 flex justify-end relative z-50">
            <div className="flex gap-2">
             <button
@@ -390,7 +444,7 @@ export default function StatsPage() {
             >
               <Filter className="w-4 h-4" />
               <span className="text-xs font-bold uppercase tracking-wider">Filtri</span>
-              {(JSON.stringify(appliedFilters) !== JSON.stringify({ sport: "ALL", tipster: "ALL", stavnica: "ALL", cas: "ALL", fromDate: "", toDate: "", minKvota: "", maxKvota: "" })) && <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>}
+              {hasActiveFilters && <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>}
             </button>
             <button onClick={loadRows} className="p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all">
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -399,13 +453,19 @@ export default function StatsPage() {
         </div>
 
         {/* FILTERS DROPDOWN */}
-        <div className={`overflow-hidden transition-all duration-300 ease-in-out relative z-40 ${filtersOpen ? 'max-h-[600px] opacity-100 mb-8' : 'max-h-0 opacity-0 mb-0'}`}>
+        {/* Odstranjen overflow-hidden, da dropdowni ne bodo odrezani, ko je odprto */}
+        <div className={`transition-all duration-300 ease-in-out relative z-40 ${filtersOpen ? 'opacity-100 mb-8' : 'max-h-0 opacity-0 mb-0 overflow-hidden'}`}>
           <div className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl">
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
               <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-3 h-3" />} />
               <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-3 h-3" />} />
-              <SelectField label="Šport" value={sport} onChange={setSport} options={["ALL", ...SPORTI]} icon={<Activity className="w-3 h-3" />} />
-              <SelectField label="Tipster" value={tipster} onChange={setTipster} options={["ALL", ...TIPSTERJI]} icon={<Users className="w-3 h-3" />} />
+              
+              {/* MULTI-SELECT FILTER ZA ŠPORTE */}
+              <MultiSelectField label="Športi" options={SPORTI} selected={selectedSports} onChange={setSelectedSports} icon={<Activity className="w-3 h-3" />} />
+              
+              {/* MULTI-SELECT FILTER ZA TIPSTERJE */}
+              <MultiSelectField label="Tipsterji" options={TIPSTERJI} selected={selectedTipsters} onChange={setSelectedTipsters} icon={<Users className="w-3 h-3" />} />
+              
               <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3 h-3" />} />
               <SelectField label="Čas" value={cas} onChange={setCas} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3 h-3" />} />
               <InputField label="Min Kvota" value={minKvota} onChange={setMinKvota} placeholder="1.00" icon={<Scale className="w-3 h-3" />} />
@@ -413,16 +473,15 @@ export default function StatsPage() {
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
               <button onClick={handleClearFilters} className="px-4 py-2 text-xs font-bold uppercase text-zinc-500 hover:text-white">Počisti</button>
-              <button onClick={handleApplyFilters} className="px-6 py-2 bg-white text-black text-xs font-bold uppercase rounded-lg hover:bg-zinc-200">Uporabi</button>
+              {/* Gumb uporabi ni več nujno potreben, ker se stanje posodablja sproti, a ga pustimo za UX */}
+              <button onClick={() => setFiltersOpen(false)} className="px-6 py-2 bg-white text-black text-xs font-bold uppercase rounded-lg hover:bg-zinc-200">Zapri</button>
             </div>
           </div>
         </div>
 
         {/* --- STATISTIČNE KARTICE --- */}
         <section className="space-y-6 mb-12">
-          {/* 1. VRSTICA: SKUPNA */}
           <BigStatCard title="Skupna Statistika" stats={totalStats} variant="main" />
-          {/* 2. VRSTICA: SPLIT */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <BigStatCard title="Betting" stats={bettingStats} variant="betting" />
             <BigStatCard title="Trading" stats={tradingStats} variant="trading" />
@@ -454,7 +513,6 @@ export default function StatsPage() {
                         </div>
                     ))}
                 </div>
-                {/* FOOTER - SALDO */}
                 <div className="mt-2 pt-3 border-t border-zinc-700 grid grid-cols-4 text-xs font-black uppercase px-2 bg-zinc-900/50 py-2 rounded-b-xl">
                     <span className="text-zinc-400">SKUPAJ</span>
                     <span className={`text-right font-mono ${tipsterTotals.bet>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(tipsterTotals.bet)}</span>
@@ -485,7 +543,6 @@ export default function StatsPage() {
                         </div>
                     ))}
                 </div>
-                {/* FOOTER - SALDO */}
                 <div className="mt-2 pt-3 border-t border-zinc-700 grid grid-cols-4 text-xs font-black uppercase px-2 bg-zinc-900/50 py-2 rounded-b-xl">
                     <span className="text-zinc-400">SKUPAJ</span>
                     <span className={`text-right font-mono ${sportTotals.bet>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(sportTotals.bet)}</span>
@@ -511,10 +568,7 @@ export default function StatsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
                   <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
-                    formatter={(value: number | undefined) => [eurDec(value || 0), "Profit"]}
-                  />
+                  <Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }} formatter={(value: number | undefined) => [eurDec(value || 0), "Profit"]} />
                   <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -527,11 +581,7 @@ export default function StatsPage() {
                 <BarChart data={totalStats.monthlyChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis dataKey="name" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
-                  <Tooltip 
-                    cursor={{fill: 'rgba(255,255,255,0.05)'}} 
-                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
-                    formatter={(value: number | undefined) => [eurDec(value || 0), "Profit"]}
-                  />
+                  <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }} formatter={(value: number | undefined) => [eurDec(value || 0), "Profit"]} />
                   <ReferenceLine y={0} stroke="#52525b" />
                   <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
                     {totalStats.monthlyChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? '#10b981' : '#f43f5e'} />)}
