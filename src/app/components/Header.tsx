@@ -9,7 +9,6 @@ export default function Header() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
 
-  // Zaznavanje skrolanja za spremembo stila headerja
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
@@ -20,7 +19,6 @@ export default function Header() {
 
   const isActive = (href: string) => pathname === href;
 
-  // Reusable NavItem komponenta
   const NavItem = ({ href, icon: Icon, label, variant = "default" }: any) => {
     const active = isActive(href);
     const isLogout = variant === "logout";
@@ -40,14 +38,10 @@ export default function Header() {
           }
         `}
       >
-        {/* Active Indicator Background Glow */}
         {active && !isLogout && (
           <span className="absolute inset-0 bg-green-500/10 rounded-full blur-md" />
         )}
-
-        {/* Hover Highlight Effect */}
         <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
-
         <Icon
           className={`
             w-4 h-4 transition-transform duration-300 group-hover:scale-110
@@ -66,44 +60,41 @@ export default function Header() {
         fixed top-0 inset-x-0 z-[100] transition-all duration-500 border-b
         ${
           scrolled
-            ? "bg-[#0B1120]/80 backdrop-blur-xl border-slate-800/60 shadow-2xl shadow-black/50 py-3"
-            : "bg-transparent border-transparent py-5"
+            ? "bg-[#0B1120]/90 backdrop-blur-xl border-slate-800/60 shadow-2xl shadow-black/50 py-2" // Manjši padding ko skrolaš
+            : "bg-transparent border-transparent py-4" // Malo manjši padding na začetku
         }
       `}
     >
-      {/* Ambient Background Glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-20 bg-green-500/5 blur-[100px] pointer-events-none" />
 
       <div className="max-w-[1600px] mx-auto px-6">
         <div className="flex items-center justify-between">
           
-          {/* --- LOGO SEKCIJA (POPRAVLJENO) --- */}
+          {/* --- LOGO SEKCIJA (POVEČANA) --- */}
           <Link href="/" className="relative group z-10 flex items-center">
             <img
-              src="/images/logo-full.png" // Preveri, če je pot točna!
+              src="/images/logo-full.png" // Preveri, če imaš .png ali .jpg!
               alt="DD Tips"
               className={`
                 w-auto object-contain transition-all duration-300
-                ${scrolled ? "h-10" : "h-14"} 
+                ${scrolled ? "h-16" : "h-24 md:h-28"} 
               `}
+              // h-24 je cca 96px, h-28 je 112px (na velikih ekranih)
+              // h-16 je 64px (ko skrolaš)
             />
           </Link>
 
-          {/* Navigation Pill Container */}
+          {/* Navigation */}
           <nav className="flex items-center p-1.5 rounded-full border border-white/5 bg-slate-950/30 backdrop-blur-md shadow-xl">
             <NavItem href="/" icon={Home} label="Home" />
             <NavItem href="/bets" icon={TrendingUp} label="Stave" />
             <NavItem href="/stats" icon={BarChart3} label="Statistika" />
-            
-            {/* Divider */}
             <div className="w-px h-6 bg-white/10 mx-2" />
-            
             <NavItem href="/login" icon={LogOut} label="Odjava" variant="logout" />
           </nav>
         </div>
       </div>
 
-      {/* Bottom Gradient Line (Animated) */}
       <div className={`
         absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-green-500/50 to-transparent
         transition-opacity duration-500
