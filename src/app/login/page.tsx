@@ -91,49 +91,49 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-[#0B1120] font-sans selection:bg-emerald-500/30">
+    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-black font-sans selection:bg-emerald-500/30">
       
-      {/* --- Ozadje (Ambient Glow) --- */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px]" />
-        {/* Noise texture overlay za "premium" občutek */}
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
-      </div>
+      {/* --- ISTO OZADJE KOT NA OSTALIH STRANEH --- */}
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
+      <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
 
       {/* --- Kartica --- */}
-      <div className="relative z-10 w-full max-w-[400px] p-6">
-        <div className="overflow-hidden rounded-3xl border border-white/5 bg-slate-900/60 backdrop-blur-xl shadow-2xl">
+      <div className="relative z-10 w-full max-w-[420px] p-6">
+        <div className="overflow-hidden rounded-3xl border border-zinc-800/50 bg-zinc-900/40 backdrop-blur-xl shadow-2xl">
           
           {/* Header z LOGOTIPOM */}
           <div className="p-8 pb-6 text-center flex flex-col items-center">
-            {/* LOGO - Nadomesti prejšnjo ikono */}
+            
+            {/* LOGO CONTAINER */}
             <div className="mb-6 relative group">
-              <div className="absolute inset-0 bg-emerald-500/20 blur-xl rounded-full opacity-50 group-hover:opacity-75 transition-opacity duration-500"></div>
+              {/* Sijaj za logotipom */}
+              <div className="absolute inset-0 bg-emerald-500/20 blur-2xl rounded-full opacity-40 group-hover:opacity-60 transition-opacity duration-500"></div>
+              
+              {/* Slika logotipa - Mora biti PNG brez ozadja! */}
               <img 
-                src="/images/logo-full.png" // Preveri, da je pot pravilna!
+                src="/images/logo-full.png" 
                 alt="DD Tips" 
-                className="relative h-20 w-auto object-contain drop-shadow-2xl"
+                className="relative h-24 w-auto object-contain drop-shadow-2xl transform group-hover:scale-105 transition-transform duration-500"
               />
             </div>
 
             <h1 className="text-2xl font-bold tracking-tight text-white">
               Dobrodošli na DDTips
             </h1>
-            <p className="mt-2 text-sm text-slate-400">
-              Napredna analitika in športni nasveti.
+            <p className="mt-2 text-sm text-zinc-400">
+              Prijavite se za dostop do napredne statistike.
             </p>
           </div>
 
-          {/* Tabs (Preklopnik) */}
+          {/* Tabs (Login/Register) */}
           <div className="px-8">
-            <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-950/50 p-1 border border-white/5">
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/40 p-1 border border-zinc-800/50">
               <button
                 onClick={() => { setView("login"); setMsg(null); }}
                 className={`relative flex items-center justify-center rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
                   view === "login" 
-                    ? "bg-slate-800 text-white shadow-lg" 
-                    : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/30"
+                    ? "bg-zinc-800 text-white shadow-lg border border-zinc-700" 
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30"
                 }`}
               >
                 Prijava
@@ -142,8 +142,8 @@ export default function LoginPage() {
                 onClick={() => { setView("register"); setMsg(null); }}
                 className={`relative flex items-center justify-center rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
                   view === "register" 
-                    ? "bg-slate-800 text-white shadow-lg" 
-                    : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/30"
+                    ? "bg-zinc-800 text-white shadow-lg border border-zinc-700" 
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30"
                 }`}
               >
                 Registracija
@@ -156,9 +156,9 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-5">
               
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Email</label>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Email</label>
                 <div className="group relative">
-                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-emerald-400">
+                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-emerald-500">
                     <Mail className="h-4 w-4" />
                   </div>
                   <input
@@ -166,22 +166,22 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="vas@email.com"
-                    className="w-full rounded-xl border border-white/10 bg-slate-950/50 py-3 pl-10 pr-4 text-sm text-white placeholder-slate-600 transition-all focus:border-emerald-500/50 focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                    className="w-full rounded-xl border border-zinc-800 bg-black/40 py-3 pl-10 pr-4 text-sm text-white placeholder-zinc-700 transition-all focus:border-emerald-500/50 focus:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center ml-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Geslo</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Geslo</label>
                   {view === "login" && (
-                    <button type="button" className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors font-medium">
+                    <button type="button" className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors">
                       Pozabljeno?
                     </button>
                   )}
                 </div>
                 <div className="group relative">
-                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-emerald-400">
+                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-emerald-500">
                     <Lock className="h-4 w-4" />
                   </div>
                   <input
@@ -189,7 +189,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full rounded-xl border border-white/10 bg-slate-950/50 py-3 pl-10 pr-4 text-sm text-white placeholder-slate-600 transition-all focus:border-emerald-500/50 focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                    className="w-full rounded-xl border border-zinc-800 bg-black/40 py-3 pl-10 pr-4 text-sm text-white placeholder-zinc-700 transition-all focus:border-emerald-500/50 focus:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
                   />
                 </div>
               </div>
@@ -209,7 +209,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-emerald-500 hover:shadow-emerald-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 mt-4"
+                className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-emerald-500 hover:shadow-emerald-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 mt-4 border border-emerald-500/50"
               >
                 {/* Shine effect */}
                 <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent z-0" />
@@ -224,17 +224,17 @@ export default function LoginPage() {
           </div>
 
           {/* Footer area */}
-          <div className="border-t border-white/5 bg-slate-950/30 p-5 text-center">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wide">
-              Zaščiteno z <span className="text-slate-400 font-bold">Supabase Auth</span>
+          <div className="border-t border-zinc-800 bg-zinc-900/50 p-5 text-center">
+            <p className="text-[10px] text-zinc-600 uppercase tracking-wide">
+              Zaščiteno z <span className="text-zinc-400 font-bold">Supabase Auth</span>
             </p>
           </div>
         </div>
         
         {/* Copyright */}
         <div className="mt-8 text-center opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-xs text-slate-500 font-medium">
-            &copy; {new Date().getFullYear()} DDTips Analytics.
+          <p className="text-[10px] text-zinc-600 font-medium uppercase tracking-widest">
+            &copy; {new Date().getFullYear()} DDTips Analytics
           </p>
         </div>
       </div>
