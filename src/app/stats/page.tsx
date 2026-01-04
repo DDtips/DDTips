@@ -402,18 +402,18 @@ export default function StatsPage() {
       
       <div className="relative max-w-[1600px] mx-auto px-4 md:px-8 pb-10">
         
-        {/* FILTER BAR - POPRAVEK ZA KLIKANJE: pointer-events-none na wrapper, auto na gumbe */}
-        <div className="pt-24 pb-6 flex justify-end relative z-30 pointer-events-none">
+        {/* FILTER BAR - POPRAVEK: pt-32 (bolj dol) in z-[60] (klikabilno) */}
+        <div className="pt-32 pb-6 flex justify-end relative z-[60] pointer-events-none">
            <div className="flex gap-2 pointer-events-auto">
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${filtersOpen ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:text-white'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all cursor-pointer shadow-lg active:scale-95 ${filtersOpen ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600'}`}
             >
               <Filter className="w-4 h-4" />
               <span className="text-xs font-bold uppercase tracking-wider">Filtri</span>
               {hasActiveFilters && <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>}
             </button>
-            <button onClick={loadRows} className="p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all">
+            <button onClick={loadRows} className="p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all cursor-pointer shadow-lg active:scale-95">
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
@@ -433,8 +433,8 @@ export default function StatsPage() {
               <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="10.00" icon={<Scale className="w-3 h-3" />} />
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
-              <button onClick={handleClearFilters} className="px-4 py-2 text-xs font-bold uppercase text-zinc-500 hover:text-white">Počisti</button>
-              <button onClick={() => setFiltersOpen(false)} className="px-6 py-2 bg-white text-black text-xs font-bold uppercase rounded-lg hover:bg-zinc-200">Zapri</button>
+              <button onClick={handleClearFilters} className="px-4 py-2 text-xs font-bold uppercase text-zinc-500 hover:text-white cursor-pointer">Počisti</button>
+              <button onClick={() => setFiltersOpen(false)} className="px-6 py-2 bg-white text-black text-xs font-bold uppercase rounded-lg hover:bg-zinc-200 cursor-pointer">Zapri</button>
             </div>
           </div>
         </div>
