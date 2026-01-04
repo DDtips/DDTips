@@ -361,7 +361,6 @@ export default function StatsPage() {
 
   const tipsterBreakdown = useMemo(() => getBreakdown(filteredRows, 'tipster'), [filteredRows]);
   const sportBreakdown = useMemo(() => getBreakdown(filteredRows, 'sport'), [filteredRows]);
-  // NOVO: Breakdown za PREMATCH / LIVE
   const casBreakdown = useMemo(() => getBreakdown(filteredRows, 'cas_stave'), [filteredRows]);
 
   const tipsterTotals = useMemo(() => {
@@ -402,7 +401,7 @@ export default function StatsPage() {
       
       <div className="relative max-w-[1600px] mx-auto px-4 md:px-8 pb-10">
         
-        {/* FILTER BAR - POPRAVEK: pt-32 (bolj dol) in z-[60] (klikabilno) */}
+        {/* FILTER BAR */}
         <div className="pt-32 pb-6 flex justify-end relative z-[60] pointer-events-none">
            <div className="flex gap-2 pointer-events-auto">
             <button
@@ -432,13 +431,16 @@ export default function StatsPage() {
               <InputField label="Min Kvota" value={minKvota} onChange={setMinKvota} placeholder="1.00" icon={<Scale className="w-3 h-3" />} />
               <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="10.00" icon={<Scale className="w-3 h-3" />} />
             </div>
+            
+            {/* NOVO: Dodan gumb POTRDI (zraven počisti) */}
             <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
               <button onClick={handleClearFilters} className="px-4 py-2 text-xs font-bold uppercase text-zinc-500 hover:text-white cursor-pointer">Počisti</button>
-              <button onClick={() => setFiltersOpen(false)} className="px-6 py-2 bg-white text-black text-xs font-bold uppercase rounded-lg hover:bg-zinc-200 cursor-pointer">Zapri</button>
+              <button onClick={() => setFiltersOpen(false)} className="px-6 py-2 bg-emerald-600 text-white text-xs font-bold uppercase rounded-lg hover:bg-emerald-500 cursor-pointer shadow-lg">Potrdi</button>
             </div>
           </div>
         </div>
 
+        {/* ... (OSTALA KODA SE NE SPREMINJA) ... */}
         {/* --- STATISTIČNE KARTICE --- */}
         <section className="space-y-6 mb-12">
           <BigStatCard title="Skupna Statistika" stats={totalStats} variant="main" />
