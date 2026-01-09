@@ -41,8 +41,8 @@ type BetRow = {
   kvota1: number;
   vplacilo1: number;
   lay_kvota: number | null;
-  vplacilo2: number | null;
-  komisija: number | null;
+  vplacilo2: number | null; // Liability
+  komisija: number | null; // Fiksni znesek
   sport: string;
   cas_stave: PreLive;
   tipster: string;
@@ -94,47 +94,50 @@ function hasLay(b: BetRow): boolean {
 function calcProfit(b: BetRow): number {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
 
-  const komPct = Number(b.komisija ?? 0);
+  // 1. Komisija je fiksni znesek, ki ga preberemo
+  const komZnesek = Number(b.komisija ?? 0);
+
   const backStake = b.vplacilo1 || 0;
   const backOdds = b.kvota1 || 0;
-  const layLiability = b.vplacilo2 || 0;
+  const layLiability = b.vplacilo2 || 0; // Vnos je Liability
   const layOdds = b.lay_kvota || 0;
   
-  // Ključni popravek: Izračun Lay Staka iz Liability-ja
+  // Izračunamo Lay Stake (dobiček pri Lay zmagi) iz Liability
   const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
 
-  const applyCommission = (profit: number) => {
-    if (profit <= 0) return profit;
-    // Če je vnešena komisija kot npr. 5 (5%), odštejemo %
-    return profit - (profit * (komPct / 100));
-  };
+  let brutoProfit = 0;
 
-  // 1. SAMO LAY
-  if (!hasBack(b) && hasLay(b)) {
-    if (b.wl === "WIN" || b.wl === "LAY WIN") return applyCommission(layStake);
-    if (b.wl === "LOSS" || b.wl === "BACK WIN") return -layLiability;
-  }
-
-  // 2. SAMO BACK
-  if (hasBack(b) && !hasLay(b)) {
-    if (b.wl === "WIN" || b.wl === "BACK WIN") return applyCommission(backStake * (backOdds - 1));
-    if (b.wl === "LOSS" || b.wl === "LAY WIN") return -backStake;
-  }
-
-  // 3. TRADING (Back & Lay)
+  // SCENARIJ 1: TRADING (Back in Lay vpisana)
   if (hasBack(b) && hasLay(b)) {
     const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
     const profitIfLayWins = layStake - backStake;
 
-    if (b.wl === "BACK WIN") return applyCommission(profitIfBackWins);
-    if (b.wl === "LAY WIN") return applyCommission(profitIfLayWins);
-    
-    // Če uporabljaš še stari status WIN/LOSS v trading modu:
-    if (b.wl === "WIN") return applyCommission(Math.max(profitIfBackWins, profitIfLayWins));
-    if (b.wl === "LOSS") return Math.min(profitIfBackWins, profitIfLayWins);
+    if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
+    else if (b.wl === "LAY WIN") brutoProfit = profitIfLayWins;
+    // Fallback za stare statuse
+    else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
+    else if (b.wl === "LOSS") brutoProfit = Math.min(profitIfBackWins, profitIfLayWins);
   }
 
-  return 0;
+  // SCENARIJ 2: SAMO LAY
+  else if (!hasBack(b) && hasLay(b)) {
+    if (b.wl === "WIN" || b.wl === "LAY WIN") brutoProfit = layStake;
+    else if (b.wl === "LOSS" || b.wl === "BACK WIN") brutoProfit = -layLiability;
+  }
+
+  // SCENARIJ 3: SAMO BACK
+  else if (hasBack(b) && !hasLay(b)) {
+    if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1);
+    else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
+  }
+
+  // ODŠTEVANJE KOMISIJE
+  // Odštejemo fiksni znesek samo, če smo v plusu
+  if (brutoProfit > 0) {
+    return brutoProfit - komZnesek;
+  }
+
+  return brutoProfit;
 }
 
 function getCurrentMonth() {
@@ -211,7 +214,7 @@ function StatusBadge({ wl, onClick }: { wl: WL; onClick?: () => void }) {
     "BACK WIN": "bg-emerald-600/20 text-emerald-400 border-emerald-500/50 font-black",
     "LAY WIN": "bg-pink-600/20 text-pink-400 border-pink-500/50 font-black"
   } as const;
-  return <button onClick={onClick} className={`px-2.5 py-1 rounded-md text-[10px] font-bold border ${styles[wl] || styles.OPEN} transition-all duration-300 hover:brightness-125 cursor-pointer`}>{wl}</button>;
+  return <button onClick={onClick} className={`px-2.5 py-1 rounded-md text-[10px] font-bold border ${styles[wl] || styles.OPEN} transition-all duration-300 hover:brightness-125 cursor-pointer uppercase`}>{wl}</button>;
 }
 
 function TooltipCell({ text, className = "" }: { text: string; className?: string }) {
@@ -445,7 +448,7 @@ export default function BetsPage() {
                 {mode === "BET" ? (
                   <SelectField label="Stava" value={betSide} onChange={(v:any) => setBetSide(v)} options={BET_SIDES} icon={<Target className="w-3 h-3" />} />
                 ) : <div className="hidden md:block" />}
-                <InputField label="Komisija (%)" value={komisija} onChange={setKomisija} placeholder="0" icon={<Percent className="w-3 h-3" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
+                <InputField label="Komisija" value={komisija} onChange={setKomisija} placeholder="0" icon={<Percent className="w-3 h-3" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                 <div className="hidden md:block" />
               </div>
               {(mode === "TRADING" || (mode === "BET" && betSide === "BACK")) && (
