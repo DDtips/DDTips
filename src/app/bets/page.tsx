@@ -21,12 +21,14 @@ import {
   Percent,
   Pencil,
   ChevronDown,
-  Save
+  Save,
+  ArrowUpRight,
+  ArrowDownRight
 } from "lucide-react";
 
 // --- TIPOVI ---
 
-type WL = "OPEN" | "WIN" | "LOSS" | "VOID";
+type WL = "OPEN" | "WIN" | "LOSS" | "VOID" | "BACK WIN" | "LAY WIN";
 type PreLive = "PREMATCH" | "LIVE";
 type Mode = "BET" | "TRADING";
 type BetSide = "BACK" | "LAY";
@@ -41,7 +43,7 @@ type BetRow = {
   kvota1: number;
   vplacilo1: number;
   lay_kvota: number | null;
-  vplacilo2: number | null;
+  vplacilo2: number | null; // To obravnavamo kot LIABILITY
   komisija: number | null;
   sport: string;
   cas_stave: PreLive;
@@ -72,6 +74,7 @@ function eurCompact(n: number) {
 }
 
 function parseNum(x: string | number) {
+  if (typeof x === "number") return x;
   const s = (x ?? "").toString().trim().replace(/\s+/g, "").replace(",", ".");
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
@@ -94,34 +97,38 @@ function hasLay(b: BetRow): boolean {
 function calcProfit(b: BetRow): number {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
 
-  const kom = Number(b.komisija ?? 0);
-  const hasBackBet = hasBack(b);
-  const hasLayBet = hasLay(b);
-
+  const komPct = Number(b.komisija ?? 0);
   const backStake = b.vplacilo1 || 0;
   const backOdds = b.kvota1 || 0;
-  const layLiability = b.vplacilo2 || 0;
+  const layLiability = b.vplacilo2 || 0; // Vplačilo pri LAY je Liability
   const layOdds = b.lay_kvota || 0;
-  const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
+  
+  // Lay Stake = Koliko dobimo, če stava na exchange-u ne gre skozi
+  const layStake = (layOdds > 1) ? layLiability / (layOdds - 1) : 0;
 
-  const applyCommission = (profit: number) => (profit > 0 ? profit - kom : profit);
+  const applyCommission = (profit: number) => {
+    return profit > 0 ? profit * (1 - komPct / 100) : profit;
+  };
 
-  if (!hasBackBet && hasLayBet) {
-    if (b.wl === "WIN") return applyCommission(layStake);
-    return -layLiability;
+  // Case 1: Samo BACK stava
+  if (hasBack(b) && !hasLay(b)) {
+    if (b.wl === "WIN" || b.wl === "BACK WIN") return applyCommission(backStake * (backOdds - 1));
+    if (b.wl === "LOSS" || b.wl === "LAY WIN") return -backStake;
   }
 
-  if (hasBackBet && !hasLayBet) {
-    if (b.wl === "WIN") return applyCommission(backStake * (backOdds - 1));
-    if (b.wl === "LOSS") return -backStake;
-    return 0;
+  // Case 2: Samo LAY stava
+  if (!hasBack(b) && hasLay(b)) {
+    if (b.wl === "WIN" || b.wl === "LAY WIN") return applyCommission(layStake);
+    if (b.wl === "LOSS" || b.wl === "BACK WIN") return -layLiability;
   }
 
-  if (hasBackBet && hasLayBet) {
-    const profitIfSelectionWins = backStake * (backOdds - 1) - layLiability;
-    const profitIfSelectionLoses = layStake - backStake;
-    if (b.wl === "WIN") return applyCommission(Math.max(profitIfSelectionWins, profitIfSelectionLoses));
-    return Math.min(profitIfSelectionWins, profitIfSelectionLoses);
+  // Case 3: TRADING (Oba vpisana)
+  if (hasBack(b) && hasLay(b)) {
+    const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
+    const profitIfLayWins = layStake - backStake;
+
+    if (b.wl === "BACK WIN" || b.wl === "WIN") return applyCommission(profitIfBackWins);
+    if (b.wl === "LAY WIN" || b.wl === "LOSS") return applyCommission(profitIfLayWins);
   }
 
   return 0;
@@ -134,46 +141,30 @@ function getCurrentMonth() {
 
 // --- KOMPONENTE UI ---
 
-function MonthSelect({
-  value,
-  onChange,
-  options
-}: {
-  value: string;
-  onChange: (val: string) => void;
-  options: string[];
-}) {
+function MonthSelect({ value, onChange, options }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const getLabel = (m: string) => new Date(m + "-01").toLocaleDateString("sl-SI", { year: "numeric", month: "long" });
-
   return (
     <div className="relative w-full">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-bold transition-all duration-200 capitalize ${isOpen ? "bg-zinc-900 border-emerald-500/50 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)]" : "bg-zinc-950/50 border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-700 hover:text-white"}`}
-      >
+      <button onClick={() => setIsOpen(!isOpen)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-bold transition-all ${isOpen ? "bg-zinc-900 border-emerald-500/50 text-white" : "bg-zinc-950/50 border-zinc-800 text-zinc-300 hover:bg-zinc-900"}`}>
         <span>{getLabel(value)}</span>
-        <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isOpen ? "rotate-180 text-emerald-500" : ""}`} />
+        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </button>
-      {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-          <div className="max-h-[240px] overflow-y-auto custom-scrollbar py-1">
-            {options.map((month) => (
-              <button key={month} onClick={() => { onChange(month); setIsOpen(false); }} className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors capitalize border-l-2 ${month === value ? "bg-emerald-500/10 text-emerald-400 border-emerald-500" : "text-zinc-400 hover:bg-zinc-900 hover:text-white border-transparent"}`}>{getLabel(month)}</button>
-            ))}
-          </div>
-        </div>
-      )}
+      {isOpen && <><div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+      <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden py-1 max-h-[240px] overflow-y-auto custom-scrollbar">
+        {options.map((month: string) => (
+          <button key={month} onClick={() => { onChange(month); setIsOpen(false); }} className={`w-full text-left px-4 py-2.5 text-sm font-medium border-l-2 ${month === value ? "bg-emerald-500/10 text-emerald-400 border-emerald-500" : "text-zinc-400 hover:bg-zinc-900 border-transparent"}`}>{getLabel(month)}</button>
+        ))}
+      </div></>}
     </div>
   );
 }
 
-function InputField({ label, value, onChange, placeholder, type = "text", icon, inputMode, pattern, step }: any) {
+function InputField({ label, value, onChange, placeholder, type = "text", icon, inputMode, pattern }: any) {
   return (
     <div className="space-y-1.5 group">
       <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">{icon}{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} inputMode={inputMode} pattern={pattern} step={step} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm placeholder-zinc-700 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all duration-200" />
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} inputMode={inputMode} pattern={pattern} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all" />
     </div>
   );
 }
@@ -183,33 +174,25 @@ function SelectField({ label, value, onChange, options, icon }: any) {
     <div className="space-y-1.5 group">
       <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">{icon}{label}</label>
       <div className="relative">
-        <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm appearance-none focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all duration-200 cursor-pointer pr-8">
-          {options.map((opt: string) => <option key={opt} value={opt} className="bg-zinc-900 text-white">{opt}</option>)}
+        <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm appearance-none focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer pr-8">
+          {options.map((opt: string) => <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>)}
         </select>
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500"><ChevronDown className="w-4 h-4" /></div>
+        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
       </div>
     </div>
   );
 }
 
 function StatusBadge({ wl, onClick }: { wl: WL; onClick?: () => void }) {
-  const styles = { WIN: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30", LOSS: "bg-rose-500/10 text-rose-400 border-rose-500/30", VOID: "bg-zinc-500/10 text-zinc-400 border-zinc-500/30", OPEN: "bg-amber-500/10 text-amber-400 border-amber-500/30" } as const;
-  return <button onClick={onClick} className={`px-2.5 py-1 rounded-md text-xs font-bold border ${styles[wl]} transition-all duration-300 hover:brightness-125 cursor-pointer`}>{wl}</button>;
-}
-
-function TooltipCell({ text, className = "" }: { text: string; className?: string }) {
-  const [showTooltip, setShowTooltip] = useState(false);
-  return (
-    <div className="relative" onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)}>
-      <span className={`block truncate cursor-default ${className}`}>{text}</span>
-      {showTooltip && text.length > 12 && (
-        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl whitespace-nowrap">
-          <span className="text-sm text-white">{text}</span>
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800"></div>
-        </div>
-      )}
-    </div>
-  );
+  const styles = { 
+    WIN: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30", 
+    LOSS: "bg-rose-500/10 text-rose-400 border-rose-500/30", 
+    VOID: "bg-zinc-500/10 text-zinc-400 border-zinc-500/30", 
+    OPEN: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+    "BACK WIN": "bg-emerald-600/20 text-emerald-400 border-emerald-600/50 shadow-[0_0_10px_-2px_rgba(16,185,129,0.2)]",
+    "LAY WIN": "bg-pink-600/20 text-pink-400 border-pink-600/50 shadow-[0_0_10px_-2px_rgba(219,39,119,0.2)]"
+  } as const;
+  return <button onClick={onClick} className={`px-2.5 py-1 rounded-md text-[10px] font-bold border ${styles[wl] || styles.OPEN} transition-all hover:brightness-125 cursor-pointer uppercase`}>{wl}</button>;
 }
 
 // --- GLAVNA STRAN ---
@@ -221,7 +204,7 @@ export default function BetsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
 
-  // ADD Form states
+  // Form states
   const [datum, setDatum] = useState(() => new Date().toISOString().slice(0, 10));
   const [wl, setWl] = useState<WL>("OPEN");
   const [sport, setSport] = useState<(typeof SPORTI)[number]>("NOGOMET");
@@ -233,17 +216,16 @@ export default function BetsPage() {
   const [kvota1, setKvota1] = useState("");
   const [vplacilo1, setVplacilo1] = useState("");
   const [layKvota, setLayKvota] = useState("");
-  const [vplacilo2, setVplacilo2] = useState("");
+  const [vplacilo2, setVplacilo2] = useState(""); // Liability
   const [komisija, setKomisija] = useState("0");
   const [tipster, setTipster] = useState<(typeof TIPSTERJI)[number]>("DAVID");
   const [stavnica, setStavnica] = useState<(typeof STAVNICE)[number]>("SHARP");
 
-  // Status Edit states
+  // Modals
   const [statusEditOpen, setStatusEditOpen] = useState(false);
   const [statusEditId, setStatusEditId] = useState<string | null>(null);
   const [statusEditWl, setStatusEditWl] = useState<WL>("OPEN");
 
-  // FULL Edit states
   const [fullEditOpen, setFullEditOpen] = useState(false);
   const [editingBet, setEditingBet] = useState<BetRow | null>(null);
   const [editKvota1, setEditKvota1] = useState("");
@@ -261,17 +243,10 @@ export default function BetsPage() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (mode === "TRADING") return;
-    if (betSide === "BACK") { setLayKvota(""); setVplacilo2(""); } else { setKvota1(""); setVplacilo1(""); }
-  }, [mode, betSide]);
-
   async function loadBets() {
     setLoading(true);
-    setMsg(null);
     const { data, error } = await supabase.from("bets").select("*").order("datum", { ascending: false }).order("created_at", { ascending: false });
-    if (error) { setMsg(error.message); setLoading(false); return; }
-    setRows((data || []) as BetRow[]);
+    if (!error) setRows((data || []) as BetRow[]);
     setLoading(false);
   }
 
@@ -283,19 +258,15 @@ export default function BetsPage() {
     setMsg(null);
     if (!dogodek.trim() || !tip.trim()) { setMsg("Manjka dogodek ali tip."); return; }
     
-    const backOdds = parseNum(kvota1); const backStake = parseNum(vplacilo1);
-    const layOdds = parseNum(layKvota); const layStake = parseNum(vplacilo2);
+    const bQ = parseNum(kvota1); const bS = parseNum(vplacilo1);
+    const lQ = parseNum(layKvota); const lS = parseNum(vplacilo2);
 
-    if (mode === "TRADING" && !(backOdds > 1 && backStake > 0 && layOdds > 1 && layStake > 0)) { setMsg("Trading zahteva BACK in LAY."); return; }
-    if (mode === "BET" && betSide === "BACK" && !(backOdds > 1 && backStake > 0)) { setMsg("Manjka Back kvota/vplačilo."); return; }
-    if (mode === "BET" && betSide === "LAY" && !(layOdds > 1 && layStake > 0)) { setMsg("Manjka Lay kvota/vplačilo."); return; }
-
-    const payload: any = { datum, wl, dogodek: dogodek.trim(), tip: tip.trim(), komisija: parseNum(komisija), sport, cas_stave: casStave, tipster, stavnica, created_by: user?.id || null, mode };
+    const payload: any = { datum, wl, dogodek: dogodek.trim(), tip: tip.trim(), komisija: parseNum(komisija), sport, cas_stave: casStave, tipster, stavnica, created_by: user?.id, mode };
     
-    if (mode === "TRADING") { payload.kvota1 = backOdds; payload.vplacilo1 = backStake; payload.lay_kvota = layOdds; payload.vplacilo2 = layStake; }
+    if (mode === "TRADING") { payload.kvota1 = bQ; payload.vplacilo1 = bS; payload.lay_kvota = lQ; payload.vplacilo2 = lS; }
     else {
-      if (betSide === "BACK") { payload.kvota1 = backOdds; payload.vplacilo1 = backStake; payload.lay_kvota = 0; payload.vplacilo2 = 0; }
-      else { payload.kvota1 = 0; payload.vplacilo1 = 0; payload.lay_kvota = layOdds; payload.vplacilo2 = layStake; }
+      if (betSide === "BACK") { payload.kvota1 = bQ; payload.vplacilo1 = bS; payload.lay_kvota = 0; payload.vplacilo2 = 0; }
+      else { payload.kvota1 = 0; payload.vplacilo1 = 0; payload.lay_kvota = lQ; payload.vplacilo2 = lS; }
     }
 
     const { data, error } = await supabase.from("bets").insert(payload).select("*").single();
@@ -304,308 +275,214 @@ export default function BetsPage() {
     resetForm();
   }
 
-  async function deleteBet(id: string) {
-    if (!confirm("Si prepričan, da želiš izbrisati to stavo?")) return;
-    const { error } = await supabase.from("bets").delete().eq("id", id);
-    if (error) { setMsg(error.message); return; }
-    setRows((prev) => prev.filter((r) => r.id !== id));
-  }
-
-  function openStatusEdit(b: BetRow) { setStatusEditId(b.id); setStatusEditWl(b.wl); setStatusEditOpen(true); }
-  function openFullEdit(b: BetRow) {
-    setEditingBet({ ...b });
-    setEditKvota1(b.kvota1?.toString() ?? "");
-    setEditVplacilo1(b.vplacilo1?.toString() ?? "");
-    setEditLayKvota(b.lay_kvota?.toString() ?? "");
-    setEditVplacilo2(b.vplacilo2?.toString() ?? "");
-    setEditKomisija(b.komisija?.toString() ?? "0");
-    setFullEditOpen(true);
-  }
-
   async function saveStatusEdit() {
     if (!statusEditId) return;
     const { error } = await supabase.from("bets").update({ wl: statusEditWl }).eq("id", statusEditId);
-    if (error) { setMsg(error.message); return; }
+    if (error) return;
     setRows((prev) => prev.map((r) => (r.id === statusEditId ? { ...r, wl: statusEditWl } : r)));
-    setStatusEditOpen(false); setStatusEditId(null);
+    setStatusEditOpen(false);
   }
 
   async function saveFullEdit() {
     if (!editingBet) return;
-    setMsg(null);
-    if (!editingBet.dogodek.trim() || !editingBet.tip.trim()) { alert("Manjka dogodek ali tip."); return; }
-
-    const updatedBet: BetRow = {
-      ...editingBet,
-      kvota1: parseNum(editKvota1),
-      vplacilo1: parseNum(editVplacilo1),
-      lay_kvota: parseNum(editLayKvota),
-      vplacilo2: parseNum(editVplacilo2),
-      komisija: parseNum(editKomisija)
-    };
-
-    const { error } = await supabase.from("bets").update({
-      datum: updatedBet.datum, wl: updatedBet.wl, dogodek: updatedBet.dogodek, tip: updatedBet.tip,
-      sport: updatedBet.sport, cas_stave: updatedBet.cas_stave, tipster: updatedBet.tipster, stavnica: updatedBet.stavnica,
-      mode: updatedBet.mode, kvota1: updatedBet.kvota1, vplacilo1: updatedBet.vplacilo1,
-      lay_kvota: updatedBet.lay_kvota, vplacilo2: updatedBet.vplacilo2, komisija: updatedBet.komisija
-    }).eq("id", updatedBet.id);
-
-    if (error) { alert("Napaka pri shranjevanju: " + error.message); return; }
-    setRows((prev) => prev.map((r) => (r.id === updatedBet.id ? updatedBet : r)));
-    setFullEditOpen(false); setEditingBet(null);
+    const updated = { ...editingBet, kvota1: parseNum(editKvota1), vplacilo1: parseNum(editVplacilo1), lay_kvota: parseNum(editLayKvota), vplacilo2: parseNum(editVplacilo2), komisija: parseNum(editKomisija) };
+    const { error } = await supabase.from("bets").update(updated).eq("id", updated.id);
+    if (error) { alert(error.message); return; }
+    setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    setFullEditOpen(false);
   }
 
   const filteredRows = useMemo(() => rows.filter((r) => r.datum.startsWith(selectedMonth)), [rows, selectedMonth]);
-  const computed = useMemo(() => ({ withProfit: filteredRows.map((r) => ({ ...r, profit: calcProfit(r) })) }), [filteredRows]);
-  const availableMonths = useMemo(() => {
-    const months = new Set(rows.map((r) => r.datum.slice(0, 7)));
-    return Array.from(months).sort().reverse();
-  }, [rows]);
+  const computedRows = useMemo(() => filteredRows.map(r => ({ ...r, profit: calcProfit(r) })), [filteredRows]);
+  
+  const stats = useMemo(() => {
+    const settled = computedRows.filter(r => r.wl !== "OPEN" && r.wl !== "VOID");
+    return {
+      profit: settled.reduce((acc, r) => acc + r.profit, 0),
+      wins: settled.filter(r => r.wl === "WIN" || r.wl === "BACK WIN" || r.wl === "LAY WIN").length,
+      losses: settled.filter(r => r.wl === "LOSS").length,
+      open: computedRows.filter(r => r.wl === "OPEN").length
+    };
+  }, [computedRows]);
 
-  const monthlyStats = useMemo(() => {
-    const settled = computed.withProfit.filter((r) => r.wl === "WIN" || r.wl === "LOSS");
-    const profit = settled.reduce((acc, r) => acc + r.profit, 0);
-    const wins = settled.filter((r) => r.wl === "WIN").length;
-    const losses = settled.filter((r) => r.wl === "LOSS").length;
-    const openCount = computed.withProfit.filter((r) => r.wl === "OPEN").length;
-    return { profit, wins, losses, openCount };
-  }, [computed.withProfit]);
-
-  if (loading && rows.length === 0) return <div className="min-h-screen flex items-center justify-center bg-black"><div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" /></div>;
+  const availableMonths = useMemo(() => Array.from(new Set(rows.map(r => r.datum.slice(0, 7)))).sort().reverse(), [rows]);
 
   return (
-    <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
-      <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
-      `}</style>
-
-      {/* --- Povečan padding zgoraj (pt-32) da se izognemo headerju --- */}
-      <div className="relative max-w-[1800px] mx-auto px-4 md:px-6 pt-32 pb-12">
+    <main className="min-h-screen bg-black text-white p-4 md:p-8">
+      <div className="max-w-[1600px] mx-auto pt-20">
         
-        {/* --- HEADER PRAZEN (FILTER ODSTRANJEN) --- */}
-        <div className="h-6"></div>
-
-        {msg && <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center">{msg}</div>}
-
         {/* ADD FORM */}
-        <section className="mb-10 relative z-10">
-          <div className="rounded-3xl border border-zinc-800/60 bg-gradient-to-b from-zinc-900 to-black p-1 shadow-2xl">
-            <div className="rounded-[20px] bg-zinc-900/50 p-6 backdrop-blur-md">
-              <div className="flex items-center gap-2 mb-6 pb-4 border-b border-zinc-800/50">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20"><Plus className="w-4 h-4 text-emerald-500" /></div>
-                <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Nova Stava</h2>
-              </div>
-              {/* Form inputs... */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-                <InputField label="Datum" value={datum} onChange={setDatum} type="date" icon={<Calendar className="w-3 h-3" />} />
-                <SelectField label="Status" value={wl} onChange={(v:any) => setWl(v)} options={["OPEN", "WIN", "LOSS", "VOID"]} icon={<Trophy className="w-3 h-3" />} />
-                <SelectField label="Šport" value={sport} onChange={(v:any) => setSport(v)} options={SPORTI} icon={<Target className="w-3 h-3" />} />
-                <SelectField label="Čas" value={casStave} onChange={(v:any) => setCasStave(v)} options={PRELIVE} icon={<Clock className="w-3 h-3" />} />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-                <InputField label="Dogodek" value={dogodek} onChange={setDogodek} placeholder="Home : Away" />
-                <InputField label="Tip" value={tip} onChange={setTip} placeholder="npr. Over 2.5" />
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-                <SelectField label="Tip vnosa" value={mode} onChange={(v:any) => setMode(v)} options={MODES} icon={<Activity className="w-3 h-3" />} />
-                {mode === "BET" ? (
-                  <SelectField label="Stava" value={betSide} onChange={(v:any) => setBetSide(v)} options={BET_SIDES} icon={<Target className="w-3 h-3" />} />
-                ) : <div className="hidden md:block" />}
-                <InputField label="Komisija (%)" value={komisija} onChange={setKomisija} placeholder="0" icon={<Percent className="w-3 h-3" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                <div className="hidden md:block" />
-              </div>
-              {(mode === "TRADING" || (mode === "BET" && betSide === "BACK")) && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 p-4 rounded-xl bg-zinc-950/30 border border-zinc-800/30">
-                  <InputField label="Back Kvota" value={kvota1} onChange={setKvota1} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                  <InputField label="Back Vplačilo" value={vplacilo1} onChange={setVplacilo1} placeholder="100" icon={<DollarSign className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                  {mode === "TRADING" ? (
-                    <>
-                      <InputField label="Lay Kvota" value={layKvota} onChange={setLayKvota} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                      <InputField label="Lay Vplačilo" value={vplacilo2} onChange={setVplacilo2} placeholder="100" icon={<DollarSign className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                    </>
-                  ) : <><div className="hidden md:block" /><div className="hidden md:block" /></>}
-                </div>
-              )}
-              {mode === "BET" && betSide === "LAY" && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 p-4 rounded-xl bg-zinc-950/30 border border-zinc-800/30">
-                  <InputField label="Lay Kvota" value={layKvota} onChange={setLayKvota} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                  <InputField label="Lay Vplačilo" value={vplacilo2} onChange={setVplacilo2} placeholder="100" icon={<DollarSign className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                  <div className="hidden md:block" /><div className="hidden md:block" />
-                </div>
-              )}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
-                <SelectField label="Tipster" value={tipster} onChange={(v:any) => setTipster(v)} options={TIPSTERJI} icon={<Users className="w-3 h-3" />} />
-                <SelectField label="Stavnica" value={stavnica} onChange={(v:any) => setStavnica(v)} options={STAVNICE} icon={<Building2 className="w-3 h-3" />} />
-                <div className="hidden md:block" />
-                <button onClick={addBet} className="w-full h-[42px] flex items-center justify-center gap-2 bg-emerald-500 text-black text-sm font-bold rounded-lg hover:bg-emerald-400 transition-all duration-200 shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
-                  <Plus className="w-4 h-4" /> Dodaj Stavo
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* --- MONTH STATS + FILTER NAZAJ SPODAJ (GRID 2-5) --- */}
-        <section className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
-          
-          {/* FILTER JE ZDAJ TUKAJ (prva dva stolpca) */}
-          <div className="col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex items-center gap-4 group relative z-50">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
-               <Filter className="w-5 h-5" />
-            </div>
-            <div className="flex-1 relative">
-               <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 block mb-1">Filter Meseca</label>
-               <MonthSelect value={selectedMonth} onChange={setSelectedMonth} options={availableMonths} />
-            </div>
+        <div className="mb-8 rounded-3xl border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-md">
+          <div className="flex items-center gap-2 mb-6 border-b border-zinc-800 pb-4">
+             <Plus className="w-5 h-5 text-emerald-500" />
+             <h2 className="text-sm font-bold uppercase tracking-widest">Nova Stava</h2>
           </div>
 
-          <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 backdrop-blur-sm p-4 text-center">
-            <span className="text-[10px] font-bold tracking-widest uppercase text-emerald-400/80 block mb-1">Profit</span>
-            <span className={`text-xl font-bold ${monthlyStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(monthlyStats.profit)}</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+            <InputField label="Datum" value={datum} onChange={setDatum} type="date" icon={<Calendar className="w-3 h-3" />} />
+            <div className="space-y-1.5">
+               <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500">Status</label>
+               <div className="grid grid-cols-2 gap-1">
+                  <button onClick={() => setWl("BACK WIN")} className={`py-2 rounded-lg text-[10px] font-bold border transition-all ${wl === "BACK WIN" ? "bg-emerald-500 text-black border-emerald-400" : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900"}`}>BACK WIN</button>
+                  <button onClick={() => setWl("LAY WIN")} className={`py-2 rounded-lg text-[10px] font-bold border transition-all ${wl === "LAY WIN" ? "bg-pink-500 text-black border-pink-400" : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900"}`}>LAY WIN</button>
+               </div>
+            </div>
+            <SelectField label="Šport" value={sport} onChange={setSport} options={SPORTI} icon={<Target className="w-3 h-3" />} />
+            <SelectField label="Čas" value={casStave} onChange={setCasStave} options={PRELIVE} icon={<Clock className="w-3 h-3" />} />
           </div>
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 text-center">
-            <span className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 block mb-1">W / L</span>
-            <span className="text-xl font-bold text-white"><span className="text-emerald-400">{monthlyStats.wins}</span><span className="text-zinc-600 mx-1">/</span><span className="text-rose-400">{monthlyStats.losses}</span></span>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+            <InputField label="Dogodek" value={dogodek} onChange={setDogodek} placeholder="Home vs Away" />
+            <InputField label="Tip" value={tip} onChange={setTip} placeholder="npr. Over 2.5" />
           </div>
-          <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-amber-500/20 backdrop-blur-sm p-4 text-center">
-            <span className="text-[10px] font-bold tracking-widest uppercase text-amber-400/80 block mb-1">Odprte</span>
-            <span className="text-xl font-bold text-amber-400">{monthlyStats.openCount}</span>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 items-end">
+            <SelectField label="Vnos" value={mode} onChange={setMode} options={MODES} icon={<Activity className="w-3 h-3" />} />
+            {mode === "BET" && <SelectField label="Stran" value={betSide} onChange={setBetSide} options={BET_SIDES} />}
+            <InputField label="Komisija (%)" value={komisija} onChange={setKomisija} icon={<Percent className="w-3 h-3" />} />
           </div>
-        </section>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 rounded-xl bg-zinc-950/50 border border-zinc-800">
+            {(mode === "TRADING" || betSide === "BACK") && (
+              <>
+                <InputField label="Back Kvota" value={kvota1} onChange={setKvota1} icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} />
+                <InputField label="Back Vložek" value={vplacilo1} onChange={setVplacilo1} icon={<DollarSign className="w-3 h-3 text-emerald-500" />} />
+              </>
+            )}
+            {(mode === "TRADING" || betSide === "LAY") && (
+              <>
+                <InputField label="Lay Kvota" value={layKvota} onChange={setLayKvota} icon={<TrendingUp className="w-3 h-3 text-pink-500" />} />
+                <InputField label="Lay Liability" value={vplacilo2} onChange={setVplacilo2} icon={<DollarSign className="w-3 h-3 text-pink-500" />} />
+              </>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-4 items-end justify-between">
+            <div className="flex gap-4">
+              <SelectField label="Tipster" value={tipster} onChange={setTipster} options={TIPSTERJI} />
+              <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={STAVNICE} />
+            </div>
+            <button onClick={addBet} className="px-8 py-3 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20">
+              <Plus className="w-5 h-5" /> Dodaj Stavo
+            </button>
+          </div>
+        </div>
+
+        {/* STATS */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="col-span-2 md:col-span-1">
+             <MonthSelect value={selectedMonth} onChange={setSelectedMonth} options={availableMonths} />
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-2xl text-center">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tighter">Mesečni Profit</p>
+            <p className={`text-2xl font-bold ${stats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(stats.profit)}</p>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-2xl text-center">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase">W / L</p>
+            <p className="text-2xl font-bold"><span className="text-emerald-400">{stats.wins}</span> / <span className="text-rose-400">{stats.losses}</span></p>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-2xl text-center">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase">Odprte</p>
+            <p className="text-2xl font-bold text-amber-400">{stats.open}</p>
+          </div>
+        </div>
 
         {/* TABLE */}
-        <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden relative z-0">
-          <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
-            <div className="flex items-center gap-3"><Activity className="w-4 h-4 text-zinc-400" /><h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Seznam Stav</h2></div>
-            <span className="text-[10px] font-bold text-zinc-500 bg-zinc-900/80 border border-zinc-800 px-2 py-1 rounded-md">{computed.withProfit.length}</span>
-          </div>
+        <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-800/50 bg-zinc-900/50">
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">Datum</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Status</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Mode</th>
-                  <th className="text-center py-4 px-4 font-bold tracking-wider uppercase text-zinc-500" style={{ minWidth: "180px" }}>Dogodek</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Back</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Vplač.</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Lay</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Vplač.</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Kom.</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 whitespace-nowrap">Profit</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Tipster / Šport</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Stavnica</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Akcija</th>
+              <thead className="bg-zinc-900/80 border-b border-zinc-800">
+                <tr>
+                  <th className="p-4 text-left font-bold text-zinc-500 uppercase text-[10px]">Datum</th>
+                  <th className="p-4 text-center font-bold text-zinc-500 uppercase text-[10px]">Status</th>
+                  <th className="p-4 text-left font-bold text-zinc-500 uppercase text-[10px]">Dogodek / Tip</th>
+                  <th className="p-4 text-center font-bold text-zinc-500 uppercase text-[10px]">Back (Q/S)</th>
+                  <th className="p-4 text-center font-bold text-zinc-500 uppercase text-[10px]">Lay (Q/L)</th>
+                  <th className="p-4 text-center font-bold text-zinc-500 uppercase text-[10px]">Profit</th>
+                  <th className="p-4 text-center font-bold text-zinc-500 uppercase text-[10px]">Akcije</th>
                 </tr>
               </thead>
-              <tbody>
-                {computed.withProfit.map((r, idx) => {
-                  const rowMode: Mode = (r.mode as Mode) || (hasBack(r) && hasLay(r) ? "TRADING" : "BET");
-                  return (
-                    <tr key={r.id} className={`border-b border-zinc-800/30 hover:bg-zinc-800/40 transition-colors group ${idx % 2 === 0 ? "bg-zinc-900/20" : "bg-transparent"}`}>
-                      <td className="py-3 px-3 text-zinc-400 text-center whitespace-nowrap">{formatDateSlovenian(r.datum)}</td>
-                      <td className="py-3 px-3 text-center"><StatusBadge wl={r.wl} onClick={() => openStatusEdit(r)} /></td>
-                      <td className="py-3 px-3 text-center">
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold border ${rowMode === "TRADING" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-sky-500/10 text-sky-400 border-sky-500/20"}`}>{rowMode}</span>
-                      </td>
-                      <td className="py-3 px-4 text-center"><div className="space-y-0.5"><TooltipCell text={r.dogodek} className="text-white font-medium" /><TooltipCell text={r.tip} className="text-zinc-500 text-xs" /></div></td>
-                      <td className="py-3 px-3 text-zinc-300 font-medium text-center">{r.kvota1 > 0 ? r.kvota1.toFixed(2) : "-"}</td>
-                      <td className="py-3 px-3 text-zinc-400 text-center">{r.vplacilo1 > 0 ? eurCompact(r.vplacilo1) : "-"}</td>
-                      <td className="py-3 px-3 text-rose-300 font-medium text-center">{(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : "-"}</td>
-                      <td className="py-3 px-3 text-zinc-400 text-center">{(r.vplacilo2 ?? 0) > 0 ? eurCompact(r.vplacilo2 ?? 0) : "-"}</td>
-                      <td className="py-3 px-3 text-zinc-500 text-center">{(r.komisija ?? 0) > 0 ? eurCompact(r.komisija ?? 0) : "-"}</td>
-                      <td className="py-3 px-3 text-center"><span className={`font-mono font-bold ${r.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurCompact(r.profit)}</span></td>
-                      <td className="py-3 px-3 text-center"><div className="flex flex-col items-center gap-1"><span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-300 rounded">{r.tipster}</span><span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">{r.sport}</span></div></td>
-                      <td className="py-3 px-3 text-zinc-400 text-center text-xs">{r.stavnica}</td>
-                      <td className="py-3 px-2 text-center">
-                         <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            <button onClick={() => openFullEdit(r)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-blue-500/20 text-zinc-400 hover:text-blue-400 transition-colors" title="Uredi podrobnosti"><Pencil className="w-4 h-4" /></button>
-                            <button onClick={() => deleteBet(r.id)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors" title="Izbriši"><Trash2 className="w-4 h-4" /></button>
-                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+              <tbody className="divide-y divide-zinc-800/50">
+                {computedRows.map((r) => (
+                  <tr key={r.id} className="hover:bg-white/5 transition-colors group">
+                    <td className="p-4 text-zinc-400">{formatDateSlovenian(r.datum)}</td>
+                    <td className="p-4 text-center"><StatusBadge wl={r.wl} onClick={() => { setStatusEditId(r.id); setStatusEditWl(r.wl); setStatusEditOpen(true); }} /></td>
+                    <td className="p-4">
+                      <p className="font-bold text-zinc-200">{r.dogodek}</p>
+                      <p className="text-xs text-zinc-500">{r.tip}</p>
+                    </td>
+                    <td className="p-4 text-center">
+                      {r.kvota1 > 0 ? (
+                        <div className="flex flex-col">
+                          <span className="text-emerald-400 font-bold">{r.kvota1.toFixed(2)}</span>
+                          <span className="text-[10px] text-zinc-500">{eurCompact(r.vplacilo1)}</span>
+                        </div>
+                      ) : "-"}
+                    </td>
+                    <td className="p-4 text-center">
+                      {r.lay_kvota && r.lay_kvota > 0 ? (
+                        <div className="flex flex-col">
+                          <span className="text-pink-400 font-bold">{r.lay_kvota.toFixed(2)}</span>
+                          <span className="text-[10px] text-zinc-500">Liab: {eurCompact(r.vplacilo2 || 0)}</span>
+                        </div>
+                      ) : "-"}
+                    </td>
+                    <td className={`p-4 text-center font-mono font-bold text-lg ${r.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      {eurCompact(r.profit)}
+                    </td>
+                    <td className="p-4 text-center">
+                      <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => { setEditingBet(r); setEditKvota1(r.kvota1.toString()); setEditVplacilo1(r.vplacilo1.toString()); setEditLayKvota(r.lay_kvota?.toString() || ""); setEditVplacilo2(r.vplacilo2?.toString() || ""); setEditKomisija(r.komisija?.toString() || "0"); setFullEditOpen(true); }} className="p-2 bg-zinc-800 rounded-lg hover:text-emerald-400"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={async () => { if(confirm("Izbrišem?")) { await supabase.from("bets").delete().eq("id", r.id); loadBets(); } }} className="p-2 bg-zinc-800 rounded-lg hover:text-rose-400"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        </section>
-
-        {/* MODALS & FOOTER (Ostalo nespremenjeno) */}
-        <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
-          <p>© 2024 DDTips Analytics. Vse pravice pridržane.</p>
-          <p className="font-mono">Last updated: {new Date().toLocaleTimeString()}</p>
-        </footer>
+        </div>
       </div>
 
+      {/* STATUS MODAL */}
       {statusEditOpen && (
-        <div onClick={() => setStatusEditOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-          <div onClick={(e) => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-white">Spremeni status</h3>
-              <button onClick={() => setStatusEditOpen(false)} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-4 h-4 text-zinc-400" /></button>
-            </div>
-            <div className="mb-8">
-              <label className="block text-xs font-bold tracking-widest uppercase text-zinc-500 mb-4 text-center">Izberi nov status</label>
-              <div className="grid grid-cols-4 gap-2">
-                {(["OPEN", "WIN", "LOSS", "VOID"] as WL[]).map((status) => (
-                  <button key={status} onClick={() => setStatusEditWl(status)} className={`px-2 py-4 rounded-xl text-xs font-bold transition-all duration-300 border ${statusEditWl === status ? status === "WIN" ? "bg-emerald-500 text-white border-emerald-400 shadow-[0_0_15px_-3px_rgba(16,185,129,0.4)]" : status === "LOSS" ? "bg-rose-500 text-white border-rose-400 shadow-[0_0_15px_-3px_rgba(244,63,94,0.4)]" : status === "VOID" ? "bg-zinc-500 text-white border-zinc-400" : "bg-amber-500 text-white border-amber-400" : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:bg-zinc-900"}`}>{status}</button>
-                ))}
-              </div>
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[200] p-4" onClick={() => setStatusEditOpen(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold mb-6 text-center">Rezultat</h3>
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <button onClick={() => setStatusEditWl("BACK WIN")} className={`p-4 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${statusEditWl === "BACK WIN" ? "border-emerald-500 bg-emerald-500/20 text-emerald-400" : "border-zinc-800 text-zinc-500"}`}>
+                <ArrowUpRight /> BACK WIN
+              </button>
+              <button onClick={() => setStatusEditWl("LAY WIN")} className={`p-4 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${statusEditWl === "LAY WIN" ? "border-pink-500 bg-pink-500/20 text-pink-400" : "border-zinc-800 text-zinc-500"}`}>
+                <ArrowDownRight /> LAY WIN
+              </button>
+              <button onClick={() => setStatusEditWl("VOID")} className={`p-3 rounded-xl border border-zinc-800 font-bold ${statusEditWl === "VOID" ? "bg-zinc-700" : ""}`}>VOID</button>
+              <button onClick={() => setStatusEditWl("OPEN")} className={`p-3 rounded-xl border border-zinc-800 font-bold ${statusEditWl === "OPEN" ? "bg-amber-600" : ""}`}>OPEN</button>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setStatusEditOpen(false)} className="flex-1 px-6 py-3 bg-zinc-950 border border-zinc-800 text-zinc-300 font-bold rounded-xl hover:bg-zinc-900 transition-all duration-300">Prekliči</button>
-              <button onClick={saveStatusEdit} className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition-all duration-300"><Check className="w-4 h-4" /> Potrdi</button>
+              <button onClick={saveStatusEdit} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-2xl hover:bg-emerald-400 transition-all">Potrdi</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* FULL EDIT MODAL */}
       {fullEditOpen && editingBet && (
-        <div onClick={() => setFullEditOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-          <div onClick={(e) => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-4xl w-full shadow-2xl animate-in fade-in zoom-in duration-200 overflow-y-auto max-h-[90vh]">
-            <div className="flex items-center justify-between mb-6 border-b border-zinc-800 pb-4">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2"><Pencil className="w-5 h-5 text-emerald-500"/> Uredi podrobnosti stave</h3>
-              <button onClick={() => setFullEditOpen(false)} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-4 h-4 text-zinc-400" /></button>
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[200] p-4" onClick={() => setFullEditOpen(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold">Uredi stavo</h3>
+              <button onClick={() => setFullEditOpen(false)}><X /></button>
             </div>
-            <div className="space-y-4">
-               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <InputField label="Datum" value={editingBet.datum} onChange={(v: string) => setEditingBet({...editingBet, datum: v})} type="date" icon={<Calendar className="w-3 h-3" />} />
-                  <SelectField label="Status" value={editingBet.wl} onChange={(v: any) => setEditingBet({...editingBet, wl: v})} options={["OPEN", "WIN", "LOSS", "VOID"]} icon={<Trophy className="w-3 h-3" />} />
-                  <SelectField label="Šport" value={editingBet.sport} onChange={(v: any) => setEditingBet({...editingBet, sport: v})} options={SPORTI} icon={<Target className="w-3 h-3" />} />
-                  <SelectField label="Čas" value={editingBet.cas_stave} onChange={(v: any) => setEditingBet({...editingBet, cas_stave: v})} options={PRELIVE} icon={<Clock className="w-3 h-3" />} />
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <InputField label="Dogodek" value={editingBet.dogodek} onChange={(v: string) => setEditingBet({...editingBet, dogodek: v})} />
-                  <InputField label="Tip" value={editingBet.tip} onChange={(v: string) => setEditingBet({...editingBet, tip: v})} />
-               </div>
-               <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                     <SelectField label="Tip vnosa" value={editingBet.mode || "BET"} onChange={(v: any) => setEditingBet({...editingBet, mode: v})} options={MODES} icon={<Activity className="w-3 h-3" />} />
-                     <InputField label="Komisija" value={editKomisija} onChange={setEditKomisija} icon={<Percent className="w-3 h-3" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                     <InputField label="Back Kvota" value={editKvota1} onChange={setEditKvota1} icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                     <InputField label="Back Vplačilo" value={editVplacilo1} onChange={setEditVplacilo1} icon={<DollarSign className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                     <InputField label="Lay Kvota" value={editLayKvota} onChange={setEditLayKvota} icon={<TrendingUp className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                     <InputField label="Lay Vplačilo" value={editVplacilo2} onChange={setEditVplacilo2} icon={<DollarSign className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                  </div>
-               </div>
-               <div className="grid grid-cols-2 gap-4">
-                  <SelectField label="Tipster" value={editingBet.tipster} onChange={(v: any) => setEditingBet({...editingBet, tipster: v})} options={TIPSTERJI} icon={<Users className="w-3 h-3" />} />
-                  <SelectField label="Stavnica" value={editingBet.stavnica} onChange={(v: any) => setEditingBet({...editingBet, stavnica: v})} options={STAVNICE} icon={<Building2 className="w-3 h-3" />} />
-               </div>
-            </div>
-            <div className="flex gap-3 mt-8 pt-4 border-t border-zinc-800">
-              <button onClick={() => setFullEditOpen(false)} className="px-6 py-2.5 bg-zinc-950 border border-zinc-800 text-zinc-300 font-bold rounded-xl hover:bg-zinc-900 transition-all">Prekliči</button>
-              <button onClick={saveFullEdit} className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 ml-auto"><Save className="w-4 h-4" /> Shrani Spremembe</button>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <InputField label="Kvota 1 (Back)" value={editKvota1} onChange={setEditKvota1} />
+                <InputField label="Vplačilo 1 (Back)" value={editVplacilo1} onChange={setEditVplacilo1} />
+                <InputField label="Kvota 2 (Lay)" value={editLayKvota} onChange={setEditLayKvota} />
+                <InputField label="Liability (Lay)" value={editVplacilo2} onChange={setEditVplacilo2} />
+              </div>
+              <InputField label="Komisija %" value={editKomisija} onChange={setEditKomisija} />
+              <button onClick={saveFullEdit} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-2xl flex items-center justify-center gap-2"><Save /> Shrani spremembe</button>
             </div>
           </div>
         </div>
