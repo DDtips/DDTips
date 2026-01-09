@@ -48,9 +48,9 @@ type Bet = {
   mode?: "BET" | "TRADING" | null;
 };
 
-const CAPITAL_TOTAL = 9000;
+const CAPITAL_TOTAL = 8500;
 const BOOK_START: Record<string, number> = {
-  SHARP: 2000,
+  SHARP: 1500,
   PINNACLE: 2000,
   BET365: 2000,
   WINAMAX: 1000,
