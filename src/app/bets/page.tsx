@@ -100,28 +100,28 @@ function calcProfit(b: BetRow): number {
 
   const backStake = b.vplacilo1 || 0;
   const backOdds = b.kvota1 || 0;
-  const layStake = b.vplacilo2 || 0;
+  const layLiability = b.vplacilo2 || 0;
   const layOdds = b.lay_kvota || 0;
-  const layLiability = (layOdds - 1) * layStake;
+  const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
+
+  const applyCommission = (profit: number) => (profit > 0 ? profit - kom : profit);
 
   if (!hasBackBet && hasLayBet) {
-    if (b.wl === "WIN") return layStake - kom;
-    return -layLiability - kom;
+    if (b.wl === "WIN") return applyCommission(layStake);
+    return -layLiability;
   }
 
   if (hasBackBet && !hasLayBet) {
-    if (b.wl === "WIN") return backStake * (backOdds - 1) - kom;
-    if (b.wl === "LOSS") return -backStake - kom;
+    if (b.wl === "WIN") return applyCommission(backStake * (backOdds - 1));
+    if (b.wl === "LOSS") return -backStake;
     return 0;
   }
 
   if (hasBackBet && hasLayBet) {
-    if (b.wl === "WIN") {
-      const backProfit = backStake * (backOdds - 1);
-      return backProfit - layLiability - kom;
-    } else {
-      return -backStake + layStake - kom;
-    }
+    const profitIfSelectionWins = backStake * (backOdds - 1) - layLiability;
+    const profitIfSelectionLoses = layStake - backStake;
+    if (b.wl === "WIN") return applyCommission(Math.max(profitIfSelectionWins, profitIfSelectionLoses));
+    return Math.min(profitIfSelectionWins, profitIfSelectionLoses);
   }
 
   return 0;
@@ -169,11 +169,11 @@ function MonthSelect({
   );
 }
 
-function InputField({ label, value, onChange, placeholder, type = "text", icon }: any) {
+function InputField({ label, value, onChange, placeholder, type = "text", icon, inputMode, pattern, step }: any) {
   return (
     <div className="space-y-1.5 group">
       <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">{icon}{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm placeholder-zinc-700 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all duration-200" />
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} inputMode={inputMode} pattern={pattern} step={step} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm placeholder-zinc-700 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all duration-200" />
     </div>
   );
 }
@@ -246,6 +246,11 @@ export default function BetsPage() {
   // FULL Edit states
   const [fullEditOpen, setFullEditOpen] = useState(false);
   const [editingBet, setEditingBet] = useState<BetRow | null>(null);
+  const [editKvota1, setEditKvota1] = useState("");
+  const [editVplacilo1, setEditVplacilo1] = useState("");
+  const [editLayKvota, setEditLayKvota] = useState("");
+  const [editVplacilo2, setEditVplacilo2] = useState("");
+  const [editKomisija, setEditKomisija] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -307,7 +312,15 @@ export default function BetsPage() {
   }
 
   function openStatusEdit(b: BetRow) { setStatusEditId(b.id); setStatusEditWl(b.wl); setStatusEditOpen(true); }
-  function openFullEdit(b: BetRow) { setEditingBet({ ...b }); setFullEditOpen(true); }
+  function openFullEdit(b: BetRow) {
+    setEditingBet({ ...b });
+    setEditKvota1(b.kvota1?.toString() ?? "");
+    setEditVplacilo1(b.vplacilo1?.toString() ?? "");
+    setEditLayKvota(b.lay_kvota?.toString() ?? "");
+    setEditVplacilo2(b.vplacilo2?.toString() ?? "");
+    setEditKomisija(b.komisija?.toString() ?? "0");
+    setFullEditOpen(true);
+  }
 
   async function saveStatusEdit() {
     if (!statusEditId) return;
@@ -322,15 +335,24 @@ export default function BetsPage() {
     setMsg(null);
     if (!editingBet.dogodek.trim() || !editingBet.tip.trim()) { alert("Manjka dogodek ali tip."); return; }
 
+    const updatedBet: BetRow = {
+      ...editingBet,
+      kvota1: parseNum(editKvota1),
+      vplacilo1: parseNum(editVplacilo1),
+      lay_kvota: parseNum(editLayKvota),
+      vplacilo2: parseNum(editVplacilo2),
+      komisija: parseNum(editKomisija)
+    };
+
     const { error } = await supabase.from("bets").update({
-      datum: editingBet.datum, wl: editingBet.wl, dogodek: editingBet.dogodek, tip: editingBet.tip,
-      sport: editingBet.sport, cas_stave: editingBet.cas_stave, tipster: editingBet.tipster, stavnica: editingBet.stavnica,
-      mode: editingBet.mode, kvota1: editingBet.kvota1, vplacilo1: editingBet.vplacilo1,
-      lay_kvota: editingBet.lay_kvota, vplacilo2: editingBet.vplacilo2, komisija: editingBet.komisija
-    }).eq("id", editingBet.id);
+      datum: updatedBet.datum, wl: updatedBet.wl, dogodek: updatedBet.dogodek, tip: updatedBet.tip,
+      sport: updatedBet.sport, cas_stave: updatedBet.cas_stave, tipster: updatedBet.tipster, stavnica: updatedBet.stavnica,
+      mode: updatedBet.mode, kvota1: updatedBet.kvota1, vplacilo1: updatedBet.vplacilo1,
+      lay_kvota: updatedBet.lay_kvota, vplacilo2: updatedBet.vplacilo2, komisija: updatedBet.komisija
+    }).eq("id", updatedBet.id);
 
     if (error) { alert("Napaka pri shranjevanju: " + error.message); return; }
-    setRows((prev) => prev.map((r) => (r.id === editingBet.id ? editingBet : r)));
+    setRows((prev) => prev.map((r) => (r.id === updatedBet.id ? updatedBet : r)));
     setFullEditOpen(false); setEditingBet(null);
   }
 
@@ -396,25 +418,25 @@ export default function BetsPage() {
                 {mode === "BET" ? (
                   <SelectField label="Stava" value={betSide} onChange={(v:any) => setBetSide(v)} options={BET_SIDES} icon={<Target className="w-3 h-3" />} />
                 ) : <div className="hidden md:block" />}
-                <InputField label="Komisija (%)" value={komisija} onChange={setKomisija} placeholder="0" icon={<Percent className="w-3 h-3" />} />
+                <InputField label="Komisija (%)" value={komisija} onChange={setKomisija} placeholder="0" icon={<Percent className="w-3 h-3" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                 <div className="hidden md:block" />
               </div>
               {(mode === "TRADING" || (mode === "BET" && betSide === "BACK")) && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 p-4 rounded-xl bg-zinc-950/30 border border-zinc-800/30">
-                  <InputField label="Back Kvota" value={kvota1} onChange={setKvota1} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} />
-                  <InputField label="Back Vplačilo" value={vplacilo1} onChange={setVplacilo1} placeholder="100" icon={<DollarSign className="w-3 h-3 text-emerald-500" />} />
+                  <InputField label="Back Kvota" value={kvota1} onChange={setKvota1} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
+                  <InputField label="Back Vplačilo" value={vplacilo1} onChange={setVplacilo1} placeholder="100" icon={<DollarSign className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                   {mode === "TRADING" ? (
                     <>
-                      <InputField label="Lay Kvota" value={layKvota} onChange={setLayKvota} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-rose-500" />} />
-                      <InputField label="Lay Vplačilo" value={vplacilo2} onChange={setVplacilo2} placeholder="100" icon={<DollarSign className="w-3 h-3 text-rose-500" />} />
+                      <InputField label="Lay Kvota" value={layKvota} onChange={setLayKvota} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
+                      <InputField label="Lay Vplačilo" value={vplacilo2} onChange={setVplacilo2} placeholder="100" icon={<DollarSign className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                     </>
                   ) : <><div className="hidden md:block" /><div className="hidden md:block" /></>}
                 </div>
               )}
               {mode === "BET" && betSide === "LAY" && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 p-4 rounded-xl bg-zinc-950/30 border border-zinc-800/30">
-                  <InputField label="Lay Kvota" value={layKvota} onChange={setLayKvota} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-rose-500" />} />
-                  <InputField label="Lay Vplačilo" value={vplacilo2} onChange={setVplacilo2} placeholder="100" icon={<DollarSign className="w-3 h-3 text-rose-500" />} />
+                  <InputField label="Lay Kvota" value={layKvota} onChange={setLayKvota} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
+                  <InputField label="Lay Vplačilo" value={vplacilo2} onChange={setVplacilo2} placeholder="100" icon={<DollarSign className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                   <div className="hidden md:block" /><div className="hidden md:block" />
                 </div>
               )}
@@ -567,13 +589,13 @@ export default function BetsPage() {
                <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                      <SelectField label="Tip vnosa" value={editingBet.mode || "BET"} onChange={(v: any) => setEditingBet({...editingBet, mode: v})} options={MODES} icon={<Activity className="w-3 h-3" />} />
-                     <InputField label="Komisija" value={editingBet.komisija?.toString() || "0"} onChange={(v: string) => setEditingBet({...editingBet, komisija: parseNum(v)})} icon={<Percent className="w-3 h-3" />} />
+                     <InputField label="Komisija" value={editKomisija} onChange={setEditKomisija} icon={<Percent className="w-3 h-3" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                     <InputField label="Back Kvota" value={editingBet.kvota1?.toString()} onChange={(v: string) => setEditingBet({...editingBet, kvota1: parseNum(v)})} icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} />
-                     <InputField label="Back Vplačilo" value={editingBet.vplacilo1?.toString()} onChange={(v: string) => setEditingBet({...editingBet, vplacilo1: parseNum(v)})} icon={<DollarSign className="w-3 h-3 text-emerald-500" />} />
-                     <InputField label="Lay Kvota" value={editingBet.lay_kvota?.toString() || ""} onChange={(v: string) => setEditingBet({...editingBet, lay_kvota: parseNum(v)})} icon={<TrendingUp className="w-3 h-3 text-rose-500" />} />
-                     <InputField label="Lay Vplačilo" value={editingBet.vplacilo2?.toString() || ""} onChange={(v: string) => setEditingBet({...editingBet, vplacilo2: parseNum(v)})} icon={<DollarSign className="w-3 h-3 text-rose-500" />} />
+                     <InputField label="Back Kvota" value={editKvota1} onChange={setEditKvota1} icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
+                     <InputField label="Back Vplačilo" value={editVplacilo1} onChange={setEditVplacilo1} icon={<DollarSign className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
+                     <InputField label="Lay Kvota" value={editLayKvota} onChange={setEditLayKvota} icon={<TrendingUp className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
+                     <InputField label="Lay Vplačilo" value={editVplacilo2} onChange={setEditVplacilo2} icon={<DollarSign className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                   </div>
                </div>
                <div className="grid grid-cols-2 gap-4">
