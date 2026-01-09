@@ -376,8 +376,28 @@ export default function BetsPage() {
     setFullEditOpen(false); setEditingBet(null);
   }
 
-  const filteredRows = useMemo(() => rows.filter((r) => r.datum.startsWith(selectedMonth)), [rows, selectedMonth]);
+  const filteredRows = useMemo(() => {
+    // 1. Filtriraj po mesecu
+    const filtered = rows.filter((r) => r.datum.startsWith(selectedMonth));
+    
+    // 2. Sortiraj: Najprej datum padajoče (novejši zgoraj), nato created_at padajoče
+    return filtered.sort((a, b) => {
+      // Datum primerjava (npr. "2024-01-09" vs "2024-01-07")
+      if (b.datum > a.datum) return 1;
+      if (b.datum < a.datum) return -1;
+      
+      // Če sta datuma enaka, sortiraj po času vnosa (created_at), da je zadnja vpisana na vrhu
+      const tA = a.created_at || "";
+      const tB = b.created_at || "";
+      if (tB > tA) return 1;
+      if (tB < tA) return -1;
+      
+      return 0;
+    });
+  }, [rows, selectedMonth]);
+
   const computed = useMemo(() => ({ withProfit: filteredRows.map((r) => ({ ...r, profit: calcProfit(r) })) }), [filteredRows]);
+  
   const availableMonths = useMemo(() => {
     const months = new Set(rows.map((r) => r.datum.slice(0, 7)));
     return Array.from(months).sort().reverse();
