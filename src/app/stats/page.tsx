@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 // --- TIPOVI ---
-type WL = "OPEN" | "WIN" | "LOSS" | "VOID";
+type WL = "OPEN" | "WIN" | "LOSS" | "VOID" | "BACK WIN" | "LAY WIN";
 type Cas = "PREMATCH" | "LIVE";
 type Mode = "BET" | "TRADING";
 
@@ -23,7 +23,7 @@ type Bet = {
   kvota1: number;
   vplacilo1: number;
   lay_kvota: number;
-  vplacilo2: number;
+  vplacilo2: number; // LIABILITY
   komisija: number;
   sport: string;
   cas_stave: Cas;
@@ -50,6 +50,7 @@ function eur(n: number) {
 function eurDec(n: number) {
   return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
 function hasLay(b: Bet) { return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0; }
 function hasBack(b: Bet) { return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0; }
 function getMode(b: Bet): Mode { if (b.mode) return b.mode; return hasBack(b) && hasLay(b) ? "TRADING" : "BET"; }
@@ -58,39 +59,56 @@ function calcRisk(b: Bet): number {
   const hasBackBet = hasBack(b);
   const hasLayBet = hasLay(b);
   const backStake = b.vplacilo1 || 0;
-  const layStake = b.vplacilo2 || 0;
-  const layOdds = b.lay_kvota || 0;
-  const layLiability = (layOdds - 1) * layStake;
+  const layLiability = b.vplacilo2 || 0;
+
   if (hasBackBet && !hasLayBet) return backStake;
   if (!hasBackBet && hasLayBet) return layLiability;
-  if (hasBackBet && hasLayBet) return layLiability; 
+  if (hasBackBet && hasLayBet) return Math.max(backStake, layLiability); 
   return 0;
 }
 
 function calcProfit(b: Bet): number {
-  const kom = b.komisija || 0;
-  if (b.wl !== "WIN" && b.wl !== "LOSS") return 0;
+  if (b.wl === "OPEN" || b.wl === "VOID") return 0;
+
+  const komZnesek = Number(b.komisija ?? 0);
   const backStake = b.vplacilo1 || 0;
   const backOdds = b.kvota1 || 0;
-  const layStake = b.vplacilo2 || 0;
+  const layLiability = b.vplacilo2 || 0; 
   const layOdds = b.lay_kvota || 0;
-  const layLiability = (layOdds - 1) * layStake;
-  const hasBackBet = hasBack(b);
-  const hasLayBet = hasLay(b);
+  const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
 
-  if (!hasBackBet && hasLayBet) return (b.wl === "WIN" ? layStake : -layLiability) - kom;
-  if (hasBackBet && !hasLayBet) return (b.wl === "WIN" ? backStake * (backOdds - 1) : -backStake) - kom;
-  if (hasBackBet && hasLayBet) return (b.wl === "WIN" ? backStake * (backOdds - 1) - layLiability : -backStake + layStake) - kom;
-  return 0;
+  let brutoProfit = 0;
+
+  if (hasBack(b) && hasLay(b)) {
+    const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
+    const profitIfLayWins = layStake - backStake;
+
+    if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
+    else if (b.wl === "LAY WIN") brutoProfit = profitIfLayWins;
+    else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
+    else if (b.wl === "LOSS") brutoProfit = Math.min(profitIfBackWins, profitIfLayWins);
+  }
+  else if (!hasBack(b) && hasLay(b)) {
+    if (b.wl === "WIN" || b.wl === "LAY WIN") brutoProfit = layStake;
+    else if (b.wl === "LOSS" || b.wl === "BACK WIN") brutoProfit = -layLiability;
+  }
+  else if (hasBack(b) && !hasLay(b)) {
+    if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1);
+    else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
+  }
+
+  if (brutoProfit > 0) return brutoProfit - komZnesek;
+  return brutoProfit;
 }
 
 function buildStats(rows: Bet[]) {
-  const settled = rows.filter((r) => r.wl === "WIN" || r.wl === "LOSS");
+  const settled = rows.filter((r) => r.wl !== "OPEN" && r.wl !== "VOID");
   const n = settled.length;
-  const wins = settled.filter((r) => r.wl === "WIN").length;
+  const wins = settled.filter((r) => r.wl === "WIN" || r.wl === "BACK WIN" || r.wl === "LAY WIN").length;
   const losses = settled.filter((r) => r.wl === "LOSS").length;
   const profit = settled.reduce((acc, r) => acc + calcProfit(r), 0);
   const totalRisk = settled.reduce((acc, r) => acc + calcRisk(r), 0);
+  
   const roi = totalRisk === 0 ? 0 : (profit / totalRisk) * 100;
   const winRate = n > 0 ? (wins / n) * 100 : 0;
   const growth = (profit / TOTAL_START_BANK) * 100;
@@ -108,7 +126,6 @@ function buildStats(rows: Bet[]) {
   return { profit, n, wins, losses, roi, winRate, growth, avgOdds, chartData, settled, preProfit, liveProfit };
 }
 
-// Generična funkcija za razčlenitev (Tipster, Šport, Čas)
 function getBreakdown(rows: Bet[], key: 'tipster' | 'sport' | 'cas_stave') {
   const groups = new Set(rows.map(r => r[key]).filter(Boolean));
   const data = Array.from(groups).map(item => {
@@ -319,8 +336,6 @@ export default function StatsPage() {
   const [minKvota, setMinKvota] = useState("");
   const [maxKvota, setMaxKvota] = useState("");
 
-  const [appliedFilters, setAppliedFilters] = useState({ sport: "ALL", tipster: "ALL", stavnica: "ALL", cas: "ALL" as "ALL"|Cas, fromDate: "", toDate: "", minKvota: "", maxKvota: "" });
-
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser();
@@ -429,10 +444,9 @@ export default function StatsPage() {
               <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3 h-3" />} />
               <SelectField label="Čas" value={cas} onChange={setCas} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3 h-3" />} />
               <InputField label="Min Kvota" value={minKvota} onChange={setMinKvota} placeholder="1.00" icon={<Scale className="w-3 h-3" />} />
-              <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="10.00" icon={<Scale className="w-3 h-3" />} />
+              <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="1.00" icon={<Scale className="w-3 h-3" />} />
             </div>
             
-            {/* NOVO: Dodan gumb POTRDI (zraven počisti) */}
             <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
               <button onClick={handleClearFilters} className="px-4 py-2 text-xs font-bold uppercase text-zinc-500 hover:text-white cursor-pointer">Počisti</button>
               <button onClick={() => setFiltersOpen(false)} className="px-6 py-2 bg-emerald-600 text-white text-xs font-bold uppercase rounded-lg hover:bg-emerald-500 cursor-pointer shadow-lg">Potrdi</button>
@@ -440,7 +454,6 @@ export default function StatsPage() {
           </div>
         </div>
 
-        {/* ... (OSTALA KODA SE NE SPREMINJA) ... */}
         {/* --- STATISTIČNE KARTICE --- */}
         <section className="space-y-6 mb-12">
           <BigStatCard title="Skupna Statistika" stats={totalStats} variant="main" />
@@ -585,23 +598,48 @@ export default function StatsPage() {
                 <tr className="bg-zinc-950/50 text-zinc-500 uppercase tracking-wider">
                   <th className="p-3 text-center">Datum</th>
                   <th className="p-3 text-center">Mode</th>
+                  <th className="p-3 text-center">W/L</th>
                   <th className="p-3 text-center">Dogodek</th>
+                  <th className="p-3 text-center">Stavnica</th>
                   <th className="p-3 text-center">Tipster</th>
-                  <th className="p-3 text-center">Čas</th>
+                  <th className="p-3 text-center">Kvota</th>
                   <th className="p-3 text-center">Profit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
-                {totalStats.settled.slice().reverse().slice(0, 20).map((row) => (
-                  <tr key={row.id} className="hover:bg-zinc-800/30 transition-colors">
-                    <td className="p-3 text-zinc-400 text-center">{new Date(row.datum).toLocaleDateString("sl-SI")}</td>
-                    <td className="p-3 text-center"><span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${getMode(row) === 'TRADING' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>{getMode(row)}</span></td>
-                    <td className="p-3 text-zinc-300 text-center">{row.dogodek || "-"}</td>
-                    <td className="p-3 text-center"><span className="px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">{row.tipster}</span></td>
-                    <td className="p-3 text-center text-zinc-500">{row.cas_stave}</td>
-                    <td className={`p-3 text-center font-mono font-bold ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurDec(calcProfit(row))}</td>
-                  </tr>
-                ))}
+                {totalStats.settled.slice().reverse().slice(0, 20).map((row) => {
+                  
+                  // Določanje statusa
+                  let statusBadge = null;
+                  if(row.wl === "BACK WIN") statusBadge = <span className="px-1.5 py-0.5 rounded text-[9px] font-black border text-emerald-400 bg-emerald-500/10 border-emerald-500/20">BACK WIN</span>;
+                  else if(row.wl === "LAY WIN") statusBadge = <span className="px-1.5 py-0.5 rounded text-[9px] font-black border text-pink-400 bg-pink-500/10 border-pink-500/20">LAY WIN</span>;
+                  else if(row.wl === "WIN") statusBadge = <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border text-emerald-400 bg-emerald-500/10 border-emerald-500/20">WIN</span>;
+                  else if(row.wl === "LOSS") statusBadge = <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border text-rose-400 bg-rose-500/10 border-rose-500/20">LOSS</span>;
+                  else statusBadge = <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border text-zinc-400 bg-zinc-500/10 border-zinc-500/20">{row.wl}</span>;
+
+                  // Določanje kvote
+                  let displayKvota = row.kvota1;
+                  if (getMode(row) === "TRADING") {
+                    if (row.wl === "LAY WIN") displayKvota = row.lay_kvota;
+                    // Sicer pustimo Back kvoto (Back Win)
+                  } else {
+                    // Če je BET mode in je samo LAY
+                    if (hasLay(row) && !hasBack(row)) displayKvota = row.lay_kvota;
+                  }
+
+                  return (
+                    <tr key={row.id} className="hover:bg-zinc-800/30 transition-colors">
+                      <td className="p-3 text-zinc-400 text-center">{new Date(row.datum).toLocaleDateString("sl-SI")}</td>
+                      <td className="p-3 text-center"><span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${getMode(row) === 'TRADING' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>{getMode(row)}</span></td>
+                      <td className="p-3 text-center">{statusBadge}</td>
+                      <td className="p-3 text-zinc-300 text-center font-medium">{row.dogodek || "-"}</td>
+                      <td className="p-3 text-center text-zinc-500 uppercase text-[10px] tracking-wide">{row.stavnica}</td>
+                      <td className="p-3 text-center"><span className="px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">{row.tipster}</span></td>
+                      <td className="p-3 text-center text-zinc-300 font-bold">{displayKvota > 0 ? displayKvota.toFixed(2) : "-"}</td>
+                      <td className={`p-3 text-center font-mono font-bold ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurDec(calcProfit(row))}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
