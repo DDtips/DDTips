@@ -7,10 +7,15 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceLine,
+  LabelList
 } from "recharts";
 import {
   TrendingUp,
@@ -21,15 +26,14 @@ import {
   Activity,
   Zap,
   Clock,
-  RefreshCw,
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
+  Layers
 } from "lucide-react";
 
 // --- TIPOVI IN KONSTANTE ---
 
-// POPRAVEK: Dodani statusi BACK WIN in LAY WIN
 type WL = "OPEN" | "WIN" | "LOSS" | "VOID" | "BACK WIN" | "LAY WIN";
 
 type Bet = {
@@ -80,22 +84,19 @@ function hasBack(b: Bet) {
   return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0;
 }
 
-// POPRAVEK: Nova logika za izračun profita (Liability & Statusi)
 function calcProfit(b: Bet): number {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
 
   const komZnesek = Number(b.komisija ?? 0);
   const backStake = b.vplacilo1 || 0;
   const backOdds = b.kvota1 || 0;
-  const layLiability = b.vplacilo2 || 0; // Vnos je Liability
+  const layLiability = b.vplacilo2 || 0; 
   const layOdds = b.lay_kvota || 0;
   
-  // Izračunamo Lay Stake iz Liability
   const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
 
   let brutoProfit = 0;
 
-  // 1. TRADING
   if (hasBack(b) && hasLay(b)) {
     const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
     const profitIfLayWins = layStake - backStake;
@@ -105,30 +106,24 @@ function calcProfit(b: Bet): number {
     else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
     else if (b.wl === "LOSS") brutoProfit = Math.min(profitIfBackWins, profitIfLayWins);
   }
-
-  // 2. SAMO LAY
   else if (!hasBack(b) && hasLay(b)) {
     if (b.wl === "WIN" || b.wl === "LAY WIN") brutoProfit = layStake;
     else if (b.wl === "LOSS" || b.wl === "BACK WIN") brutoProfit = -layLiability;
   }
-
-  // 3. SAMO BACK
   else if (hasBack(b) && !hasLay(b)) {
     if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1);
     else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
   }
 
-  // Odštevanje komisije (samo če je profit)
   if (brutoProfit > 0) return brutoProfit - komZnesek;
   return brutoProfit;
 }
 
-// POPRAVEK: Nova logika za izračun tveganja (Risk)
 function calcRisk(b: Bet): number {
   const hasBackBet = hasBack(b);
   const hasLayBet = hasLay(b);
   const backStake = b.vplacilo1 || 0;
-  const layLiability = b.vplacilo2 || 0; // Liability
+  const layLiability = b.vplacilo2 || 0;
 
   if (hasBackBet && !hasLayBet) return backStake;
   if (!hasBackBet && hasLayBet) return layLiability;
@@ -137,11 +132,9 @@ function calcRisk(b: Bet): number {
 }
 
 function buildStats(rows: Bet[]) {
-  // POPRAVEK: Filter upošteva nove statuse
   const settled = rows.filter((r) => r.wl !== "OPEN" && r.wl !== "VOID");
   
   const n = settled.length;
-  // Zmage so WIN, BACK WIN ali LAY WIN
   const wins = settled.filter((r) => r.wl === "WIN" || r.wl === "BACK WIN" || r.wl === "LAY WIN").length;
   const losses = settled.filter((r) => r.wl === "LOSS").length;
 
@@ -152,7 +145,6 @@ function buildStats(rows: Bet[]) {
   const donosNaKapital = ((bankroll - CAPITAL_TOTAL) / CAPITAL_TOTAL) * 100;
   const winRate = n > 0 ? (wins / n) * 100 : 0;
 
-  // Profit po stavnicah
   const profitByBook = new Map<string, number>();
   settled.forEach((r) => {
     const key = normBook(r.stavnica || "NEZNANO");
@@ -166,7 +158,6 @@ function buildStats(rows: Bet[]) {
     balanceByBook.push({ name, start, profit: p, balance: start + p });
   });
 
-  // Dodaj stavnice, ki niso v BOOK_START, a so v bazi
   profitByBook.forEach((p, key) => {
     const exists = Object.keys(BOOK_START).some((name) => normBook(name) === key);
     if (!exists) {
@@ -176,7 +167,6 @@ function buildStats(rows: Bet[]) {
 
   balanceByBook.sort((a, b) => b.balance - a.balance);
 
-  // Profit po športih
   const profitBySport = new Map<string, number>();
   SPORTI.forEach((sport) => profitBySport.set(sport, 0));
   settled.forEach((r) => {
@@ -184,7 +174,6 @@ function buildStats(rows: Bet[]) {
     profitBySport.set(key, (profitBySport.get(key) ?? 0) + calcProfit(r));
   });
 
-  // Profit po tipsterjih
   const profitByTipster = new Map<string, number>();
   TIPSTERJI.forEach((tipster) => profitByTipster.set(tipster, 0));
   settled.forEach((r) => {
@@ -216,7 +205,7 @@ function buildStats(rows: Bet[]) {
   };
 }
 
-// --- KOMPONENTE UI ---
+// --- PRENOVLJENE KOMPONENTE ---
 
 function MetricCard({
   title,
@@ -232,47 +221,45 @@ function MetricCard({
   subtitle?: string;
   trend?: "up" | "down" | "neutral";
   icon?: React.ReactNode;
-  accentColor?: "emerald" | "amber" | "rose" | "sky" | "violet";
+  accentColor?: "emerald" | "amber" | "rose" | "indigo" | "violet";
   big?: boolean;
 }) {
-  const gradients = {
-    emerald: "from-emerald-500/10 to-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40",
-    amber: "from-amber-500/10 to-amber-500/5 border-amber-500/20 hover:border-amber-500/40",
-    rose: "from-rose-500/10 to-rose-500/5 border-rose-500/20 hover:border-rose-500/40",
-    sky: "from-sky-500/10 to-sky-500/5 border-sky-500/20 hover:border-sky-500/40",
-    violet: "from-violet-500/10 to-violet-500/5 border-violet-500/20 hover:border-violet-500/40",
-  } as const;
+  const styles = {
+    emerald: { text: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", glow: "shadow-emerald-500/10" },
+    amber: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20", glow: "shadow-amber-500/10" },
+    rose: { text: "text-rose-400", bg: "bg-rose-500/10", border: "border-rose-500/20", glow: "shadow-rose-500/10" },
+    indigo: { text: "text-indigo-400", bg: "bg-indigo-500/10", border: "border-indigo-500/20", glow: "shadow-indigo-500/10" },
+    violet: { text: "text-violet-400", bg: "bg-violet-500/10", border: "border-violet-500/20", glow: "shadow-violet-500/10" },
+  };
 
-  const textColors = {
-    emerald: "text-emerald-400",
-    amber: "text-amber-400",
-    rose: "text-rose-400",
-    sky: "text-sky-400",
-    violet: "text-violet-400",
-  } as const;
+  const currentStyle = styles[accentColor];
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${gradients[accentColor]} border backdrop-blur-md transition-all duration-300 hover:-translate-y-1`}
-    >
-      <div className="p-5 text-center">
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <div className={`p-1.5 rounded-lg bg-white/5 ${textColors[accentColor]}`}>{icon}</div>
-          <span className="text-[10px] font-bold tracking-wider uppercase text-zinc-500">{title}</span>
+    <div className={`relative group overflow-hidden rounded-2xl bg-[#13151b]/80 backdrop-blur-xl border border-white/5 p-6 transition-all duration-300 hover:border-white/10 hover:shadow-2xl hover:shadow-${accentColor}-900/20 hover:-translate-y-1`}>
+      {/* Glow effect */}
+      <div className={`absolute top-0 right-0 w-32 h-32 ${currentStyle.bg} blur-[60px] rounded-full opacity-20 group-hover:opacity-40 transition-opacity`} />
+      
+      <div className="relative z-10">
+        <div className="flex items-center justify-center mb-4">
+          <div className={`p-2 rounded-xl ${currentStyle.bg} border ${currentStyle.border} ${currentStyle.text}`}>
+            {icon}
+          </div>
+          <span className="ml-3 text-[11px] font-bold tracking-[0.2em] uppercase text-zinc-500 group-hover:text-zinc-300 transition-colors">{title}</span>
         </div>
 
-        <div className="flex items-center justify-center gap-2">
-          <span className={`${big ? "text-2xl md:text-3xl" : "text-xl"} font-bold tracking-tight text-white`}>
-            {value}
-          </span>
-          {trend && trend !== "neutral" && (
-            <div className={`flex items-center text-sm font-medium ${trend === "up" ? "text-emerald-400" : "text-rose-400"}`}>
-              {trend === "up" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-            </div>
-          )}
+        <div className="flex flex-col items-center justify-center gap-1">
+          <div className="flex items-baseline gap-2">
+             <span className={`font-mono font-bold tracking-tight text-white ${big ? "text-3xl lg:text-4xl" : "text-2xl"}`}>
+               {value}
+             </span>
+             {trend && trend !== "neutral" && (
+               <div className={`flex items-center text-sm font-bold ${trend === "up" ? "text-emerald-400" : "text-rose-400"} bg-black/30 px-1.5 py-0.5 rounded`}>
+                 {trend === "up" ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+               </div>
+             )}
+          </div>
+          {subtitle && <p className="text-xs text-zinc-400 font-medium">{subtitle}</p>}
         </div>
-
-        {subtitle && <p className="mt-1 text-xs text-zinc-400 font-medium">{subtitle}</p>}
       </div>
     </div>
   );
@@ -290,13 +277,13 @@ function DataTable({
   const maxProfit = Math.max(...data.map((d) => Math.abs(d.profit)));
 
   return (
-    <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
-      <div className="px-4 py-3 border-b border-zinc-800/50 flex items-center justify-center gap-2">
-        {icon && <div className="text-zinc-400">{icon}</div>}
-        <h3 className="text-xs font-bold tracking-widest uppercase text-zinc-300">{title}</h3>
+    <div className="rounded-2xl bg-[#13151b]/60 border border-white/5 backdrop-blur-md overflow-hidden flex flex-col h-full">
+      <div className="px-5 py-4 border-b border-white/5 flex items-center gap-3 bg-white/[0.02]">
+        <div className="p-1.5 rounded-lg bg-zinc-900 text-zinc-400 border border-white/5">{icon}</div>
+        <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-zinc-300">{title}</h3>
       </div>
 
-      <div className="p-3 space-y-1">
+      <div className="p-2 space-y-1 overflow-y-auto custom-scrollbar flex-1">
         {data.map((item, idx) => {
           const barWidth = maxProfit > 0 ? (Math.abs(item.profit) / maxProfit) * 100 : 0;
           const isPositive = item.profit >= 0;
@@ -304,18 +291,22 @@ function DataTable({
           return (
             <div
               key={idx}
-              className="relative flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/5 transition-colors group"
+              className="relative flex items-center justify-between px-4 py-2.5 rounded-xl hover:bg-white/5 transition-all group"
             >
+              {/* Progress Bar Background */}
               <div
-                className={`absolute left-0 top-0 bottom-0 rounded-lg transition-all duration-500 ${
-                  isPositive ? "bg-emerald-500/10" : "bg-rose-500/10"
-                }`}
+                className={`absolute left-0 bottom-0 top-0 opacity-10 transition-all duration-700 rounded-r-xl ${isPositive ? "bg-emerald-500" : "bg-rose-500"}`}
                 style={{ width: `${barWidth}%` }}
               />
-              <span className="relative z-10 text-xs font-medium text-zinc-300 group-hover:text-white transition-colors">
-                {item.label}
-              </span>
-              <span className={`relative z-10 text-xs font-semibold tabular-nums ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
+              
+              <div className="flex items-center gap-3 relative z-10">
+                <div className={`w-1.5 h-1.5 rounded-full ${isPositive ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"}`} />
+                <span className="text-xs font-semibold text-zinc-300 group-hover:text-white transition-colors">
+                  {item.label}
+                </span>
+              </div>
+              
+              <span className={`relative z-10 text-xs font-mono font-bold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
                 {item.value}
               </span>
             </div>
@@ -332,8 +323,10 @@ export default function HomePage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     (async () => {
       setLoading(true);
       const { data } = await supabase.auth.getUser();
@@ -355,369 +348,250 @@ export default function HomePage() {
 
   const stats = useMemo(() => buildStats(rows), [rows]);
 
-  // Dnevni graf (tekoči mesec)
+  // Charts Logic (Daily & Monthly)
   const chartDaily = useMemo(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
-
     const settled = rows.filter((r) => {
       if (r.wl === "OPEN" || r.wl === "VOID") return false;
       const d = new Date(r.datum);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     });
-
     const map = new Map<number, number>();
-    settled.forEach((r) => {
-      const day = new Date(r.datum).getDate();
-      map.set(day, (map.get(day) ?? 0) + calcProfit(r));
-    });
-
+    settled.forEach((r) => { const day = new Date(r.datum).getDate(); map.set(day, (map.get(day) ?? 0) + calcProfit(r)); });
     let cumulative = 0;
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const arr: { day: number; dayLabel: string; profit: number; daily: number }[] = [];
-
+    const arr: { day: number; dayLabel: string; profit: number; }[] = [];
     for (let d = 1; d <= daysInMonth; d++) {
       const daily = map.get(d) ?? 0;
       cumulative += daily;
-      // Prikažemo do današnjega dne (ali do konca meseca, če gledamo za nazaj)
-      if (d <= now.getDate() || now.getMonth() !== currentMonth) {
-         arr.push({ day: d, dayLabel: `${d}.`, profit: cumulative, daily });
-      }
+      if (d <= now.getDate() || now.getMonth() !== currentMonth) arr.push({ day: d, dayLabel: `${d}.`, profit: cumulative });
     }
-
     return arr;
   }, [rows]);
 
-  // Mesečni graf (tekoče leto)
+  // POPRAVLJENO: Mesečni graf (STOLPCI, NE KUMULATIVNO)
   const chartMonthly = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    const settled = rows
-      .filter((r) => {
-        if (r.wl === "OPEN" || r.wl === "VOID") return false;
-        const d = new Date(r.datum);
-        return d.getFullYear() === currentYear;
-      })
-      .sort((a, b) => +new Date(a.datum) - +new Date(b.datum));
-
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Avg", "Sep", "Okt", "Nov", "Dec"];
-
-    const monthProfit = new Map<number, number>();
-    settled.forEach((r) => {
-      const month = new Date(r.datum).getMonth();
-      monthProfit.set(month, (monthProfit.get(month) ?? 0) + calcProfit(r));
+    const settled = rows.filter((r) => {
+      if (r.wl === "OPEN" || r.wl === "VOID") return false;
+      const d = new Date(r.datum);
+      return d.getFullYear() === currentYear;
     });
 
-    let cum = 0;
-    return monthNames.map((name, idx) => {
-      cum += monthProfit.get(idx) ?? 0;
-      return { month: idx, monthName: name, profit: cum };
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Avg", "Sep", "Okt", "Nov", "Dec"];
+    const monthProfit = new Map<number, number>();
+    
+    // Inicializiraj vse mesece na 0
+    for(let i=0; i<12; i++) monthProfit.set(i, 0);
+
+    // Seštej profit za vsak mesec posebej
+    settled.forEach((r) => { 
+      const month = new Date(r.datum).getMonth(); 
+      monthProfit.set(month, (monthProfit.get(month) ?? 0) + calcProfit(r)); 
+    });
+
+    // Pripravi podatke za graf
+    return monthNames.map((name, idx) => { 
+      return { monthName: name, profit: monthProfit.get(idx) ?? 0 }; 
     });
   }, [rows]);
 
   const currentMonthName = new Date().toLocaleDateString("sl-SI", { month: "long", year: "numeric" });
   const currentYearName = new Date().getFullYear();
 
-  const sportData = useMemo(
-    () =>
-      SPORTI.map((sport) => ({
-        label: sport,
-        value: eur(stats.profitBySport.get(sport) ?? 0),
-        profit: stats.profitBySport.get(sport) ?? 0,
-      })).sort((a, b) => b.profit - a.profit),
-    [stats]
-  );
-
-  const tipsterData = useMemo(
-    () =>
-      TIPSTERJI.map((tipster) => ({
-        label: tipster,
-        value: eur(stats.profitByTipster.get(tipster) ?? 0),
-        profit: stats.profitByTipster.get(tipster) ?? 0,
-      })).sort((a, b) => b.profit - a.profit),
-    [stats]
-  );
-
-  const timingData = useMemo(
-    () => [
-      { label: `Prematch (${stats.prematchCount})`, value: eur(stats.profitPrematch), profit: stats.profitPrematch },
-      { label: `Live (${stats.liveCount})`, value: eur(stats.profitLive), profit: stats.profitLive },
-    ],
-    [stats]
-  );
+  const sportData = useMemo(() => SPORTI.map((s) => ({ label: s, value: eur(stats.profitBySport.get(s) ?? 0), profit: stats.profitBySport.get(s) ?? 0 })).sort((a, b) => b.profit - a.profit), [stats]);
+  const tipsterData = useMemo(() => TIPSTERJI.map((t) => ({ label: t, value: eur(stats.profitByTipster.get(t) ?? 0), profit: stats.profitByTipster.get(t) ?? 0 })).sort((a, b) => b.profit - a.profit), [stats]);
+  const timingData = useMemo(() => [{ label: `Prematch (${stats.prematchCount})`, value: eur(stats.profitPrematch), profit: stats.profitPrematch }, { label: `Live (${stats.liveCount})`, value: eur(stats.profitLive), profit: stats.profitLive }], [stats]);
 
   const skupnaBanka = stats.balanceByBook.reduce((a, b) => a + b.balance, 0);
   const skupnaBankaIsUp = skupnaBanka >= CAPITAL_TOTAL;
   const profitIsUp = stats.profit >= 0;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-          <span className="text-zinc-500 text-xs font-bold tracking-widest uppercase animate-pulse">Loading Data</span>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0f1117]"><div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin shadow-[0_0_20px_rgba(16,185,129,0.2)]" /></div>;
 
   return (
-    <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
-      <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
+    // SPREMEMBA: Svetlejše ozadje (bg-[#0f1117]) namesto #050505
+    <main className="min-h-screen bg-[#0f1117] text-white antialiased selection:bg-emerald-500/30 font-sans">
+      {/* --- PREMIUIM OZADJE --- */}
+      <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none z-0" />
+      <div className="fixed top-[-10%] left-[-10%] w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none z-0 mix-blend-screen opacity-50" />
+      <div className="fixed bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none z-0 mix-blend-screen opacity-50" />
 
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #27272a;
-          border-radius: 3px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #3f3f46;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #52525b; }
       `}</style>
 
-      <div className="relative max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-10">
+      {/* --- PADDING PT-48 OHRANJEN --- */}
+      <div className="relative max-w-[1600px] mx-auto px-6 md:px-10 pt-48 pb-12 z-10">
         
-        {/* HEADER PO MERI */}
-        <div className="relative mb-8 mt-2 h-10">
-          <button
-            onClick={loadRows}
-            className="absolute top-0 right-0 group p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all duration-200 shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
-          </button>
-        </div>
-
-        {/* Row 1 */}
-        <section className="grid grid-cols-2 gap-4 mb-4">
-          <MetricCard
-            title="Začetni kapital"
-            value={eur(CAPITAL_TOTAL)}
-            icon={<DollarSign className="w-4 h-4" />}
-            accentColor="violet"
-            big
-          />
-          <MetricCard
-            title="Trenutno stanje"
-            value={eur(stats.bankroll)}
-            trend={stats.bankroll >= CAPITAL_TOTAL ? "up" : "down"}
-            icon={<Wallet className="w-4 h-4" />}
-            accentColor={stats.bankroll >= CAPITAL_TOTAL ? "emerald" : "rose"}
-            big
-          />
+        {/* TOP METRICS GRID */}
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <MetricCard title="Začetni kapital" value={eur(CAPITAL_TOTAL)} icon={<DollarSign className="w-5 h-5" />} accentColor="indigo" big />
+          <MetricCard title="Trenutno stanje" value={eur(stats.bankroll)} trend={stats.bankroll >= CAPITAL_TOTAL ? "up" : "down"} icon={<Wallet className="w-5 h-5" />} accentColor={stats.bankroll >= CAPITAL_TOTAL ? "emerald" : "rose"} big />
+          <MetricCard title="Celoten profit" value={eur(stats.profit)} trend={stats.profit >= 0 ? "up" : "down"} icon={<TrendingUp className="w-5 h-5" />} accentColor={stats.profit >= 0 ? "emerald" : "rose"} big />
+          <MetricCard title="Donos" value={`${stats.donosNaKapital.toFixed(2)}%`} trend={stats.donosNaKapital >= 0 ? "up" : "down"} icon={<BarChart3 className="w-5 h-5" />} accentColor="amber" big />
         </section>
 
-        {/* Row 2 (SAMO profit + donos) */}
-        <section className="grid grid-cols-2 gap-4 mb-4">
-          <MetricCard
-            title="Celoten profit"
-            value={eur(stats.profit)}
-            trend={stats.profit >= 0 ? "up" : "down"}
-            icon={<TrendingUp className="w-4 h-4" />}
-            accentColor={stats.profit >= 0 ? "emerald" : "rose"}
-            big
-          />
-          <MetricCard
-            title="Donos na kapital"
-            value={`${stats.donosNaKapital.toFixed(2)}%`}
-            trend={stats.donosNaKapital >= 0 ? "up" : "down"}
-            icon={<BarChart3 className="w-4 h-4" />}
-            accentColor="amber"
-            big
-          />
+        {/* SECONDARY METRICS */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
+             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Stave</p><p className="text-xl font-mono font-bold text-white mt-1">{stats.n}</p></div>
+             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Activity className="w-4 h-4"/></div>
+          </div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
+             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Zmage</p><p className="text-xl font-mono font-bold text-emerald-400 mt-1">{stats.wins}</p></div>
+             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Trophy className="w-4 h-4"/></div>
+          </div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-rose-500/30 transition-all">
+             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Porazi</p><p className="text-xl font-mono font-bold text-rose-400 mt-1">{stats.losses}</p></div>
+             <div className="p-2 bg-rose-500/10 rounded-lg text-rose-400"><ArrowDownRight className="w-4 h-4"/></div>
+          </div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-violet-500/30 transition-all">
+             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Win Rate</p><p className="text-xl font-mono font-bold text-violet-400 mt-1">{stats.winRate.toFixed(1)}%</p></div>
+             <div className="p-2 bg-violet-500/10 rounded-lg text-violet-400"><Zap className="w-4 h-4"/></div>
+          </div>
         </section>
 
-        {/* Row 3 (Skupaj + WIN + LOSS + WinRate) */}
-        <section className="grid grid-cols-4 gap-4 mb-6">
-          <MetricCard title="Skupaj stav" value={String(stats.n)} icon={<Activity className="w-4 h-4" />} accentColor="emerald" />
-          <MetricCard title="WIN" value={String(stats.wins)} icon={<Trophy className="w-4 h-4" />} accentColor="emerald" />
-          <MetricCard title="LOSS" value={String(stats.losses)} icon={<Trophy className="w-4 h-4" />} accentColor="rose" />
-          <MetricCard title="Win Rate" value={`${stats.winRate.toFixed(1)}%`} icon={<Zap className="w-4 h-4" />} accentColor="violet" />
-        </section>
-
-        {/* Charts + Books layout */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 items-stretch">
+        {/* MAIN CONTENT SPLIT */}
+        <section className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-10">
           
-          {/* LEFT: charts */}
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col h-full">
-            {/* Daily */}
-            <div>
-              <div className="flex items-center justify-center mb-4">
-                <div className="text-center">
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Dnevni Profit - {currentMonthName}</h3>
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Kumulativno</p>
+          {/* LEFT: CHARTS (2/3 width) */}
+          <div className="xl:col-span-2 flex flex-col gap-8">
+            {/* Daily Chart */}
+            <div className="relative bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Clock className="w-4 h-4 text-emerald-500"/> Dnevni Profit</h3>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">{currentMonthName}</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-xs text-zinc-400">Trenutno</p>
+                   <p className={`text-lg font-mono font-bold ${stats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(stats.profit)}</p>
                 </div>
               </div>
-
-              <div className="h-[220px] w-full">
+              <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartDaily}>
                     <defs>
                       <linearGradient id="colorProfitDaily" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#18181b", borderColor: "#27272a", borderRadius: "12px", fontSize: "12px" }}
-                      itemStyle={{ color: "#fff" }}
-                      labelStyle={{ color: "#a1a1aa", marginBottom: "4px" }}
-                      formatter={(value: number | undefined) => [eur(value ?? 0), "Kumulativno"]}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="profit"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorProfitDaily)"
-                      dot={{ fill: "#10b981", strokeWidth: 0, r: 2 }}
-                      activeDot={{ r: 4, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }}
-                    />
+                    <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} />
+                    <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} />
+                    <Tooltip contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px", boxShadow: "0 10px 30px -10px rgba(0,0,0,0.5)" }} itemStyle={{ color: "#fff", fontWeight: "bold" }} formatter={(value: number) => [eur(value), "Kumulativno"]} />
+                    <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfitDaily)" activeDot={{ r: 6, strokeWidth: 0, fill: "#fff", shadow: "0 0 10px #10b981" }} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="my-5 border-t border-zinc-800/50" />
-
-            {/* Monthly cumulative */}
-            <div className="flex-1 flex flex-col">
-              <div className="flex items-center justify-center mb-4">
-                <div className="text-center">
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Rast Profita - {currentYearName}</h3>
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Kumulativno po mesecih</p>
+            {/* Monthly Chart (BAR CHART NOW) */}
+            <div className="relative bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Layers className="w-4 h-4 text-indigo-500"/> Mesečni Profit</h3>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">{currentYearName}</p>
                 </div>
               </div>
-
-              <div className="h-[240px] w-full">
+              <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartMonthly}>
-                    <defs>
-                      <linearGradient id="colorProfitMonthly" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-
+                  <BarChart data={chartMonthly}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#18181b", borderColor: "#27272a", borderRadius: "12px", fontSize: "12px" }}
-                      itemStyle={{ color: "#fff" }}
-                      labelStyle={{ color: "#a1a1aa", marginBottom: "4px" }}
-                      formatter={(value: number | undefined) => [eur(value ?? 0), "Kumulativno"]}
+                    <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} />
+                    <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} />
+                    <Tooltip 
+                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                      contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px" }} 
+                      itemStyle={{ color: "#fff", fontWeight: "bold" }} 
+                      formatter={(value: number) => [eur(value), "Profit"]} 
                     />
-                    <Area
-                      type="monotone"
-                      dataKey="profit"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorProfitMonthly)"
-                      dot={{ r: 2 }}
-                      activeDot={{ r: 4 }}
-                    />
-                  </AreaChart>
+                    <ReferenceLine y={0} stroke="#52525b" />
+                    <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
+                      {chartMonthly.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#10b981" : "#f43f5e"} />
+                      ))}
+                      {/* LABEL SE PRIKAŽE SAMO, ČE JE PROFIT RAZLIČEN OD 0 */}
+                      <LabelList 
+                        dataKey="profit" 
+                        position="top" 
+                        formatter={(val: number) => val !== 0 ? eur(val) : ""} 
+                        style={{ fill: "#9ca3af", fontSize: "10px", fontWeight: "bold" }}
+                      />
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </div>
 
-          {/* RIGHT: bookmakers */}
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex flex-col h-full min-h-[500px]">
-            {/* Summary cards at top of right panel */}
-             <div className="grid grid-cols-3 gap-2 mb-4">
-              <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
-                <div className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Začetno</div>
-                <div className="text-xs font-mono text-zinc-200">{eur(CAPITAL_TOTAL)}</div>
-              </div>
-
-              <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
-                <div className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Skupna banka</div>
-                <div className={`text-xs font-mono font-semibold ${skupnaBankaIsUp ? "text-emerald-300" : "text-rose-300"}`}>
-                  {eur(skupnaBanka)}
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-center">
-                <div className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Profit</div>
-                <div className={`text-xs font-mono font-semibold ${profitIsUp ? "text-emerald-300" : "text-rose-300"}`}>
-                  {eur(stats.profit)}
-                </div>
-              </div>
+          {/* RIGHT: BOOKMAKERS (1/3 width) */}
+          <div className="bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col h-full shadow-2xl">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2">
+               <Wallet className="w-4 h-4 text-amber-500"/> Stanje Stavnic
+            </h3>
+            
+            {/* Header Cards */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center">
+                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Skupaj</span>
+                  <p className={`text-sm font-mono font-bold mt-1 ${skupnaBankaIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(skupnaBanka)}</p>
+               </div>
+               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center">
+                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Profit</span>
+                  <p className={`text-sm font-mono font-bold mt-1 ${profitIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(stats.profit)}</p>
+               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
-              <div className="grid grid-cols-2 gap-3">
-                {stats.balanceByBook.map((book) => {
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+               {stats.balanceByBook.map((book) => {
                   const isPositive = book.profit >= 0;
-                  const themeClasses = isPositive
-                    ? "border-emerald-500/20 hover:border-emerald-500/50 bg-gradient-to-br from-zinc-900/80 to-emerald-950/20 shadow-[0_0_15px_-5px_rgba(16,185,129,0.1)]"
-                    : "border-rose-500/20 hover:border-rose-500/50 bg-gradient-to-br from-zinc-900/80 to-rose-950/20 shadow-[0_0_15px_-5px_rgba(244,63,94,0.1)]";
-                  
-                  const textTheme = isPositive ? "text-emerald-400" : "text-rose-400";
-
                   return (
-                    <div
-                      key={book.name}
-                      className={`col-span-1 rounded-2xl border backdrop-blur-md p-4 transition-all duration-300 group hover:-translate-y-0.5 flex flex-col justify-between min-h-[110px] ${themeClasses}`}
-                    >
-                      <div className="text-center mb-3">
-                        <h4 className={`text-sm font-black tracking-wide uppercase ${isPositive ? 'text-emerald-100' : 'text-rose-100'}`}>
-                          {book.name}
-                        </h4>
-                        <div className={`h-px w-1/3 mx-auto mt-2 ${isPositive ? 'bg-emerald-500/30' : 'bg-rose-500/30'}`}></div>
-                      </div>
-
-                      <div className="flex items-end justify-between">
-                        <div className="flex flex-col items-start">
-                          <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">Začetno</span>
-                          <span className="text-xs font-mono text-zinc-400 font-medium">{eur(book.start)}</span>
-                        </div>
-
-                        <div className="flex flex-col items-end">
-                           <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-0.5">Trenutno</span>
-                           <div className="flex items-center gap-1">
-                              {isPositive ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : <ArrowDownRight className="w-3 h-3 text-rose-400" />}
-                              <span className={`text-base font-mono font-black ${textTheme}`}>
-                              {eur(book.balance)}
-                              </span>
-                           </div>
-                           <span className={`text-[9px] font-medium opacity-70 ${textTheme}`}>
-                              ({isPositive ? "+" : ""}{eur(book.profit)})
+                     <div key={book.name} className="relative group bg-zinc-900/30 hover:bg-zinc-900/60 border border-white/5 rounded-2xl p-4 transition-all duration-300">
+                        <div className="flex justify-between items-center mb-2">
+                           <span className="text-xs font-bold text-white">{book.name}</span>
+                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                              {isPositive ? "+" : ""}{eur(book.profit)}
                            </span>
                         </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                        <div className="flex justify-between items-end">
+                           <div>
+                              <p className="text-[9px] text-zinc-500 uppercase">Start</p>
+                              <p className="text-xs text-zinc-400 font-mono">{eur(book.start)}</p>
+                           </div>
+                           <div className="text-right">
+                              <p className="text-[9px] text-zinc-500 uppercase">Balance</p>
+                              <p className={`text-sm font-mono font-bold ${isPositive ? 'text-white' : 'text-rose-200'}`}>{eur(book.balance)}</p>
+                           </div>
+                        </div>
+                        {/* Progress bar visual */}
+                        <div className="mt-3 h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
+                           <div className={`h-full ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} opacity-50`} style={{ width: `${Math.min((book.balance / (book.start * 2 || 100)) * 100, 100)}%` }}></div>
+                        </div>
+                     </div>
+                  )
+               })}
             </div>
           </div>
         </section>
 
-        {/* Data Tables */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <DataTable title="Po športih" data={sportData} icon={<Activity className="w-3 h-3" />} />
-          <DataTable title="Po tipsterjih" data={tipsterData} icon={<Users className="w-3 h-3" />} />
-          <DataTable title="Po času" data={timingData} icon={<Clock className="w-3 h-3" />} />
+        {/* DATA TABLES GRID */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <DataTable title="Po športih" data={sportData} icon={<Activity className="w-4 h-4 text-emerald-400" />} />
+          <DataTable title="Po tipsterjih" data={tipsterData} icon={<Users className="w-4 h-4 text-indigo-400" />} />
+          <DataTable title="Po času" data={timingData} icon={<Clock className="w-4 h-4 text-amber-400" />} />
         </section>
 
-        <footer className="mt-8 pt-6 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
-          <p>© 2024 DDTips Analytics. Vse pravice pridržane.</p>
-          <p className="font-mono">Last updated: {new Date().toLocaleTimeString()}</p>
+        <footer className="mt-12 pt-8 border-t border-white/5 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
+          <p className="hover:text-zinc-400 transition-colors">© 2024 DDTips Analytics. Premium Dashboard.</p>
+          <p className="font-mono bg-zinc-900/50 px-3 py-1 rounded-full border border-white/5">Last sync: {mounted ? new Date().toLocaleTimeString() : "--:--:--"}</p>
         </footer>
       </div>
     </main>

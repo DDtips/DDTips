@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList
 } from "recharts";
 import {
   Calendar, Filter, Users, Building2, Clock, Activity, RefreshCw, Layers,
-  Target, TrendingUp, Percent, ArrowRightLeft, Hash, Scale, ChevronDown, Check
+  Target, TrendingUp, Percent, ArrowRightLeft, Hash, Scale, ChevronDown, Check,
+  Wallet, Trophy, ArrowDownRight, ArrowUpRight
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -23,7 +24,7 @@ type Bet = {
   kvota1: number;
   vplacilo1: number;
   lay_kvota: number;
-  vplacilo2: number; // LIABILITY
+  vplacilo2: number;
   komisija: number;
   sport: string;
   cas_stave: Cas;
@@ -60,7 +61,6 @@ function calcRisk(b: Bet): number {
   const hasLayBet = hasLay(b);
   const backStake = b.vplacilo1 || 0;
   const layLiability = b.vplacilo2 || 0;
-
   if (hasBackBet && !hasLayBet) return backStake;
   if (!hasBackBet && hasLayBet) return layLiability;
   if (hasBackBet && hasLayBet) return Math.max(backStake, layLiability); 
@@ -69,7 +69,6 @@ function calcRisk(b: Bet): number {
 
 function calcProfit(b: Bet): number {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
-
   const komZnesek = Number(b.komisija ?? 0);
   const backStake = b.vplacilo1 || 0;
   const backOdds = b.kvota1 || 0;
@@ -78,11 +77,9 @@ function calcProfit(b: Bet): number {
   const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
 
   let brutoProfit = 0;
-
   if (hasBack(b) && hasLay(b)) {
     const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
     const profitIfLayWins = layStake - backStake;
-
     if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
     else if (b.wl === "LAY WIN") brutoProfit = profitIfLayWins;
     else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
@@ -96,13 +93,13 @@ function calcProfit(b: Bet): number {
     if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1);
     else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
   }
-
   if (brutoProfit > 0) return brutoProfit - komZnesek;
   return brutoProfit;
 }
 
-function buildStats(rows: Bet[]) {
-  const settled = rows.filter((r) => r.wl !== "OPEN" && r.wl !== "VOID");
+// Funkcija za sestavo statistike
+function buildStats(rows: Bet[], filteredRows: Bet[], isFilteredByDate: boolean) {
+  const settled = filteredRows.filter((r) => r.wl !== "OPEN" && r.wl !== "VOID");
   const n = settled.length;
   const wins = settled.filter((r) => r.wl === "WIN" || r.wl === "BACK WIN" || r.wl === "LAY WIN").length;
   const losses = settled.filter((r) => r.wl === "LOSS").length;
@@ -117,13 +114,55 @@ function buildStats(rows: Bet[]) {
   const preProfit = settled.filter(r => r.cas_stave === "PREMATCH").reduce((acc, r) => acc + calcProfit(r), 0);
   const liveProfit = settled.filter(r => r.cas_stave === "LIVE").reduce((acc, r) => acc + calcProfit(r), 0);
 
-  let runningProfit = 0;
-  const chartData = settled.sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime()).map((b) => {
-    runningProfit += calcProfit(b);
-    return { date: new Date(b.datum).toLocaleDateString('sl-SI', { day: 'numeric', month: 'short' }), profit: runningProfit };
+  // --- LOGIKA ZA TEKOČI PROFIT (Running Cumulative) ---
+  // 1. Določimo katere stave upoštevamo. Če ni časovnega filtra, vzamemo trenutno leto.
+  let chartSourceRows = settled;
+  const currentYear = new Date().getFullYear();
+  
+  if (!isFilteredByDate) {
+      chartSourceRows = settled.filter(r => new Date(r.datum).getFullYear() === currentYear);
+  }
+
+  // 2. Združimo po dnevih (da ni cik-cak za isti dan)
+  const dailyMap = new Map<string, number>();
+  chartSourceRows.forEach(r => {
+      const dateKey = r.datum; // YYYY-MM-DD
+      dailyMap.set(dateKey, (dailyMap.get(dateKey) || 0) + calcProfit(r));
   });
 
-  return { profit, n, wins, losses, roi, winRate, growth, avgOdds, chartData, settled, preProfit, liveProfit };
+  // 3. Sortiramo po datumu
+  const sortedDates = Array.from(dailyMap.keys()).sort();
+
+  // 4. Izračunamo kumulativo
+  let runningProfit = 0;
+  const chartData = sortedDates.map(date => {
+      runningProfit += dailyMap.get(date) || 0;
+      return {
+          date: new Date(date).toLocaleDateString('sl-SI', { day: 'numeric', month: 'short' }),
+          rawDate: date,
+          profit: runningProfit,
+          dailyChange: dailyMap.get(date)
+      };
+  });
+
+  // Če je graf prazen (začetek leta), dodamo začetno točko 0
+  if (chartData.length === 0 && !isFilteredByDate) {
+      chartData.push({ date: "1. Jan", rawDate: `${currentYear}-01-01`, profit: 0, dailyChange: 0 });
+  }
+
+  // --- MESEČNI BAR CHART ---
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Avg", "Sep", "Okt", "Nov", "Dec"];
+  // Za mesečni graf vedno gledamo tekoče leto (razen če je filter drugačen, ampak pustimo default year)
+  const monthlyRows = isFilteredByDate ? settled : rows.filter(r => new Date(r.datum).getFullYear() === currentYear && r.wl !== "OPEN" && r.wl !== "VOID");
+  
+  const monthlyData = monthNames.map((name, index) => {
+      const monthProfit = monthlyRows
+          .filter(r => new Date(r.datum).getMonth() === index)
+          .reduce((acc, r) => acc + calcProfit(r), 0);
+      return { month: name, profit: monthProfit };
+  });
+
+  return { profit, n, wins, losses, roi, winRate, growth, avgOdds, chartData, monthlyData, settled, preProfit, liveProfit };
 }
 
 function getBreakdown(rows: Bet[], key: 'tipster' | 'sport' | 'cas_stave') {
@@ -142,7 +181,7 @@ function getBreakdown(rows: Bet[], key: 'tipster' | 'sport' | 'cas_stave') {
   return data.sort((a, b) => b.totalProfit - a.totalProfit);
 }
 
-// --- KOMPONENTE ---
+// --- UI KOMPONENTE ---
 
 function MultiSelectField({ label, options, selected, onChange, icon }: { label: string, options: string[], selected: string[], onChange: (val: string[]) => void, icon?: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -150,49 +189,31 @@ function MultiSelectField({ label, options, selected, onChange, icon }: { label:
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setIsOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const toggleOption = (opt: string) => {
-    if (selected.includes(opt)) {
-      onChange(selected.filter(s => s !== opt));
-    } else {
-      onChange([...selected, opt]);
-    }
+    if (selected.includes(opt)) onChange(selected.filter(s => s !== opt));
+    else onChange([...selected, opt]);
   };
 
   return (
-    <div className="space-y-1 relative pointer-events-auto" ref={dropdownRef}>
-      <label className="flex items-center gap-1 text-[9px] font-bold tracking-widest uppercase text-zinc-500">
-        {icon} {label}
-      </label>
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-2 py-2 bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-xs flex items-center justify-between hover:border-zinc-700 transition-colors"
-      >
-        <span className="truncate">
-          {selected.length === 0 ? "VSI" : selected.length === 1 ? selected[0] : `${selected.length} izbrano`}
-        </span>
-        <ChevronDown className="w-3 h-3 text-zinc-500" />
+    <div className="space-y-1.5 relative pointer-events-auto" ref={dropdownRef}>
+      <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500">{icon} {label}</label>
+      <button onClick={() => setIsOpen(!isOpen)} className="w-full px-3 py-2.5 bg-[#13151b] border border-zinc-800 rounded-xl text-zinc-200 text-xs flex items-center justify-between hover:border-emerald-500/50 hover:bg-[#1a1d24] transition-all shadow-sm">
+        <span className="truncate font-medium">{selected.length === 0 ? "Vsi" : selected.length === 1 ? selected[0] : `${selected.length} izbrano`}</span>
+        <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </button>
-
       {isOpen && (
-        <div className="absolute top-full left-0 w-full mt-1 bg-[#09090b] border border-zinc-800 rounded-lg shadow-xl z-[100] max-h-60 overflow-y-auto">
+        <div className="absolute top-full left-0 w-full mt-2 bg-[#13151b] border border-zinc-800 rounded-xl shadow-2xl z-[100] max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
            {options.map(opt => {
              const isSelected = selected.includes(opt);
              return (
-               <div 
-                 key={opt} 
-                 onClick={() => toggleOption(opt)}
-                 className={`px-3 py-2 text-xs flex items-center justify-between cursor-pointer hover:bg-zinc-800 transition-colors ${isSelected ? "text-emerald-400 font-bold" : "text-zinc-400"}`}
-               >
-                 <span>{opt}</span>
-                 {isSelected && <Check className="w-3 h-3" />}
+               <div key={opt} onClick={() => toggleOption(opt)} className={`px-3 py-2.5 text-xs flex items-center justify-between cursor-pointer hover:bg-zinc-800/50 transition-colors border-l-2 ${isSelected ? "border-emerald-500 bg-emerald-500/5 text-emerald-400 font-bold" : "border-transparent text-zinc-400"}`}>
+                 <span>{opt}</span>{isSelected && <Check className="w-3.5 h-3.5" />}
                </div>
              )
            })}
@@ -204,14 +225,13 @@ function MultiSelectField({ label, options, selected, onChange, icon }: { label:
 
 function StatMetric({ label, value, subValue, color = "text-white", icon, inlineSub }: any) {
   return (
-    <div className="flex flex-col items-center justify-center p-2 text-center">
-      <div className="flex items-center gap-1 mb-2 text-zinc-500 justify-center">
-        {icon}
-        <span className="text-[9px] font-bold tracking-widest uppercase">{label}</span>
+    <div className="flex flex-col items-center justify-center p-3 text-center rounded-xl hover:bg-white/5 transition-colors group">
+      <div className="flex items-center gap-1.5 mb-2 text-zinc-500 justify-center group-hover:text-zinc-400 transition-colors">
+        {icon}<span className="text-[10px] font-bold tracking-[0.15em] uppercase">{label}</span>
       </div>
       <div className="flex items-baseline gap-2 justify-center flex-wrap">
-        <span className={`text-3xl md:text-4xl font-black ${color}`}>{value}</span>
-        {inlineSub && <span className="text-lg font-bold text-zinc-500">{inlineSub}</span>}
+        <span className={`text-2xl md:text-3xl font-mono font-bold tracking-tight ${color}`}>{value}</span>
+        {inlineSub && <span className="text-sm font-bold text-zinc-500">{inlineSub}</span>}
       </div>
       {subValue && !inlineSub && <span className="text-xs font-bold text-zinc-500 mt-1">{subValue}</span>}
     </div>
@@ -221,63 +241,47 @@ function StatMetric({ label, value, subValue, color = "text-white", icon, inline
 function BigStatCard({ title, stats, variant = "main" }: { title: string; stats: any; variant: "main" | "betting" | "trading" }) {
   const isPositive = stats.profit >= 0;
   const profitColor = isPositive ? "text-emerald-400" : "text-rose-400";
-  let gradient = "", icon = null;
+  let gradient = "", icon = null, borderColor = "";
 
-  if (variant === "main") {
-    gradient = "from-emerald-900/40 via-zinc-900/60 to-zinc-900/60 border-emerald-500/30";
-    icon = <Layers className="w-4 h-4 text-emerald-500" />;
-  } else if (variant === "betting") {
-    gradient = "from-sky-900/20 via-zinc-900/40 to-zinc-900/40 border-sky-500/20";
-    icon = <Target className="w-4 h-4 text-sky-500" />;
-  } else {
-    gradient = "from-violet-900/20 via-zinc-900/40 to-zinc-900/40 border-violet-500/20";
-    icon = <ArrowRightLeft className="w-4 h-4 text-violet-500" />;
-  }
+  if (variant === "main") { gradient = "bg-[#13151b]/80"; borderColor = "border-emerald-500/20"; icon = <Layers className="w-4 h-4 text-emerald-500" />; } 
+  else if (variant === "betting") { gradient = "bg-[#13151b]/80"; borderColor = "border-sky-500/20"; icon = <Target className="w-4 h-4 text-sky-500" />; } 
+  else { gradient = "bg-[#13151b]/80"; borderColor = "border-violet-500/20"; icon = <ArrowRightLeft className="w-4 h-4 text-violet-500" />; }
 
   return (
-    <div className={`relative rounded-2xl border bg-gradient-to-br ${gradient} backdrop-blur-xl overflow-hidden`}>
-      <div className="p-6">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          {icon}
+    <div className={`relative rounded-2xl border ${borderColor} ${gradient} backdrop-blur-xl overflow-hidden shadow-2xl transition-all hover:border-opacity-50 group`}>
+      <div className={`absolute top-0 right-0 w-64 h-64 ${variant === 'main' ? 'bg-emerald-500/5' : variant === 'betting' ? 'bg-sky-500/5' : 'bg-violet-500/5'} blur-[80px] rounded-full pointer-events-none group-hover:opacity-100 transition-opacity opacity-50`} />
+      <div className="p-6 relative z-10">
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <div className={`p-1.5 rounded-lg bg-zinc-900 border ${borderColor}`}>{icon}</div>
           <h3 className="text-xs font-bold tracking-[0.2em] text-zinc-400 uppercase">{title}</h3>
         </div>
-
-        <div className="text-center mb-6">
-          <div className={`text-5xl md:text-6xl font-black tracking-tight ${profitColor} drop-shadow-2xl`}>
-            {eur(stats.profit)}
-          </div>
-          <div className="text-xs font-bold text-zinc-500 mt-2 uppercase tracking-wider">Neto Profit</div>
+        <div className="text-center mb-8">
+          <div className={`text-5xl md:text-6xl font-mono font-bold tracking-tight ${profitColor} drop-shadow-2xl`}>{eur(stats.profit)}</div>
+          <div className="text-[10px] font-bold text-zinc-500 mt-2 uppercase tracking-[0.2em]">Neto Profit</div>
         </div>
-
         {variant !== "main" && (
-           <div className="flex justify-center gap-6 mb-6 text-sm font-bold text-zinc-300 border-b border-white/5 pb-4">
-              <span>PREMATCH: <span className={stats.preProfit >=0 ? "text-emerald-400":"text-rose-400"}>{eur(stats.preProfit)}</span></span>
-              <span>LIVE: <span className={stats.liveProfit >=0 ? "text-emerald-400":"text-rose-400"}>{eur(stats.liveProfit)}</span></span>
+           <div className="flex justify-center gap-8 mb-8 text-sm font-bold text-zinc-300 border-b border-white/5 pb-6">
+              <div className="flex flex-col items-center gap-1"><span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Prematch</span><span className={`font-mono ${stats.preProfit >=0 ? "text-emerald-400":"text-rose-400"}`}>{eur(stats.preProfit)}</span></div>
+              <div className="w-px h-8 bg-zinc-800"></div>
+              <div className="flex flex-col items-center gap-1"><span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Live</span><span className={`font-mono ${stats.liveProfit >=0 ? "text-emerald-400":"text-rose-400"}`}>{eur(stats.liveProfit)}</span></div>
            </div>
         )}
-
         {variant === "main" && (
-          <div className="grid grid-cols-3 gap-4 pt-2 border-t border-white/5">
-             <StatMetric label="Število Stav" value={stats.n} inlineSub={`${stats.wins}W - ${stats.losses}L`} icon={<Hash className="w-4 h-4" />} />
-             <StatMetric label="Rast Kapitala" value={`${stats.growth >= 0 ? "+" : ""}${stats.growth.toFixed(1)}%`} color={stats.growth >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<Percent className="w-4 h-4" />} />
-             <StatMetric label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} color="text-zinc-200" icon={<Activity className="w-4 h-4" />} />
+          <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5">
+             <StatMetric label="Stave" value={stats.n} inlineSub={`${stats.wins}-${stats.losses}`} icon={<Hash className="w-3.5 h-3.5" />} />
+             <StatMetric label="Rast" value={`${stats.growth >= 0 ? "+" : ""}${stats.growth.toFixed(1)}%`} color={stats.growth >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<Percent className="w-3.5 h-3.5" />} />
+             <StatMetric label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} color="text-zinc-200" icon={<Activity className="w-3.5 h-3.5" />} />
           </div>
         )}
-
         {variant !== "main" && (
-          <div className={`grid ${variant === 'betting' ? 'grid-cols-4' : 'grid-cols-3'} gap-4 pt-2 border-t border-white/5`}>
-             <StatMetric label="Število Stav" value={stats.n} inlineSub={`${stats.wins}W - ${stats.losses}L`} icon={<Hash className="w-4 h-4" />} />
-             <StatMetric label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} color="text-zinc-200" icon={<Activity className="w-4 h-4" />} />
-             
+          <div className={`grid ${variant === 'betting' ? 'grid-cols-4' : 'grid-cols-3'} gap-4 pt-4 border-t border-white/5`}>
+             <StatMetric label="Stave" value={stats.n} inlineSub={`${stats.wins}-${stats.losses}`} icon={<Hash className="w-3.5 h-3.5" />} />
+             <StatMetric label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} color="text-zinc-200" icon={<Activity className="w-3.5 h-3.5" />} />
              {variant === "betting" && (
-               <>
-                 <StatMetric label="Povp. Kvota" value={stats.avgOdds.toFixed(2)} color="text-sky-400" icon={<Target className="w-4 h-4" />} />
-                 <StatMetric label="ROI" value={`${stats.roi.toFixed(1)}%`} color={stats.roi >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<TrendingUp className="w-4 h-4" />} />
-               </>
+               <><StatMetric label="Povp. Kvota" value={stats.avgOdds.toFixed(2)} color="text-sky-400" icon={<Target className="w-3.5 h-3.5" />} /><StatMetric label="ROI" value={`${stats.roi.toFixed(1)}%`} color={stats.roi >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<TrendingUp className="w-3.5 h-3.5" />} /></>
              )}
-
              {variant === "trading" && (
-                <StatMetric label="Rast Kap." value={`${stats.growth >= 0 ? "+" : ""}${stats.growth.toFixed(1)}%`} color={stats.growth >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<Percent className="w-4 h-4" />} />
+                <StatMetric label="Rast" value={`${stats.growth >= 0 ? "+" : ""}${stats.growth.toFixed(1)}%`} color={stats.growth >= 0 ? "text-emerald-400" : "text-rose-400"} icon={<Percent className="w-3.5 h-3.5" />} />
              )}
           </div>
         )}
@@ -288,34 +292,23 @@ function BigStatCard({ title, stats, variant = "main" }: { title: string; stats:
 
 function InputField({ label, value, onChange, type = "text", icon, placeholder }: any) {
   return (
-    <div className="space-y-1 pointer-events-auto">
-      <label className="flex items-center gap-1 text-[9px] font-bold tracking-widest uppercase text-zinc-500">
-        {icon} {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-2 py-2 bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-xs focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-zinc-700 text-center"
-      />
+    <div className="space-y-1.5 pointer-events-auto">
+      <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500">{icon} {label}</label>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full px-3 py-2.5 bg-[#13151b] border border-zinc-800 rounded-xl text-zinc-200 text-xs focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-zinc-700 text-center font-medium shadow-sm hover:border-zinc-700" />
     </div>
   );
 }
 
 function SelectField({ label, value, onChange, options, icon }: any) {
   return (
-    <div className="space-y-1 pointer-events-auto">
-      <label className="flex items-center gap-1 text-[9px] font-bold tracking-widest uppercase text-zinc-500">
-        {icon} {label}
-      </label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2 py-2 appearance-none bg-zinc-950/50 border border-zinc-800 rounded-lg text-zinc-200 text-xs focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer text-center"
-      >
-        {options.map((opt: string) => <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>)}
-      </select>
+    <div className="space-y-1.5 pointer-events-auto">
+      <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500">{icon} {label}</label>
+      <div className="relative">
+        <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-3 py-2.5 appearance-none bg-[#13151b] border border-zinc-800 rounded-xl text-zinc-200 text-xs focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer text-center font-medium shadow-sm hover:border-zinc-700">
+          {options.map((opt: string) => <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>)}
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
+      </div>
     </div>
   );
 }
@@ -327,6 +320,7 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // States for filters
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [selectedTipsters, setSelectedTipsters] = useState<string[]>([]);
   const [stavnica, setStavnica] = useState("ALL");
@@ -351,6 +345,28 @@ export default function StatsPage() {
     if (!error) setRows((data ?? []) as Bet[]);
   }
 
+  // --- REFRESH FUNCTION ---
+  // To počisti vse filtre in ponovno naloži podatke
+  const handleRefresh = async () => {
+    setSelectedSports([]);
+    setSelectedTipsters([]);
+    setStavnica("ALL");
+    setCas("ALL");
+    setFromDate("");
+    setToDate("");
+    setMinKvota("");
+    setMaxKvota("");
+    setFiltersOpen(false); // Zapri filtre, če so odprti
+    await loadRows();
+  };
+
+  const handleClearFilters = () => {
+    setSelectedSports([]); setSelectedTipsters([]); setStavnica("ALL"); setCas("ALL"); setFromDate(""); setToDate(""); setMinKvota(""); setMaxKvota("");
+  };
+
+  const hasActiveFilters = selectedSports.length > 0 || selectedTipsters.length > 0 || stavnica !== "ALL" || cas !== "ALL" || fromDate !== "" || toDate !== "" || minKvota !== "" || maxKvota !== "";
+  const isFilteredByDate = fromDate !== "" || toDate !== "";
+
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
       if (selectedSports.length > 0 && !selectedSports.includes(r.sport)) return false;
@@ -370,170 +386,113 @@ export default function StatsPage() {
   const bettingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "BET"), [filteredRows]);
   const tradingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "TRADING"), [filteredRows]);
 
-  const totalStats = useMemo(() => buildStats(filteredRows), [filteredRows]);
-  const bettingStats = useMemo(() => buildStats(bettingRows), [bettingRows]);
-  const tradingStats = useMemo(() => buildStats(tradingRows), [tradingRows]);
+  const totalStats = useMemo(() => buildStats(rows, filteredRows, isFilteredByDate), [rows, filteredRows, isFilteredByDate]);
+  const bettingStats = useMemo(() => buildStats(rows, bettingRows, isFilteredByDate), [rows, bettingRows, isFilteredByDate]);
+  const tradingStats = useMemo(() => buildStats(rows, tradingRows, isFilteredByDate), [rows, tradingRows, isFilteredByDate]);
 
   const tipsterBreakdown = useMemo(() => getBreakdown(filteredRows, 'tipster'), [filteredRows]);
   const sportBreakdown = useMemo(() => getBreakdown(filteredRows, 'sport'), [filteredRows]);
   const casBreakdown = useMemo(() => getBreakdown(filteredRows, 'cas_stave'), [filteredRows]);
 
-  const tipsterTotals = useMemo(() => {
-    return tipsterBreakdown.reduce((acc, curr) => ({
-      bet: acc.bet + curr.bettingProfit,
-      trade: acc.trade + curr.tradingProfit,
-      total: acc.total + curr.totalProfit
-    }), { bet: 0, trade: 0, total: 0 });
-  }, [tipsterBreakdown]);
+  const tipsterTotals = useMemo(() => tipsterBreakdown.reduce((acc, curr) => ({ bet: acc.bet + curr.bettingProfit, trade: acc.trade + curr.tradingProfit, total: acc.total + curr.totalProfit }), { bet: 0, trade: 0, total: 0 }), [tipsterBreakdown]);
+  const sportTotals = useMemo(() => sportBreakdown.reduce((acc, curr) => ({ bet: acc.bet + curr.bettingProfit, trade: acc.trade + curr.tradingProfit, total: acc.total + curr.totalProfit }), { bet: 0, trade: 0, total: 0 }), [sportBreakdown]);
+  const casTotals = useMemo(() => casBreakdown.reduce((acc, curr) => ({ bet: acc.bet + curr.bettingProfit, trade: acc.trade + curr.tradingProfit, total: acc.total + curr.totalProfit }), { bet: 0, trade: 0, total: 0 }), [casBreakdown]);
 
-  const sportTotals = useMemo(() => {
-    return sportBreakdown.reduce((acc, curr) => ({
-      bet: acc.bet + curr.bettingProfit,
-      trade: acc.trade + curr.tradingProfit,
-      total: acc.total + curr.totalProfit
-    }), { bet: 0, trade: 0, total: 0 });
-  }, [sportBreakdown]);
-
-  const casTotals = useMemo(() => {
-    return casBreakdown.reduce((acc, curr) => ({
-      bet: acc.bet + curr.bettingProfit,
-      trade: acc.trade + curr.tradingProfit,
-      total: acc.total + curr.totalProfit
-    }), { bet: 0, trade: 0, total: 0 });
-  }, [casBreakdown]);
-
-  const handleClearFilters = () => {
-    setSelectedSports([]); setSelectedTipsters([]); setStavnica("ALL"); setCas("ALL"); setFromDate(""); setToDate(""); setMinKvota(""); setMaxKvota("");
-  };
-
-  const hasActiveFilters = selectedSports.length > 0 || selectedTipsters.length > 0 || stavnica !== "ALL" || cas !== "ALL" || fromDate !== "" || toDate !== "" || minKvota !== "" || maxKvota !== "";
-
-  if (loading && rows.length === 0) return <div className="min-h-screen flex items-center justify-center bg-black"><div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" /></div>;
+  if (loading && rows.length === 0) return <div className="min-h-screen flex items-center justify-center bg-[#0f1117]"><div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin shadow-[0_0_20px_rgba(16,185,129,0.2)]" /></div>;
 
   return (
-    <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
+    <main className="min-h-screen bg-[#0f1117] text-white antialiased selection:bg-emerald-500/30 font-sans">
+      <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none z-0" />
+      <div className="fixed top-[-10%] left-[-10%] w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none z-0 mix-blend-screen opacity-50" />
+      <div className="fixed bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none z-0 mix-blend-screen opacity-50" />
       
-      <div className="relative max-w-[1600px] mx-auto px-4 md:px-8 pb-10">
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #52525b; }
+      `}</style>
+
+      <div className="relative max-w-[1600px] mx-auto px-6 md:px-10 pb-12 z-10">
         
-        {/* FILTER BAR */}
-        <div className="pt-32 pb-6 flex justify-end relative z-[60] pointer-events-none">
-           <div className="flex gap-2 pointer-events-auto">
-            <button
-              onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all cursor-pointer shadow-lg active:scale-95 ${filtersOpen ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600'}`}
-            >
-              <Filter className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Filtri</span>
-              {hasActiveFilters && <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>}
+        {/* FILTER BAR - LEBDEČ ZGORAJ */}
+        <div className="pt-48 pb-8 flex justify-end relative z-[60] pointer-events-none">
+           <div className="flex gap-3 pointer-events-auto">
+            <button onClick={() => setFiltersOpen(!filtersOpen)} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border transition-all cursor-pointer shadow-lg active:scale-95 backdrop-blur-md ${filtersOpen ? 'bg-emerald-500 text-black border-emerald-400 font-bold' : 'bg-[#13151b]/80 border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500'}`}>
+              <Filter className="w-4 h-4" /><span className="text-xs font-bold uppercase tracking-wider">Filtri</span>
+              {hasActiveFilters && !filtersOpen && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>}
             </button>
-            <button onClick={loadRows} className="p-2.5 bg-emerald-500 text-black rounded-xl hover:bg-emerald-400 transition-all cursor-pointer shadow-lg active:scale-95">
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            {/* GUMB REFRESH - ZDAJ ZBRIŠE VSE FILTRE IN NALOŽI DATA */}
+            <button onClick={handleRefresh} className="p-2.5 bg-[#13151b]/80 text-zinc-300 border border-zinc-700 rounded-xl hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/50 transition-all cursor-pointer shadow-lg active:scale-95 backdrop-blur-md">
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-emerald-500" : ""}`} />
             </button>
           </div>
         </div>
 
         {/* FILTERS DROPDOWN */}
-        <div className={`transition-all duration-300 ease-in-out relative z-40 ${filtersOpen ? 'opacity-100 mb-8' : 'max-h-0 opacity-0 mb-0 overflow-hidden'}`}>
-          <div className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
-              <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-3 h-3" />} />
-              <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-3 h-3" />} />
-              <MultiSelectField label="Športi" options={SPORTI} selected={selectedSports} onChange={setSelectedSports} icon={<Activity className="w-3 h-3" />} />
-              <MultiSelectField label="Tipsterji" options={TIPSTERJI} selected={selectedTipsters} onChange={setSelectedTipsters} icon={<Users className="w-3 h-3" />} />
-              <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3 h-3" />} />
-              <SelectField label="Čas" value={cas} onChange={setCas} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3 h-3" />} />
-              <InputField label="Min Kvota" value={minKvota} onChange={setMinKvota} placeholder="1.00" icon={<Scale className="w-3 h-3" />} />
-              <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="1.00" icon={<Scale className="w-3 h-3" />} />
+        <div className={`transition-all duration-500 ease-in-out relative z-50 ${filtersOpen ? 'opacity-100 max-h-[500px] mb-10 translate-y-0' : 'max-h-0 opacity-0 mb-0 -translate-y-4 overflow-hidden pointer-events-none'}`}>
+          <div className="p-8 rounded-3xl bg-[#13151b]/90 border border-zinc-700/50 backdrop-blur-2xl shadow-2xl">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-5 mb-8">
+              <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
+              <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
+              <MultiSelectField label="Športi" options={SPORTI} selected={selectedSports} onChange={setSelectedSports} icon={<Activity className="w-3.5 h-3.5" />} />
+              <MultiSelectField label="Tipsterji" options={TIPSTERJI} selected={selectedTipsters} onChange={setSelectedTipsters} icon={<Users className="w-3.5 h-3.5" />} />
+              <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3.5 h-3.5" />} />
+              <SelectField label="Čas" value={cas} onChange={setCas} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3.5 h-3.5" />} />
+              <InputField label="Min Kvota" value={minKvota} onChange={setMinKvota} placeholder="1.00" icon={<Scale className="w-3.5 h-3.5" />} />
+              <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="10.00" icon={<Scale className="w-3.5 h-3.5" />} />
             </div>
-            
-            <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
-              <button onClick={handleClearFilters} className="px-4 py-2 text-xs font-bold uppercase text-zinc-500 hover:text-white cursor-pointer">Počisti</button>
-              <button onClick={() => setFiltersOpen(false)} className="px-6 py-2 bg-emerald-600 text-white text-xs font-bold uppercase rounded-lg hover:bg-emerald-500 cursor-pointer shadow-lg">Potrdi</button>
+            <div className="flex justify-end gap-4 pt-6 border-t border-white/5">
+              <button onClick={handleClearFilters} className="px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-white transition-colors cursor-pointer">Počisti vse</button>
+              <button onClick={() => setFiltersOpen(false)} className="px-8 py-2.5 bg-emerald-500 text-black text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-400 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">Prikaži Rezultate</button>
             </div>
           </div>
         </div>
 
         {/* --- STATISTIČNE KARTICE --- */}
-        <section className="space-y-6 mb-12">
+        <section className="space-y-8 mb-16">
           <BigStatCard title="Skupna Statistika" stats={totalStats} variant="main" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <BigStatCard title="Betting" stats={bettingStats} variant="betting" />
             <BigStatCard title="Trading" stats={tradingStats} variant="trading" />
           </div>
         </section>
 
-        {/* --- BREAKDOWN LISTE (Tipsterji & Športi) --- */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
-            
+        {/* --- BREAKDOWN LISTE --- */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
             {/* TIPSTER BREAKDOWN */}
-            <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col h-full">
-                <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2">
-                    <Users className="w-4 h-4 text-emerald-500" />
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Tipsterji</h3>
-                </div>
-                <div className="flex-1 space-y-1 overflow-y-auto max-h-[300px] custom-scrollbar">
-                    <div className="grid grid-cols-4 text-[10px] font-bold text-zinc-500 uppercase px-2 mb-2 sticky top-0 bg-[#09090b] z-10 py-2">
-                        <span>Ime</span>
-                        <span className="text-right text-sky-500">Bet Profit</span>
-                        <span className="text-right text-violet-500">Trad Profit</span>
-                        <span className="text-right text-white">Skupaj</span>
-                    </div>
+            <div className="rounded-3xl bg-[#13151b]/60 border border-white/5 backdrop-blur-xl p-6 flex flex-col h-full shadow-lg">
+                <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4"><div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400"><Users className="w-4 h-4" /></div><h3 className="text-sm font-bold uppercase tracking-[0.15em] text-zinc-300">Tipsterji</h3></div>
+                <div className="flex-1 space-y-1 overflow-y-auto max-h-[350px] custom-scrollbar pr-2">
+                    <div className="grid grid-cols-4 text-[10px] font-bold text-zinc-500 uppercase px-3 mb-2 sticky top-0 bg-[#13151b] z-10 py-2 rounded-lg"><span>Ime</span><span className="text-right text-sky-500">Bet Profit</span><span className="text-right text-violet-500">Trad Profit</span><span className="text-right text-white">Skupaj</span></div>
                     {tipsterBreakdown.map(t => (
-                        <div key={t.name} className="grid grid-cols-4 text-xs px-2 py-2 hover:bg-white/5 rounded transition-colors border-b border-white/5 last:border-0">
-                            <span className="font-bold text-zinc-300">{t.name} <span className="text-[9px] text-zinc-600 font-normal">({t.count})</span></span>
-                            <span className={`text-right font-mono ${t.bettingProfit>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(t.bettingProfit)}</span>
-                            <span className={`text-right font-mono ${t.tradingProfit>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(t.tradingProfit)}</span>
-                            <span className={`text-right font-mono font-bold ${t.totalProfit>=0?"text-emerald-400":"text-rose-400"}`}>{eurDec(t.totalProfit)}</span>
-                        </div>
+                        <div key={t.name} className="grid grid-cols-4 text-xs px-3 py-3 hover:bg-white/5 rounded-xl transition-all border border-transparent hover:border-white/5 group"><span className="font-bold text-zinc-300 group-hover:text-white transition-colors">{t.name} <span className="text-[9px] text-zinc-600 font-normal ml-1 bg-black/20 px-1.5 py-0.5 rounded">x{t.count}</span></span><span className={`text-right font-mono font-medium ${t.bettingProfit>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(t.bettingProfit)}</span><span className={`text-right font-mono font-medium ${t.tradingProfit>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(t.tradingProfit)}</span><span className={`text-right font-mono font-black ${t.totalProfit>=0?"text-emerald-400":"text-rose-400"}`}>{eurDec(t.totalProfit)}</span></div>
                     ))}
                 </div>
-                {/* FOOTER - SALDO */}
-                <div className="mt-2 pt-3 border-t border-zinc-700 grid grid-cols-4 text-xs font-black uppercase px-2 bg-zinc-900/50 py-2 rounded-b-xl">
-                    <span className="text-zinc-400">SKUPAJ</span>
-                    <span className={`text-right font-mono ${tipsterTotals.bet>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(tipsterTotals.bet)}</span>
-                    <span className={`text-right font-mono ${tipsterTotals.trade>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(tipsterTotals.trade)}</span>
-                    <span className={`text-right font-mono text-emerald-400`}>{eurDec(tipsterTotals.total)}</span>
-                </div>
+                <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-4 text-xs font-black uppercase px-3 bg-black/20 py-3 rounded-xl border border-white/5"><span className="text-zinc-500">SKUPAJ</span><span className={`text-right font-mono ${tipsterTotals.bet>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(tipsterTotals.bet)}</span><span className={`text-right font-mono ${tipsterTotals.trade>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(tipsterTotals.trade)}</span><span className={`text-right font-mono text-emerald-400`}>{eurDec(tipsterTotals.total)}</span></div>
             </div>
-
             {/* SPORT BREAKDOWN */}
-            <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col h-full">
-                <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2">
-                    <Activity className="w-4 h-4 text-emerald-500" />
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Športi</h3>
-                </div>
-                <div className="flex-1 space-y-1 overflow-y-auto max-h-[300px] custom-scrollbar">
-                    <div className="grid grid-cols-4 text-[10px] font-bold text-zinc-500 uppercase px-2 mb-2 sticky top-0 bg-[#09090b] z-10 py-2">
-                        <span>Šport</span>
-                        <span className="text-right text-sky-500">Bet Profit</span>
-                        <span className="text-right text-violet-500">Trad Profit</span>
-                        <span className="text-right text-white">Skupaj</span>
-                    </div>
+            <div className="rounded-3xl bg-[#13151b]/60 border border-white/5 backdrop-blur-xl p-6 flex flex-col h-full shadow-lg">
+                <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4"><div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Activity className="w-4 h-4" /></div><h3 className="text-sm font-bold uppercase tracking-[0.15em] text-zinc-300">Športi</h3></div>
+                <div className="flex-1 space-y-1 overflow-y-auto max-h-[350px] custom-scrollbar pr-2">
+                    <div className="grid grid-cols-4 text-[10px] font-bold text-zinc-500 uppercase px-3 mb-2 sticky top-0 bg-[#13151b] z-10 py-2 rounded-lg"><span>Šport</span><span className="text-right text-sky-500">Bet Profit</span><span className="text-right text-violet-500">Trad Profit</span><span className="text-right text-white">Skupaj</span></div>
                     {sportBreakdown.map(t => (
-                        <div key={t.name} className="grid grid-cols-4 text-xs px-2 py-2 hover:bg-white/5 rounded transition-colors border-b border-white/5 last:border-0">
-                            <span className="font-bold text-zinc-300">{t.name} <span className="text-[9px] text-zinc-600 font-normal">({t.count})</span></span>
-                            <span className={`text-right font-mono ${t.bettingProfit>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(t.bettingProfit)}</span>
-                            <span className={`text-right font-mono ${t.tradingProfit>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(t.tradingProfit)}</span>
-                            <span className={`text-right font-mono font-bold ${t.totalProfit>=0?"text-emerald-400":"text-rose-400"}`}>{eurDec(t.totalProfit)}</span>
-                        </div>
+                        <div key={t.name} className="grid grid-cols-4 text-xs px-3 py-3 hover:bg-white/5 rounded-xl transition-all border border-transparent hover:border-white/5 group"><span className="font-bold text-zinc-300 group-hover:text-white transition-colors">{t.name} <span className="text-[9px] text-zinc-600 font-normal ml-1 bg-black/20 px-1.5 py-0.5 rounded">x{t.count}</span></span><span className={`text-right font-mono font-medium ${t.bettingProfit>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(t.bettingProfit)}</span><span className={`text-right font-mono font-medium ${t.tradingProfit>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(t.tradingProfit)}</span><span className={`text-right font-mono font-black ${t.totalProfit>=0?"text-emerald-400":"text-rose-400"}`}>{eurDec(t.totalProfit)}</span></div>
                     ))}
                 </div>
-                <div className="mt-2 pt-3 border-t border-zinc-700 grid grid-cols-4 text-xs font-black uppercase px-2 bg-zinc-900/50 py-2 rounded-b-xl">
-                    <span className="text-zinc-400">SKUPAJ</span>
-                    <span className={`text-right font-mono ${sportTotals.bet>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(sportTotals.bet)}</span>
-                    <span className={`text-right font-mono ${sportTotals.trade>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(sportTotals.trade)}</span>
-                    <span className={`text-right font-mono text-emerald-400`}>{eurDec(sportTotals.total)}</span>
-                </div>
+                <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-4 text-xs font-black uppercase px-3 bg-black/20 py-3 rounded-xl border border-white/5"><span className="text-zinc-500">SKUPAJ</span><span className={`text-right font-mono ${sportTotals.bet>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(sportTotals.bet)}</span><span className={`text-right font-mono ${sportTotals.trade>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(sportTotals.trade)}</span><span className={`text-right font-mono text-emerald-400`}>{eurDec(sportTotals.total)}</span></div>
             </div>
         </section>
 
-        {/* --- GRAF + PREMATCH/LIVE STATS --- */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+        {/* --- GRAFI --- */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-16">
           {/* CUMULATIVE AREA CHART */}
-          <div className="lg:col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-6">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4">Kumulativni Profit</h3>
-            <div className="h-[250px] w-full">
+          <div className="lg:col-span-2 rounded-3xl bg-[#13151b]/60 border border-white/5 backdrop-blur-xl p-8 shadow-lg">
+            <div className="flex items-center justify-between mb-8">
+               <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-500" /> Tekoči Profit</h3>
+               <div className="bg-black/20 px-3 py-1 rounded-lg border border-white/5"><span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Kumulativno</span></div>
+            </div>
+            <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={totalStats.chartData}>
                   <defs>
@@ -543,100 +502,91 @@ export default function StatsPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
-                  <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
+                  <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} dy={10} />
+                  <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
+                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.5)' }}
+                    itemStyle={{ color: "#fff", fontWeight: "bold" }}
                     formatter={(value: number | undefined) => [eurDec(value || 0), "Profit"]}
                   />
-                  <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
+                  <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" activeDot={{ r: 6, strokeWidth: 0, fill: "#fff", shadow: "0 0 10px #10b981" }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* PREMATCH / LIVE BREAKDOWN (Zamenjava za mesečni graf) */}
-          <div className="lg:col-span-1 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-5 flex flex-col h-full">
-             <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2">
-                <Clock className="w-4 h-4 text-emerald-500" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Prematch / Live</h3>
-             </div>
-             <div className="flex-1 space-y-1">
-                <div className="grid grid-cols-4 text-[10px] font-bold text-zinc-500 uppercase px-2 mb-2">
-                    <span>Tip</span>
-                    <span className="text-right text-sky-500">Bet P.</span>
-                    <span className="text-right text-violet-500">Trad P.</span>
-                    <span className="text-right text-white">Skupaj</span>
+          {/* MESEČNI BAR CHART + PREMATCH/LIVE */}
+          <div className="lg:col-span-1 flex flex-col gap-6">
+             <div className="rounded-3xl bg-[#13151b]/60 border border-white/5 backdrop-blur-xl p-6 shadow-lg flex-1">
+                <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4">
+                    <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400"><Clock className="w-4 h-4" /></div>
+                    <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-zinc-300">Prematch / Live</h3>
                 </div>
-                {casBreakdown.map(t => (
-                    <div key={t.name} className="grid grid-cols-4 text-xs px-2 py-3 hover:bg-white/5 rounded transition-colors border-b border-white/5 last:border-0">
-                        <span className="font-bold text-zinc-300">{t.name} <span className="text-[9px] text-zinc-600 font-normal">({t.count})</span></span>
-                        <span className={`text-right font-mono ${t.bettingProfit>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(t.bettingProfit)}</span>
-                        <span className={`text-right font-mono ${t.tradingProfit>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(t.tradingProfit)}</span>
-                        <span className={`text-right font-mono font-bold ${t.totalProfit>=0?"text-emerald-400":"text-rose-400"}`}>{eurDec(t.totalProfit)}</span>
+                <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                       <div className="bg-zinc-900/40 p-4 rounded-2xl border border-white/5 text-center"><p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Prematch</p><p className={`text-xl font-mono font-bold ${casTotals.bet >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{eurDec(casTotals.bet)}</p></div>
+                       <div className="bg-zinc-900/40 p-4 rounded-2xl border border-white/5 text-center"><p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Live</p><p className={`text-xl font-mono font-bold ${casTotals.trade >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{eurDec(casTotals.trade)}</p></div>
                     </div>
-                ))}
+                    <div className="bg-gradient-to-r from-zinc-900 to-black p-4 rounded-2xl border border-white/5 flex justify-between items-center px-6">
+                       <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Skupaj</span>
+                       <span className={`text-xl font-mono font-black ${casTotals.total >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{eurDec(casTotals.total)}</span>
+                    </div>
+                </div>
              </div>
-             {/* FOOTER - SALDO */}
-             <div className="mt-auto pt-3 border-t border-zinc-700 grid grid-cols-4 text-xs font-black uppercase px-2 bg-zinc-900/50 py-2 rounded-b-xl">
-                <span className="text-zinc-400">SKUPAJ</span>
-                <span className={`text-right font-mono ${casTotals.bet>=0?"text-sky-400":"text-rose-400"}`}>{eurDec(casTotals.bet)}</span>
-                <span className={`text-right font-mono ${casTotals.trade>=0?"text-violet-400":"text-rose-400"}`}>{eurDec(casTotals.trade)}</span>
-                <span className={`text-right font-mono text-emerald-400`}>{eurDec(casTotals.total)}</span>
+
+             <div className="rounded-3xl bg-[#13151b]/60 border border-white/5 backdrop-blur-xl p-6 shadow-lg flex-1 min-h-[200px]">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400"><Layers className="w-4 h-4" /></div>
+                    <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-zinc-300">Mesečni Profit</h3>
+                </div>
+                <div className="h-[150px] w-full">
+                   <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={totalStats.monthlyData}>
+                         <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px" }} itemStyle={{ color: "#fff", fontWeight: "bold" }} formatter={(value: number) => [eur(value), "Profit"]} />
+                         <Bar dataKey="profit" radius={[4, 4, 4, 4]}>
+                            {totalStats.monthlyData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#10b981" : "#f43f5e"} />))}
+                            <LabelList dataKey="profit" position="top" formatter={(val: number) => val !== 0 ? (val > 0 ? "+" : "") + eur(val) : ""} style={{ fill: "#d4d4d8", fontSize: "10px", fontWeight: "bold", fontFamily: "monospace" }} />
+                         </Bar>
+                      </BarChart>
+                   </ResponsiveContainer>
+                </div>
              </div>
           </div>
         </section>
 
-        {/* --- ZADNJE STAVE TABELA --- */}
-        <section className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden">
-          <div className="p-4 border-b border-zinc-800/50">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Zadnje Aktivnosti</h3>
-          </div>
+        {/* --- TABELA --- */}
+        <section className="rounded-3xl bg-[#13151b]/60 border border-white/5 backdrop-blur-xl overflow-hidden shadow-2xl">
+          <div className="p-6 border-b border-white/5 bg-white/[0.01] flex items-center justify-between"><h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2"><Activity className="w-4 h-4 text-emerald-500" /> Zadnje Aktivnosti</h3><div className="text-[10px] font-bold text-zinc-500 bg-black/20 px-2 py-1 rounded border border-white/5">Zadnjih 20 stav</div></div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-zinc-950/50 text-zinc-500 uppercase tracking-wider">
-                  <th className="p-3 text-center">Datum</th>
-                  <th className="p-3 text-center">Mode</th>
-                  <th className="p-3 text-center">W/L</th>
-                  <th className="p-3 text-center">Dogodek</th>
-                  <th className="p-3 text-center">Stavnica</th>
-                  <th className="p-3 text-center">Tipster</th>
-                  <th className="p-3 text-center">Kvota</th>
-                  <th className="p-3 text-center">Profit</th>
+                <tr className="bg-black/20 text-zinc-500 uppercase tracking-wider text-[10px] font-bold">
+                  <th className="p-4 text-center">Datum</th><th className="p-4 text-center">Mode</th><th className="p-4 text-center">Status</th><th className="p-4 text-center w-[200px]">Dogodek</th><th className="p-4 text-center">Stavnica</th><th className="p-4 text-center">Tipster</th><th className="p-4 text-center">Kvota</th><th className="p-4 text-center">Profit</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/50">
+              <tbody className="divide-y divide-white/5">
                 {totalStats.settled.slice().reverse().slice(0, 20).map((row) => {
-                  
-                  // Določanje statusa
                   let statusBadge = null;
-                  if(row.wl === "BACK WIN") statusBadge = <span className="px-1.5 py-0.5 rounded text-[9px] font-black border text-emerald-400 bg-emerald-500/10 border-emerald-500/20">BACK WIN</span>;
-                  else if(row.wl === "LAY WIN") statusBadge = <span className="px-1.5 py-0.5 rounded text-[9px] font-black border text-pink-400 bg-pink-500/10 border-pink-500/20">LAY WIN</span>;
-                  else if(row.wl === "WIN") statusBadge = <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border text-emerald-400 bg-emerald-500/10 border-emerald-500/20">WIN</span>;
-                  else if(row.wl === "LOSS") statusBadge = <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border text-rose-400 bg-rose-500/10 border-rose-500/20">LOSS</span>;
-                  else statusBadge = <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border text-zinc-400 bg-zinc-500/10 border-zinc-500/20">{row.wl}</span>;
+                  if(row.wl === "BACK WIN") statusBadge = <span className="px-2 py-1 rounded text-[9px] font-black border text-emerald-400 bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_10px_-3px_rgba(16,185,129,0.3)]">BACK WIN</span>;
+                  else if(row.wl === "LAY WIN") statusBadge = <span className="px-2 py-1 rounded text-[9px] font-black border text-pink-400 bg-pink-500/10 border-pink-500/20 shadow-[0_0_10px_-3px_rgba(236,72,153,0.3)]">LAY WIN</span>;
+                  else if(row.wl === "WIN") statusBadge = <span className="px-2 py-1 rounded text-[9px] font-bold border text-emerald-400 bg-emerald-500/10 border-emerald-500/20">WIN</span>;
+                  else if(row.wl === "LOSS") statusBadge = <span className="px-2 py-1 rounded text-[9px] font-bold border text-rose-400 bg-rose-500/10 border-rose-500/20">LOSS</span>;
+                  else statusBadge = <span className="px-2 py-1 rounded text-[9px] font-bold border text-zinc-400 bg-zinc-500/10 border-zinc-500/20">{row.wl}</span>;
 
-                  // Določanje kvote
                   let displayKvota = row.kvota1;
-                  if (getMode(row) === "TRADING") {
-                    if (row.wl === "LAY WIN") displayKvota = row.lay_kvota;
-                    // Sicer pustimo Back kvoto (Back Win)
-                  } else {
-                    // Če je BET mode in je samo LAY
-                    if (hasLay(row) && !hasBack(row)) displayKvota = row.lay_kvota;
-                  }
+                  if (getMode(row) === "TRADING" && row.wl === "LAY WIN") displayKvota = row.lay_kvota;
+                  else if (hasLay(row) && !hasBack(row)) displayKvota = row.lay_kvota;
 
                   return (
-                    <tr key={row.id} className="hover:bg-zinc-800/30 transition-colors">
-                      <td className="p-3 text-zinc-400 text-center">{new Date(row.datum).toLocaleDateString("sl-SI")}</td>
-                      <td className="p-3 text-center"><span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${getMode(row) === 'TRADING' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>{getMode(row)}</span></td>
-                      <td className="p-3 text-center">{statusBadge}</td>
-                      <td className="p-3 text-zinc-300 text-center font-medium">{row.dogodek || "-"}</td>
-                      <td className="p-3 text-center text-zinc-500 uppercase text-[10px] tracking-wide">{row.stavnica}</td>
-                      <td className="p-3 text-center"><span className="px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">{row.tipster}</span></td>
-                      <td className="p-3 text-center text-zinc-300 font-bold">{displayKvota > 0 ? displayKvota.toFixed(2) : "-"}</td>
-                      <td className={`p-3 text-center font-mono font-bold ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurDec(calcProfit(row))}</td>
+                    <tr key={row.id} className="hover:bg-white/[0.03] transition-colors group">
+                      <td className="p-4 text-zinc-400 text-center font-mono">{new Date(row.datum).toLocaleDateString("sl-SI")}</td>
+                      <td className="p-4 text-center"><span className={`px-2 py-1 rounded text-[9px] font-bold border tracking-wider ${getMode(row) === 'TRADING' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>{getMode(row)}</span></td>
+                      <td className="p-4 text-center">{statusBadge}</td>
+                      <td className="p-4 text-zinc-300 text-center font-medium group-hover:text-white transition-colors">{row.dogodek || "-"}</td>
+                      <td className="p-4 text-center text-zinc-500 uppercase text-[9px] font-bold tracking-wider">{row.stavnica}</td>
+                      <td className="p-4 text-center"><span className="px-2 py-1 rounded bg-zinc-900 text-zinc-400 border border-zinc-800 text-[10px] font-bold">{row.tipster}</span></td>
+                      <td className="p-4 text-center text-zinc-300 font-mono font-bold">{displayKvota > 0 ? displayKvota.toFixed(2) : "-"}</td>
+                      <td className={`p-4 text-center font-mono font-black text-sm ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurDec(calcProfit(row))}</td>
                     </tr>
                   );
                 })}
@@ -644,7 +594,6 @@ export default function StatsPage() {
             </table>
           </div>
         </section>
-
       </div>
     </main>
   );
