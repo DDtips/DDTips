@@ -14,7 +14,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  ReferenceLine, // <--- TUKAJ JE BIL MANJKAJOČI IMPORT
+  ReferenceLine,
   LabelList
 } from "recharts";
 import {
@@ -76,10 +76,6 @@ function eur(n: number) {
   return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-function eurDec(n: number) {
-  return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function hasLay(b: Bet) {
   return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0;
 }
@@ -96,6 +92,7 @@ function calcProfit(b: Bet): number {
   const backOdds = b.kvota1 || 0;
   const layLiability = b.vplacilo2 || 0; 
   const layOdds = b.lay_kvota || 0;
+  
   const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
 
   let brutoProfit = 0;
@@ -103,6 +100,7 @@ function calcProfit(b: Bet): number {
   if (hasBack(b) && hasLay(b)) {
     const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
     const profitIfLayWins = layStake - backStake;
+
     if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
     else if (b.wl === "LAY WIN") brutoProfit = profitIfLayWins;
     else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
@@ -135,9 +133,11 @@ function calcRisk(b: Bet): number {
 
 function buildStats(rows: Bet[]) {
   const settled = rows.filter((r) => r.wl !== "OPEN" && r.wl !== "VOID");
+  
   const n = settled.length;
   const wins = settled.filter((r) => r.wl === "WIN" || r.wl === "BACK WIN" || r.wl === "LAY WIN").length;
   const losses = settled.filter((r) => r.wl === "LOSS").length;
+
   const profit = settled.reduce((acc, r) => acc + calcProfit(r), 0);
   const bankroll = CAPITAL_TOTAL + profit;
   const totalRisk = settled.reduce((acc, r) => acc + calcRisk(r), 0);
@@ -236,7 +236,9 @@ function MetricCard({
 
   return (
     <div className={`relative group overflow-hidden rounded-2xl bg-[#13151b]/80 backdrop-blur-xl border border-white/5 p-6 transition-all duration-300 hover:border-white/10 hover:shadow-2xl hover:shadow-${accentColor}-900/20 hover:-translate-y-1`}>
+      {/* Glow effect */}
       <div className={`absolute top-0 right-0 w-32 h-32 ${currentStyle.bg} blur-[60px] rounded-full opacity-20 group-hover:opacity-40 transition-opacity`} />
+      
       <div className="relative z-10">
         <div className="flex items-center justify-center mb-4">
           <div className={`p-2 rounded-xl ${currentStyle.bg} border ${currentStyle.border} ${currentStyle.text}`}>
@@ -244,6 +246,7 @@ function MetricCard({
           </div>
           <span className="ml-3 text-[11px] font-bold tracking-[0.2em] uppercase text-zinc-500 group-hover:text-zinc-300 transition-colors">{title}</span>
         </div>
+
         <div className="flex flex-col items-center justify-center gap-1">
           <div className="flex items-baseline gap-2">
              <span className={`font-mono font-bold tracking-tight text-white ${big ? "text-3xl lg:text-4xl" : "text-2xl"}`}>
@@ -279,18 +282,33 @@ function DataTable({
         <div className="p-1.5 rounded-lg bg-zinc-900 text-zinc-400 border border-white/5">{icon}</div>
         <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-zinc-300">{title}</h3>
       </div>
+
       <div className="p-2 space-y-1 overflow-y-auto custom-scrollbar flex-1">
         {data.map((item, idx) => {
           const barWidth = maxProfit > 0 ? (Math.abs(item.profit) / maxProfit) * 100 : 0;
           const isPositive = item.profit >= 0;
+
           return (
-            <div key={idx} className="relative flex items-center justify-between px-4 py-2.5 rounded-xl hover:bg-white/5 transition-all group">
-              <div className={`absolute left-0 bottom-0 top-0 opacity-10 transition-all duration-700 rounded-r-xl ${isPositive ? "bg-emerald-500" : "bg-rose-500"}`} style={{ width: `${barWidth}%` }} />
+            <div
+              key={idx}
+              className="relative flex items-center justify-between px-4 py-2.5 rounded-xl hover:bg-white/5 transition-all group"
+            >
+              {/* Progress Bar Background */}
+              <div
+                className={`absolute left-0 bottom-0 top-0 opacity-10 transition-all duration-700 rounded-r-xl ${isPositive ? "bg-emerald-500" : "bg-rose-500"}`}
+                style={{ width: `${barWidth}%` }}
+              />
+              
               <div className="flex items-center gap-3 relative z-10">
                 <div className={`w-1.5 h-1.5 rounded-full ${isPositive ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"}`} />
-                <span className="text-xs font-semibold text-zinc-300 group-hover:text-white transition-colors">{item.label}</span>
+                <span className="text-xs font-semibold text-zinc-300 group-hover:text-white transition-colors">
+                  {item.label}
+                </span>
               </div>
-              <span className={`relative z-10 text-xs font-mono font-bold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>{item.value}</span>
+              
+              <span className={`relative z-10 text-xs font-mono font-bold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
+                {item.value}
+              </span>
             </div>
           );
         })}
@@ -405,7 +423,9 @@ export default function HomePage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0f1117]"><div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin shadow-[0_0_20px_rgba(16,185,129,0.2)]" /></div>;
 
   return (
+    // SPREMEMBA: Svetlejše ozadje (bg-[#0f1117]) namesto #050505
     <main className="min-h-screen bg-[#0f1117] text-white antialiased selection:bg-emerald-500/30 font-sans">
+      {/* --- PREMIUIM OZADJE --- */}
       <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none z-0" />
       <div className="fixed top-[-10%] left-[-10%] w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none z-0 mix-blend-screen opacity-50" />
       <div className="fixed bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none z-0 mix-blend-screen opacity-50" />
@@ -417,7 +437,7 @@ export default function HomePage() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #52525b; }
       `}</style>
 
-      {/* --- PADDING PT-48 --- */}
+      {/* --- PADDING PT-48 OHRANJEN --- */}
       <div className="relative max-w-[1600px] mx-auto px-6 md:px-10 pt-48 pb-12 z-10">
         
         {/* TOP METRICS GRID */}
@@ -430,10 +450,22 @@ export default function HomePage() {
 
         {/* SECONDARY METRICS */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
-          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-emerald-500/30 transition-all"><div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Stave</p><p className="text-xl font-mono font-bold text-white mt-1">{stats.n}</p></div><div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Activity className="w-4 h-4"/></div></div>
-          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-emerald-500/30 transition-all"><div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Zmage</p><p className="text-xl font-mono font-bold text-emerald-400 mt-1">{stats.wins}</p></div><div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Trophy className="w-4 h-4"/></div></div>
-          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-rose-500/30 transition-all"><div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Porazi</p><p className="text-xl font-mono font-bold text-rose-400 mt-1">{stats.losses}</p></div><div className="p-2 bg-rose-500/10 rounded-lg text-rose-400"><ArrowDownRight className="w-4 h-4"/></div></div>
-          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-violet-500/30 transition-all"><div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Win Rate</p><p className="text-xl font-mono font-bold text-violet-400 mt-1">{stats.winRate.toFixed(1)}%</p></div><div className="p-2 bg-violet-500/10 rounded-lg text-violet-400"><Zap className="w-4 h-4"/></div></div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
+             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Stave</p><p className="text-xl font-mono font-bold text-white mt-1">{stats.n}</p></div>
+             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Activity className="w-4 h-4"/></div>
+          </div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
+             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Zmage</p><p className="text-xl font-mono font-bold text-emerald-400 mt-1">{stats.wins}</p></div>
+             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Trophy className="w-4 h-4"/></div>
+          </div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-rose-500/30 transition-all">
+             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Porazi</p><p className="text-xl font-mono font-bold text-rose-400 mt-1">{stats.losses}</p></div>
+             <div className="p-2 bg-rose-500/10 rounded-lg text-rose-400"><ArrowDownRight className="w-4 h-4"/></div>
+          </div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-violet-500/30 transition-all">
+             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Win Rate</p><p className="text-xl font-mono font-bold text-violet-400 mt-1">{stats.winRate.toFixed(1)}%</p></div>
+             <div className="p-2 bg-violet-500/10 rounded-lg text-violet-400"><Zap className="w-4 h-4"/></div>
+          </div>
         </section>
 
         {/* MAIN CONTENT SPLIT */}
@@ -441,21 +473,44 @@ export default function HomePage() {
           
           {/* LEFT: CHARTS (2/3 width) */}
           <div className="xl:col-span-2 flex flex-col gap-8">
-            {/* Daily Chart */}
+            {/* Daily Chart (RUNNING PROFIT) */}
             <div className="relative bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-6">
-                <div><h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Clock className="w-4 h-4 text-emerald-500"/> Tekoči Profit</h3><p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">{currentYearName}</p></div>
-                <div className="text-right"><p className="text-xs text-zinc-400">Trenutno</p><p className={`text-lg font-mono font-bold ${stats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(stats.profit)}</p></div>
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Clock className="w-4 h-4 text-emerald-500"/> Tekoči Profit</h3>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">{currentYearName}</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-xs text-zinc-400">Trenutno</p>
+                   <p className={`text-lg font-mono font-bold ${stats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(stats.profit)}</p>
+                </div>
               </div>
               <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartDaily}>
-                    <defs><linearGradient id="colorProfitDaily" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.4} /><stop offset="95%" stopColor="#10b981" stopOpacity={0} /></linearGradient></defs>
+                    <defs>
+                      <linearGradient id="colorProfitDaily" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                     <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} minTickGap={30} />
                     <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} />
-                    <Tooltip contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px", boxShadow: "0 10px 30px -10px rgba(0,0,0,0.5)" }} itemStyle={{ color: "#fff", fontWeight: "bold" }} formatter={(value: any) => [eur(value), "Kumulativno"]} />
-                    <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfitDaily)" activeDot={{ r: 6, strokeWidth: 0, fill: "#fff", shadow: "0 0 10px #10b981" }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px", boxShadow: "0 10px 30px -10px rgba(0,0,0,0.5)" }} 
+                      itemStyle={{ color: "#fff", fontWeight: "bold" }} 
+                      formatter={(value: any) => [eur(value), "Kumulativno"]} 
+                    />
+                    <Area 
+                        type="monotone" 
+                        dataKey="profit" 
+                        stroke="#10b981" 
+                        strokeWidth={3} 
+                        fillOpacity={1} 
+                        fill="url(#colorProfitDaily)" 
+                        activeDot={{ r: 6, strokeWidth: 0, fill: "#fff" }} 
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -463,20 +518,54 @@ export default function HomePage() {
 
             {/* Monthly Chart (BAR CHART) */}
             <div className="relative bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl">
-              <div className="flex items-center justify-between mb-6">
-                <div><h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Layers className="w-4 h-4 text-indigo-500"/> Mesečni Profit</h3><p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">{currentYearName}</p></div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Layers className="w-4 h-4 text-indigo-500"/> Mesečni Profit</h3>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">{currentYearName}</p>
+                </div>
               </div>
-              <div className="h-[280px] w-full">
+              <div className="h-[200px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartMonthly}>
+                  <BarChart data={chartMonthly} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} />
-                    <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} />
-                    <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px" }} itemStyle={{ color: "#fff", fontWeight: "bold" }} formatter={(value: any) => [eur(value), "Profit"]} />
+                    <XAxis 
+                        dataKey="monthName" 
+                        stroke="#52525b" 
+                        fontSize={10} 
+                        tickLine={false} 
+                        axisLine={false} 
+                        interval={0}
+                        dy={10}
+                    />
+                    <YAxis 
+                        stroke="#52525b" 
+                        fontSize={10} 
+                        tickLine={false} 
+                        axisLine={false} 
+                        tickFormatter={(val) => `€${val}`} 
+                    />
+                    <Tooltip
+                        cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                        content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                            const val = payload[0].value as number;
+                            return (
+                                <div className="bg-[#09090b] border border-[#27272a] rounded-lg p-3 shadow-xl backdrop-blur-md">
+                                <p className="text-zinc-400 text-[10px] uppercase font-bold mb-1 tracking-wider">{label}</p>
+                                <p className={`text-sm font-mono font-black ${val >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                    {val > 0 ? "+" : ""}{eur(val)}
+                                </p>
+                                </div>
+                            );
+                            }
+                            return null;
+                        }}
+                    />
                     <ReferenceLine y={0} stroke="#52525b" />
-                    <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
-                      {chartMonthly.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#10b981" : "#f43f5e"} />))}
-                      <LabelList dataKey="profit" position="top" formatter={(val: number) => val !== 0 ? eur(val) : ""} style={{ fill: "#9ca3af", fontSize: "10px", fontWeight: "bold" }} />
+                    <Bar dataKey="profit" radius={[4, 4, 4, 4]}>
+                        {chartMonthly.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#10b981" : "#f43f5e"} />
+                        ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -486,19 +575,47 @@ export default function HomePage() {
 
           {/* RIGHT: BOOKMAKERS (1/3 width) */}
           <div className="bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col h-full shadow-2xl">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2"><Wallet className="w-4 h-4 text-amber-500"/> Stanje Stavnic</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2">
+               <Wallet className="w-4 h-4 text-amber-500"/> Stanje Stavnic
+            </h3>
+            
+            {/* Header Cards */}
             <div className="grid grid-cols-2 gap-3 mb-6">
-               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center"><span className="text-[9px] text-zinc-500 uppercase tracking-wider">Skupaj</span><p className={`text-sm font-mono font-bold mt-1 ${skupnaBankaIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(skupnaBanka)}</p></div>
-               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center"><span className="text-[9px] text-zinc-500 uppercase tracking-wider">Profit</span><p className={`text-sm font-mono font-bold mt-1 ${profitIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(stats.profit)}</p></div>
+               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center">
+                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Skupaj</span>
+                  <p className={`text-sm font-mono font-bold mt-1 ${skupnaBankaIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(skupnaBanka)}</p>
+               </div>
+               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center">
+                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Profit</span>
+                  <p className={`text-sm font-mono font-bold mt-1 ${profitIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(stats.profit)}</p>
+               </div>
             </div>
+
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
                {stats.balanceByBook.map((book) => {
                   const isPositive = book.profit >= 0;
                   return (
                      <div key={book.name} className="relative group bg-zinc-900/30 hover:bg-zinc-900/60 border border-white/5 rounded-2xl p-4 transition-all duration-300">
-                        <div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-white">{book.name}</span><span className={`text-[10px] px-1.5 py-0.5 rounded ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{isPositive ? "+" : ""}{eur(book.profit)}</span></div>
-                        <div className="flex justify-between items-end"><div><p className="text-[9px] text-zinc-500 uppercase">Start</p><p className="text-xs text-zinc-400 font-mono">{eur(book.start)}</p></div><div className="text-right"><p className="text-[9px] text-zinc-500 uppercase">Balance</p><p className={`text-sm font-mono font-bold ${isPositive ? 'text-white' : 'text-rose-200'}`}>{eur(book.balance)}</p></div></div>
-                        <div className="mt-3 h-1 w-full bg-zinc-800 rounded-full overflow-hidden"><div className={`h-full ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} opacity-50`} style={{ width: `${Math.min((book.balance / (book.start * 2 || 100)) * 100, 100)}%` }}></div></div>
+                        <div className="flex justify-between items-center mb-2">
+                           <span className="text-xs font-bold text-white">{book.name}</span>
+                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                              {isPositive ? "+" : ""}{eur(book.profit)}
+                           </span>
+                        </div>
+                        <div className="flex justify-between items-end">
+                           <div>
+                              <p className="text-[9px] text-zinc-500 uppercase">Start</p>
+                              <p className="text-xs text-zinc-400 font-mono">{eur(book.start)}</p>
+                           </div>
+                           <div className="text-right">
+                              <p className="text-[9px] text-zinc-500 uppercase">Balance</p>
+                              <p className={`text-sm font-mono font-bold ${isPositive ? 'text-white' : 'text-rose-200'}`}>{eur(book.balance)}</p>
+                           </div>
+                        </div>
+                        {/* Progress bar visual */}
+                        <div className="mt-3 h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
+                           <div className={`h-full ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} opacity-50`} style={{ width: `${Math.min((book.balance / (book.start * 2 || 100)) * 100, 100)}%` }}></div>
+                        </div>
                      </div>
                   )
                })}
