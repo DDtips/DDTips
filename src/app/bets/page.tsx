@@ -21,7 +21,8 @@ import {
   Percent,
   Pencil,
   ChevronDown,
-  Save
+  Save,
+  RefreshCw // Dodana ikona za ročno osveževanje
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -114,7 +115,6 @@ function calcProfit(b: BetRow): number {
 
     if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
     else if (b.wl === "LAY WIN") brutoProfit = profitIfLayWins;
-    // Fallback za stare statuse
     else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
     else if (b.wl === "LOSS") brutoProfit = Math.min(profitIfBackWins, profitIfLayWins);
   }
@@ -132,7 +132,6 @@ function calcProfit(b: BetRow): number {
   }
 
   // ODŠTEVANJE KOMISIJE
-  // Odštejemo fiksni znesek samo, če smo v plusu
   if (brutoProfit > 0) {
     return brutoProfit - komZnesek;
   }
@@ -240,6 +239,7 @@ export default function BetsPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
+  const [mounted, setMounted] = useState(false);
 
   // ADD Form states
   const [datum, setDatum] = useState(() => new Date().toISOString().slice(0, 10));
@@ -273,6 +273,7 @@ export default function BetsPage() {
   const [editKomisija, setEditKomisija] = useState("");
 
   useEffect(() => {
+    setMounted(true);
     (async () => {
       const { data } = await supabase.auth.getUser();
       if (!data?.user) { window.location.href = "/login"; return; }
@@ -286,7 +287,12 @@ export default function BetsPage() {
     if (betSide === "BACK") { setLayKvota(""); setVplacilo2(""); } else { setKvota1(""); setVplacilo1(""); }
   }, [mode, betSide]);
 
+  // --- ODSTRANJEN INTERVAL: Stran se NE BO več osveževala sama ---
+  
   async function loadBets() {
+    // Če je odprt modal, vseeno ne osveži (za vsak slučaj, če ročno klikneš)
+    if (fullEditOpen || statusEditOpen) return;
+
     setLoading(true);
     setMsg(null);
     const { data, error } = await supabase.from("bets").select("*").order("datum", { ascending: false }).order("created_at", { ascending: false });
@@ -530,12 +536,26 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* TABLE */}
+        {/* TABLE HEADER Z GUMBOM ZA OSVEŽEVANJE */}
         <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden relative z-0">
           <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
-            <div className="flex items-center gap-3"><Activity className="w-4 h-4 text-zinc-400" /><h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Seznam Stav</h2></div>
-            <span className="text-[10px] font-bold text-zinc-500 bg-zinc-900/80 border border-zinc-800 px-2 py-1 rounded-md">{computed.withProfit.length}</span>
+            <div className="flex items-center gap-3">
+              <Activity className="w-4 h-4 text-zinc-400" />
+              <h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Seznam Stav</h2>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => loadBets()} 
+                className="p-1.5 rounded-lg bg-zinc-800 hover:bg-emerald-500/20 text-zinc-400 hover:text-emerald-400 transition-colors"
+                title="Ročno osveži podatke"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <span className="text-[10px] font-bold text-zinc-500 bg-zinc-900/80 border border-zinc-800 px-2 py-1 rounded-md">{computed.withProfit.length}</span>
+            </div>
           </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -591,7 +611,7 @@ export default function BetsPage() {
         {/* MODALS & FOOTER */}
         <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
           <p>© 2024 DDTips Analytics. Vse pravice pridržane.</p>
-          <p className="font-mono">Last updated: {new Date().toLocaleTimeString()}</p>
+          <p className="font-mono">Last updated: {mounted ? new Date().toLocaleTimeString() : "--:--:--"}</p>
         </footer>
       </div>
 
