@@ -6,7 +6,7 @@ import { LogOut, BarChart3, TrendingUp, Home, CheckCircle2, XCircle, Clock } fro
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-// --- POMOŽNA FUNKCIJA ZA PROFIT (Da preprečimo ReferenceError) ---
+// --- POMOŽNA FUNKCIJA ZA PROFIT ---
 function calcProfit(b: any): number {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
   const komZnesek = Number(b.komisija ?? 0);
@@ -40,7 +40,7 @@ function calcProfit(b: any): number {
 export default function Header() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
-  const [mounted, setMounted] = useState(false); // Za preprečitev Hydration errorja
+  const [mounted, setMounted] = useState(false);
   const [todayStats, setTodayStats] = useState({ profit: 0, wins: 0, losses: 0, open: 0 });
   const [todayGames, setTodayGames] = useState<any[]>([]);
 
@@ -49,12 +49,13 @@ export default function Header() {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     
+    // --- SPREMEMBA: Samo enkrat pridobi podatke ob nalaganju ---
     fetchTodayStats();
-    const interval = setInterval(fetchTodayStats, 60000); // Osveži na 1 minuto
+    
+    // Interval je ODSTRANJEN. Nič več avtomatskega osveževanja v ozadju.
     
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      clearInterval(interval);
     };
   }, []);
 
@@ -193,7 +194,7 @@ export default function Header() {
           100% { transform: translateX(-100%); }
         }
         .animate-marquee {
-          animation: marquee 35s linear infinite;
+          animation: marquee 25s linear infinite;
         }
         .hover\:pause:hover {
           animation-play-state: paused;
