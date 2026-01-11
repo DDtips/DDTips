@@ -397,14 +397,11 @@ export default function HomePage() {
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Avg", "Sep", "Okt", "Nov", "Dec"];
     const monthProfit = new Map<number, number>();
-    
-    // Inicializiraj vse mesece na 0
     for(let i=0; i<12; i++) monthProfit.set(i, 0);
 
-    // Seštej profit za vsak mesec posebej
-    settled.forEach((r) => { 
-      const month = new Date(r.datum).getMonth(); 
-      monthProfit.set(month, (monthProfit.get(month) ?? 0) + calcProfit(r)); 
+    settled.forEach((r) => {
+      const month = new Date(r.datum).getMonth();
+      monthProfit.set(month, (monthProfit.get(month) ?? 0) + calcProfit(r));
     });
 
     // Pripravi podatke za graf
@@ -514,7 +511,7 @@ export default function HomePage() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} />
+                    <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} minTickGap={30} />
                     <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} />
                     <Tooltip contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px", boxShadow: "0 10px 30px -10px rgba(0,0,0,0.5)" }} itemStyle={{ color: "#fff", fontWeight: "bold" }} formatter={(value: any) => [eur(value), "Kumulativno"]} />
                     <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfitDaily)" activeDot={{ r: 6, strokeWidth: 0, fill: "#fff" }} />
@@ -525,135 +522,132 @@ export default function HomePage() {
 
             {/* Monthly Chart (BAR CHART NOW) */}
             <div className="relative bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Layers className="w-4 h-4 text-indigo-500"/> Mesečni Profit</h3>
                   <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">{currentYearName}</p>
                 </div>
               </div>
-              <div className="h-[280px] w-full">
+              <div className="h-[200px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartMonthly}>
+                  <BarChart data={chartMonthly} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} />
-                    <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} />
-                    <Tooltip 
-                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                      contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px" }} 
-                      itemStyle={{ color: "#fff", fontWeight: "bold" }} 
-                      formatter={(value: any) => [eur(value), "Profit"]} 
+                    <XAxis 
+                        dataKey="monthName" 
+                        stroke="#52525b" 
+                        fontSize={10} 
+                        tickLine={false} 
+                        axisLine={false} 
+                        interval={0}
+                        dy={10}
+                    />
+                    <YAxis 
+                        stroke="#52525b" 
+                        fontSize={10} 
+                        tickLine={false} 
+                        axisLine={false} 
+                        tickFormatter={(val) => `€${val}`} 
+                    />
+                    <Tooltip
+                        cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                        content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                            const val = payload[0].value as number;
+                            return (
+                                <div className="bg-[#09090b] border border-[#27272a] rounded-lg p-3 shadow-xl backdrop-blur-md">
+                                <p className="text-zinc-400 text-[10px] uppercase font-bold mb-1 tracking-wider">{label}</p>
+                                <p className={`text-sm font-mono font-black ${val >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                    {val > 0 ? "+" : ""}{eur(val)}
+                                </p>
+                                </div>
+                            );
+                            }
+                            return null;
+                        }}
                     />
                     <ReferenceLine y={0} stroke="#52525b" />
-                    <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
-                      {chartMonthly.map((entry, index) => (
+                    <Bar dataKey="profit" radius={[4, 4, 4, 4]}>
+                        {chartMonthly.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#10b981" : "#f43f5e"} />
-                      ))}
-                      {/* LABEL SE PRIKAŽE SAMO, ČE JE PROFIT RAZLIČEN OD 0 */}
-                      <LabelList 
-                        dataKey="profit" 
-                        position="top" 
-                        formatter={(val: number) => val !== 0 ? eur(val) : ""} 
-                        style={{ fill: "#9ca3af", fontSize: "10px", fontWeight: "bold" }}
-                      />
+                        ))}
+                        {/* POPRAVLJEN FORMATTER ZA LABEL LIST */}
+                        <LabelList 
+                          dataKey="profit" 
+                          position="top" 
+                          formatter={(val: any) => val !== 0 ? eur(val) : ""} 
+                          style={{ fill: "#9ca3af", fontSize: "10px", fontWeight: "bold" }}
+                        />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
+
+            {/* --- NOVO: PIE CHART (Delež Vplačil) --- */}
+            <div className="relative bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row items-center gap-8">
+               <div className="flex-1">
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-2"><PieIcon className="w-4 h-4 text-violet-500"/> Delež Vplačil</h3>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-4">Po športih (Volume)</p>
+                  
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                     {pieData.map((entry, index) => (
+                       <div key={entry.name} className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          <span className="text-sm font-bold text-zinc-200 tracking-wide">{entry.name}</span>
+                       </div>
+                     ))}
+                  </div>
+               </div>
+               <div className="w-[180px] h-[180px] relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                     <PieChart>
+                        <Pie
+                           data={pieData}
+                           innerRadius={60}
+                           outerRadius={80}
+                           paddingAngle={5}
+                           dataKey="value"
+                           stroke="none"
+                        >
+                           {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                           ))}
+                        </Pie>
+                        <Tooltip 
+                           contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px" }} 
+                           itemStyle={{ color: "#fff", fontWeight: "bold" }}
+                           formatter={(val: any) => eur(val)}
+                        />
+                     </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center Text */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                     <span className="text-xs font-bold text-zinc-500 uppercase">Volume</span>
+                  </div>
+               </div>
+            </div>
+
           </div>
 
           {/* RIGHT: BOOKMAKERS (1/3 width) */}
           <div className="bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col h-full shadow-2xl">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2">
-               <Wallet className="w-4 h-4 text-amber-500"/> Stanje Stavnic
-            </h3>
-            
-            {/* Header Cards */}
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2"><Wallet className="w-4 h-4 text-amber-500"/> Stanje Stavnic</h3>
             <div className="grid grid-cols-2 gap-3 mb-6">
-               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center">
-                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Skupaj</span>
-                  <p className={`text-sm font-mono font-bold mt-1 ${skupnaBankaIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(skupnaBanka)}</p>
-               </div>
-               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center">
-                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Profit</span>
-                  <p className={`text-sm font-mono font-bold mt-1 ${profitIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(stats.profit)}</p>
-               </div>
+               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center"><span className="text-[9px] text-zinc-500 uppercase tracking-wider">Skupaj</span><p className={`text-sm font-mono font-bold mt-1 ${skupnaBankaIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(skupnaBanka)}</p></div>
+               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center"><span className="text-[9px] text-zinc-500 uppercase tracking-wider">Profit</span><p className={`text-sm font-mono font-bold mt-1 ${profitIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(stats.profit)}</p></div>
             </div>
-
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
                {stats.balanceByBook.map((book) => {
                   const isPositive = book.profit >= 0;
                   return (
                      <div key={book.name} className="relative group bg-zinc-900/30 hover:bg-zinc-900/60 border border-white/5 rounded-2xl p-4 transition-all duration-300">
-                        <div className="flex justify-between items-center mb-2">
-                           <span className="text-xs font-bold text-white">{book.name}</span>
-                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                              {isPositive ? "+" : ""}{eur(book.profit)}
-                           </span>
-                        </div>
-                        <div className="flex justify-between items-end">
-                           <div>
-                              <p className="text-[9px] text-zinc-500 uppercase">Start</p>
-                              <p className="text-xs text-zinc-400 font-mono">{eur(book.start)}</p>
-                           </div>
-                           <div className="text-right">
-                              <p className="text-[9px] text-zinc-500 uppercase">Balance</p>
-                              <p className={`text-sm font-mono font-bold ${isPositive ? 'text-white' : 'text-rose-200'}`}>{eur(book.balance)}</p>
-                           </div>
-                        </div>
-                        {/* Progress bar visual */}
-                        <div className="mt-3 h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
-                           <div className={`h-full ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} opacity-50`} style={{ width: `${Math.min((book.balance / (book.start * 2 || 100)) * 100, 100)}%` }}></div>
-                        </div>
+                        <div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-white">{book.name}</span><span className={`text-[10px] px-1.5 py-0.5 rounded ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{isPositive ? "+" : ""}{eur(book.profit)}</span></div>
+                        <div className="flex justify-between items-end"><div><p className="text-[9px] text-zinc-500 uppercase">Start</p><p className="text-xs text-zinc-400 font-mono">{eur(book.start)}</p></div><div className="text-right"><p className="text-[9px] text-zinc-500 uppercase">Balance</p><p className={`text-sm font-mono font-bold ${isPositive ? 'text-white' : 'text-rose-200'}`}>{eur(book.balance)}</p></div></div>
+                        <div className="mt-3 h-1 w-full bg-zinc-800 rounded-full overflow-hidden"><div className={`h-full ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} opacity-50`} style={{ width: `${Math.min((book.balance / (book.start * 2 || 100)) * 100, 100)}%` }}></div></div>
                      </div>
                   )
                })}
             </div>
-          </div>
-        </section>
-
-        {/* --- NOVO: PIE CHART (Delež Vplačil) --- */}
-        <section className="mb-10">
-          <div className="relative bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row items-center gap-8">
-             <div className="flex-1">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-2"><PieIcon className="w-4 h-4 text-violet-500"/> Delež Vplačil</h3>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-4">Po športih (Volume)</p>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                   {pieData.map((entry, index) => (
-                     <div key={entry.name} className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
-                        <span className="text-sm font-bold text-zinc-200 tracking-wide">{entry.name}</span>
-                     </div>
-                   ))}
-                </div>
-             </div>
-             <div className="w-[180px] h-[180px] relative">
-                <ResponsiveContainer width="100%" height="100%">
-                   <PieChart>
-                      <Pie
-                         data={pieData}
-                         innerRadius={60}
-                         outerRadius={80}
-                         paddingAngle={5}
-                         dataKey="value"
-                         stroke="none"
-                      >
-                         {pieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                         ))}
-                      </Pie>
-                      <Tooltip 
-                         contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px" }} 
-                         itemStyle={{ color: "#fff", fontWeight: "bold" }}
-                         formatter={(val: any) => eur(val)} // --- TUKAJ POPRAVLJENO ---
-                      />
-                   </PieChart>
-                </ResponsiveContainer>
-                {/* Center Text */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                   <span className="text-xs font-bold text-zinc-500 uppercase">Volume</span>
-                </div>
-             </div>
           </div>
         </section>
 
