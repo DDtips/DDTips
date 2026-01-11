@@ -22,7 +22,7 @@ import {
   Pencil,
   ChevronDown,
   Save,
-  RefreshCw // Dodana ikona za ročno osveževanje
+  RefreshCw // <--- Dodana ikona za osveževanje
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -95,20 +95,16 @@ function hasLay(b: BetRow): boolean {
 function calcProfit(b: BetRow): number {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
 
-  // 1. Komisija je fiksni znesek, ki ga preberemo
   const komZnesek = Number(b.komisija ?? 0);
-
   const backStake = b.vplacilo1 || 0;
   const backOdds = b.kvota1 || 0;
-  const layLiability = b.vplacilo2 || 0; // Vnos je Liability
+  const layLiability = b.vplacilo2 || 0; 
   const layOdds = b.lay_kvota || 0;
   
-  // Izračunamo Lay Stake (dobiček pri Lay zmagi) iz Liability
   const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
 
   let brutoProfit = 0;
 
-  // SCENARIJ 1: TRADING (Back in Lay vpisana)
   if (hasBack(b) && hasLay(b)) {
     const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
     const profitIfLayWins = layStake - backStake;
@@ -118,24 +114,18 @@ function calcProfit(b: BetRow): number {
     else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
     else if (b.wl === "LOSS") brutoProfit = Math.min(profitIfBackWins, profitIfLayWins);
   }
-
-  // SCENARIJ 2: SAMO LAY
   else if (!hasBack(b) && hasLay(b)) {
     if (b.wl === "WIN" || b.wl === "LAY WIN") brutoProfit = layStake;
     else if (b.wl === "LOSS" || b.wl === "BACK WIN") brutoProfit = -layLiability;
   }
-
-  // SCENARIJ 3: SAMO BACK
   else if (hasBack(b) && !hasLay(b)) {
     if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1);
     else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
   }
 
-  // ODŠTEVANJE KOMISIJE
   if (brutoProfit > 0) {
     return brutoProfit - komZnesek;
   }
-
   return brutoProfit;
 }
 
@@ -287,10 +277,8 @@ export default function BetsPage() {
     if (betSide === "BACK") { setLayKvota(""); setVplacilo2(""); } else { setKvota1(""); setVplacilo1(""); }
   }, [mode, betSide]);
 
-  // --- ODSTRANJEN INTERVAL: Stran se NE BO več osveževala sama ---
-  
   async function loadBets() {
-    // Če je odprt modal, vseeno ne osveži (za vsak slučaj, če ročno klikneš)
+    // ČE JE MODAL ODPRT, NE OSVEŽI (Varnost)
     if (fullEditOpen || statusEditOpen) return;
 
     setLoading(true);
@@ -383,21 +371,14 @@ export default function BetsPage() {
   }
 
   const filteredRows = useMemo(() => {
-    // 1. Filtriraj po mesecu
     const filtered = rows.filter((r) => r.datum.startsWith(selectedMonth));
-    
-    // 2. Sortiraj: Najprej datum padajoče (novejši zgoraj), nato created_at padajoče
     return filtered.sort((a, b) => {
-      // Datum primerjava (npr. "2024-01-09" vs "2024-01-07")
       if (b.datum > a.datum) return 1;
       if (b.datum < a.datum) return -1;
-      
-      // Če sta datuma enaka, sortiraj po času vnosa (created_at), da je zadnja vpisana na vrhu
       const tA = a.created_at || "";
       const tB = b.created_at || "";
       if (tB > tA) return 1;
       if (tB < tA) return -1;
-      
       return 0;
     });
   }, [rows, selectedMonth]);
@@ -448,7 +429,6 @@ export default function BetsPage() {
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20"><Plus className="w-4 h-4 text-emerald-500" /></div>
                 <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Nova Stava</h2>
               </div>
-              {/* Form inputs... */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
                 <InputField label="Datum" value={datum} onChange={setDatum} type="date" icon={<Calendar className="w-3 h-3" />} />
                 
@@ -508,10 +488,8 @@ export default function BetsPage() {
           </div>
         </section>
 
-        {/* --- MONTH STATS + FILTER NAZAJ SPODAJ (GRID 2-5) --- */}
+        {/* --- MONTH STATS --- */}
         <section className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
-          
-          {/* FILTER JE ZDAJ TUKAJ (prva dva stolpca) */}
           <div className="col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-4 flex items-center gap-4 group relative z-50">
             <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
                <Filter className="w-5 h-5" />
@@ -521,7 +499,6 @@ export default function BetsPage() {
                <MonthSelect value={selectedMonth} onChange={setSelectedMonth} options={availableMonths} />
             </div>
           </div>
-
           <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 backdrop-blur-sm p-4 text-center">
             <span className="text-[10px] font-bold tracking-widest uppercase text-emerald-400/80 block mb-1">Profit</span>
             <span className={`text-xl font-bold ${monthlyStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(monthlyStats.profit)}</span>
@@ -543,11 +520,10 @@ export default function BetsPage() {
               <Activity className="w-4 h-4 text-zinc-400" />
               <h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Seznam Stav</h2>
             </div>
-            
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => loadBets()} 
-                className="p-1.5 rounded-lg bg-zinc-800 hover:bg-emerald-500/20 text-zinc-400 hover:text-emerald-400 transition-colors"
+                className="p-1.5 rounded-lg bg-zinc-800 hover:bg-emerald-500/20 text-zinc-400 hover:text-emerald-400 transition-colors active:scale-95"
                 title="Ročno osveži podatke"
               >
                 <RefreshCw className="w-4 h-4" />
