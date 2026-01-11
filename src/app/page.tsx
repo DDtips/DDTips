@@ -10,6 +10,8 @@ import {
   BarChart,
   Bar,
   Cell,
+  PieChart,
+  Pie,
   XAxis,
   YAxis,
   Tooltip,
@@ -29,7 +31,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
-  Layers
+  Layers,
+  PieChart as PieIcon
 } from "lucide-react";
 
 // --- TIPOVI IN KONSTANTE ---
@@ -66,6 +69,17 @@ const BOOK_START: Record<string, number> = {
 const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"];
 const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"];
 
+// Barve za Pie Chart
+const PIE_COLORS = [
+  "#10b981", // Emerald
+  "#6366f1", // Indigo
+  "#f59e0b", // Amber
+  "#0ea5e9", // Sky
+  "#ec4899", // Pink
+  "#8b5cf6", // Violet
+  "#64748b", // Slate
+];
+
 // --- POMOŽNE FUNKCIJE ---
 
 function normBook(x: string) {
@@ -74,6 +88,10 @@ function normBook(x: string) {
 
 function eur(n: number) {
   return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function eurDec(n: number) {
+  return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function hasLay(b: Bet) {
@@ -92,7 +110,6 @@ function calcProfit(b: Bet): number {
   const backOdds = b.kvota1 || 0;
   const layLiability = b.vplacilo2 || 0; 
   const layOdds = b.lay_kvota || 0;
-  
   const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
 
   let brutoProfit = 0;
@@ -100,7 +117,6 @@ function calcProfit(b: Bet): number {
   if (hasBack(b) && hasLay(b)) {
     const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
     const profitIfLayWins = layStake - backStake;
-
     if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
     else if (b.wl === "LAY WIN") brutoProfit = profitIfLayWins;
     else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
@@ -133,7 +149,6 @@ function calcRisk(b: Bet): number {
 
 function buildStats(rows: Bet[]) {
   const settled = rows.filter((r) => r.wl !== "OPEN" && r.wl !== "VOID");
-  
   const n = settled.length;
   const wins = settled.filter((r) => r.wl === "WIN" || r.wl === "BACK WIN" || r.wl === "LAY WIN").length;
   const losses = settled.filter((r) => r.wl === "LOSS").length;
@@ -359,7 +374,7 @@ export default function HomePage() {
 
     const dailyMap = new Map<string, number>();
     settled.forEach((r) => {
-      const dateKey = r.datum; // "YYYY-MM-DD"
+      const dateKey = r.datum; 
       dailyMap.set(dateKey, (dailyMap.get(dateKey) || 0) + calcProfit(r));
     });
 
@@ -409,6 +424,21 @@ export default function HomePage() {
     });
   }, [rows]);
 
+  // --- NOVO: PIE CHART (Delež Vplačil) ---
+  const pieData = useMemo(() => {
+    const sportVolume = new Map<string, number>();
+    rows.forEach((r) => {
+        const risk = calcRisk(r);
+        const sport = r.sport || "OSTALO";
+        sportVolume.set(sport, (sportVolume.get(sport) || 0) + risk);
+    });
+
+    const data = Array.from(sportVolume.entries()).map(([name, value]) => ({ name, value }));
+    data.sort((a, b) => b.value - a.value);
+    
+    return data;
+  }, [rows]);
+
   const currentMonthName = new Date().toLocaleDateString("sl-SI", { month: "long", year: "numeric" });
   const currentYearName = new Date().getFullYear();
 
@@ -423,7 +453,6 @@ export default function HomePage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0f1117]"><div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin shadow-[0_0_20px_rgba(16,185,129,0.2)]" /></div>;
 
   return (
-    // SPREMEMBA: Svetlejše ozadje (bg-[#0f1117]) namesto #050505
     <main className="min-h-screen bg-[#0f1117] text-white antialiased selection:bg-emerald-500/30 font-sans">
       {/* --- PREMIUIM OZADJE --- */}
       <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none z-0" />
@@ -437,7 +466,6 @@ export default function HomePage() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #52525b; }
       `}</style>
 
-      {/* --- PADDING PT-48 OHRANJEN --- */}
       <div className="relative max-w-[1600px] mx-auto px-6 md:px-10 pt-48 pb-12 z-10">
         
         {/* TOP METRICS GRID */}
@@ -450,22 +478,10 @@ export default function HomePage() {
 
         {/* SECONDARY METRICS */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
-          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
-             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Stave</p><p className="text-xl font-mono font-bold text-white mt-1">{stats.n}</p></div>
-             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Activity className="w-4 h-4"/></div>
-          </div>
-          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
-             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Zmage</p><p className="text-xl font-mono font-bold text-emerald-400 mt-1">{stats.wins}</p></div>
-             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Trophy className="w-4 h-4"/></div>
-          </div>
-          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-rose-500/30 transition-all">
-             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Porazi</p><p className="text-xl font-mono font-bold text-rose-400 mt-1">{stats.losses}</p></div>
-             <div className="p-2 bg-rose-500/10 rounded-lg text-rose-400"><ArrowDownRight className="w-4 h-4"/></div>
-          </div>
-          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-violet-500/30 transition-all">
-             <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Win Rate</p><p className="text-xl font-mono font-bold text-violet-400 mt-1">{stats.winRate.toFixed(1)}%</p></div>
-             <div className="p-2 bg-violet-500/10 rounded-lg text-violet-400"><Zap className="w-4 h-4"/></div>
-          </div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-emerald-500/30 transition-all"><div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Stave</p><p className="text-xl font-mono font-bold text-white mt-1">{stats.n}</p></div><div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Activity className="w-4 h-4"/></div></div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-emerald-500/30 transition-all"><div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Zmage</p><p className="text-xl font-mono font-bold text-emerald-400 mt-1">{stats.wins}</p></div><div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><Trophy className="w-4 h-4"/></div></div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-rose-500/30 transition-all"><div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Porazi</p><p className="text-xl font-mono font-bold text-rose-400 mt-1">{stats.losses}</p></div><div className="p-2 bg-rose-500/10 rounded-lg text-rose-400"><ArrowDownRight className="w-4 h-4"/></div></div>
+          <div className="bg-[#13151b]/40 backdrop-blur-md rounded-xl border border-white/5 p-4 flex items-center justify-between group hover:border-violet-500/30 transition-all"><div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Win Rate</p><p className="text-xl font-mono font-bold text-violet-400 mt-1">{stats.winRate.toFixed(1)}%</p></div><div className="p-2 bg-violet-500/10 rounded-lg text-violet-400"><Zap className="w-4 h-4"/></div></div>
         </section>
 
         {/* MAIN CONTENT SPLIT */}
@@ -571,51 +587,69 @@ export default function HomePage() {
                 </ResponsiveContainer>
               </div>
             </div>
+
+            {/* --- NOVO: PIE CHART (Delež Vplačil) --- */}
+            <div className="relative bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row items-center gap-8">
+               <div className="flex-1">
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-2"><PieIcon className="w-4 h-4 text-violet-500"/> Delež Vplačil</h3>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-4">Po športih (Volume)</p>
+                  
+                  {/* UPDATE: Večji in lepši text */}
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                     {pieData.map((entry, index) => (
+                       <div key={entry.name} className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          <span className="text-sm font-bold text-zinc-200 tracking-wide">{entry.name}</span>
+                       </div>
+                     ))}
+                  </div>
+               </div>
+               <div className="w-[180px] h-[180px] relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                     <PieChart>
+                        <Pie
+                           data={pieData}
+                           innerRadius={60}
+                           outerRadius={80}
+                           paddingAngle={5}
+                           dataKey="value"
+                           stroke="none"
+                        >
+                           {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                           ))}
+                        </Pie>
+                        <Tooltip 
+                           contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px" }} 
+                           itemStyle={{ color: "#fff", fontWeight: "bold" }}
+                           formatter={(val: number) => eur(val)}
+                        />
+                     </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center Text */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                     <span className="text-xs font-bold text-zinc-500 uppercase">Volume</span>
+                  </div>
+               </div>
+            </div>
+
           </div>
 
           {/* RIGHT: BOOKMAKERS (1/3 width) */}
           <div className="bg-[#13151b]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col h-full shadow-2xl">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2">
-               <Wallet className="w-4 h-4 text-amber-500"/> Stanje Stavnic
-            </h3>
-            
-            {/* Header Cards */}
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2"><Wallet className="w-4 h-4 text-amber-500"/> Stanje Stavnic</h3>
             <div className="grid grid-cols-2 gap-3 mb-6">
-               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center">
-                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Skupaj</span>
-                  <p className={`text-sm font-mono font-bold mt-1 ${skupnaBankaIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(skupnaBanka)}</p>
-               </div>
-               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center">
-                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Profit</span>
-                  <p className={`text-sm font-mono font-bold mt-1 ${profitIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(stats.profit)}</p>
-               </div>
+               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center"><span className="text-[9px] text-zinc-500 uppercase tracking-wider">Skupaj</span><p className={`text-sm font-mono font-bold mt-1 ${skupnaBankaIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(skupnaBanka)}</p></div>
+               <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5 text-center"><span className="text-[9px] text-zinc-500 uppercase tracking-wider">Profit</span><p className={`text-sm font-mono font-bold mt-1 ${profitIsUp ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(stats.profit)}</p></div>
             </div>
-
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
                {stats.balanceByBook.map((book) => {
                   const isPositive = book.profit >= 0;
                   return (
                      <div key={book.name} className="relative group bg-zinc-900/30 hover:bg-zinc-900/60 border border-white/5 rounded-2xl p-4 transition-all duration-300">
-                        <div className="flex justify-between items-center mb-2">
-                           <span className="text-xs font-bold text-white">{book.name}</span>
-                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                              {isPositive ? "+" : ""}{eur(book.profit)}
-                           </span>
-                        </div>
-                        <div className="flex justify-between items-end">
-                           <div>
-                              <p className="text-[9px] text-zinc-500 uppercase">Start</p>
-                              <p className="text-xs text-zinc-400 font-mono">{eur(book.start)}</p>
-                           </div>
-                           <div className="text-right">
-                              <p className="text-[9px] text-zinc-500 uppercase">Balance</p>
-                              <p className={`text-sm font-mono font-bold ${isPositive ? 'text-white' : 'text-rose-200'}`}>{eur(book.balance)}</p>
-                           </div>
-                        </div>
-                        {/* Progress bar visual */}
-                        <div className="mt-3 h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
-                           <div className={`h-full ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} opacity-50`} style={{ width: `${Math.min((book.balance / (book.start * 2 || 100)) * 100, 100)}%` }}></div>
-                        </div>
+                        <div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-white">{book.name}</span><span className={`text-[10px] px-1.5 py-0.5 rounded ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{isPositive ? "+" : ""}{eur(book.profit)}</span></div>
+                        <div className="flex justify-between items-end"><div><p className="text-[9px] text-zinc-500 uppercase">Start</p><p className="text-xs text-zinc-400 font-mono">{eur(book.start)}</p></div><div className="text-right"><p className="text-[9px] text-zinc-500 uppercase">Balance</p><p className={`text-sm font-mono font-bold ${isPositive ? 'text-white' : 'text-rose-200'}`}>{eur(book.balance)}</p></div></div>
+                        <div className="mt-3 h-1 w-full bg-zinc-800 rounded-full overflow-hidden"><div className={`h-full ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} opacity-50`} style={{ width: `${Math.min((book.balance / (book.start * 2 || 100)) * 100, 100)}%` }}></div></div>
                      </div>
                   )
                })}
