@@ -194,7 +194,7 @@ export default function Header() {
           100% { transform: translateX(-100%); }
         }
         .animate-marquee {
-          animation: marquee 25s linear infinite;
+          animation: marquee 10s linear infinite;
         }
         .hover\:pause:hover {
           animation-play-state: paused;
