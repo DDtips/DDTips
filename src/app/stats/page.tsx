@@ -4,12 +4,11 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import {
-  AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ReferenceLine
+  AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
 import {
   Calendar, Filter, Users, Building2, Clock, Activity, RefreshCw, Layers,
-  Target, TrendingUp, Percent, ArrowRightLeft, Hash, Scale, ChevronDown, Check,
-  Wallet, Trophy, ArrowDownRight, ArrowUpRight
+  Target, TrendingUp, Percent, ArrowRightLeft, Hash, Scale, ChevronDown, Check
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -122,22 +121,18 @@ function buildStats(rows: Bet[], filteredRows: Bet[], isFilteredByDate: boolean)
   let chartSourceRows = settled;
   const currentYear = new Date().getFullYear();
   
-  // Če ni časovnega filtra, vzamemo samo stave tekočega leta
   if (!isFilteredByDate) {
       chartSourceRows = settled.filter(r => new Date(r.datum).getFullYear() === currentYear);
   }
 
-  // 1. Združimo po dnevih
   const dailyMap = new Map<string, number>();
   chartSourceRows.forEach(r => {
       const dateKey = r.datum; 
       dailyMap.set(dateKey, (dailyMap.get(dateKey) || 0) + calcProfit(r));
   });
 
-  // 2. Sortiramo po datumu
   const sortedDates = Array.from(dailyMap.keys()).sort();
 
-  // 3. Izračunamo kumulativo
   let runningProfit = 0;
   const chartData = sortedDates.map(date => {
       runningProfit += dailyMap.get(date) || 0;
@@ -149,7 +144,6 @@ function buildStats(rows: Bet[], filteredRows: Bet[], isFilteredByDate: boolean)
       };
   });
 
-  // 4. Če ni filtrirano po datumu, dodamo začetno točko 1. Jan = 0
   if (!isFilteredByDate && chartData.length > 0) {
       if (chartData[0].rawDate > `${currentYear}-01-01`) {
           chartData.unshift({ 
@@ -197,6 +191,32 @@ function getBreakdown(rows: Bet[], key: 'tipster' | 'sport' | 'cas_stave') {
   });
   return data.sort((a, b) => b.totalProfit - a.totalProfit);
 }
+
+// --- NOVI CUSTOM TOOLTIP ---
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const value = payload[0].value;
+    const isPositive = value >= 0;
+    
+    return (
+      <div className="bg-[#18181b]/95 border border-zinc-700/50 p-3 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] backdrop-blur-md min-w-[140px]">
+        {/* Naslov (Datum ali Mesec) */}
+        <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest mb-2 border-b border-white/5 pb-1">
+          {label}
+        </p>
+        
+        {/* Vrednost */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-zinc-300 font-medium">Profit:</span>
+          <span className={`text-sm font-mono font-black ${isPositive ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]' : 'text-rose-400 drop-shadow-[0_0_8px_rgba(251,113,133,0.3)]'}`}>
+            {value > 0 ? "+" : ""}{eurDec(value)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 // --- UI KOMPONENTE ---
 
@@ -296,7 +316,6 @@ function BigStatCard({ title, stats, variant = "main" }: { title: string; stats:
 
   return (
     <div className={`relative rounded-2xl border ${borderColor} ${gradient} backdrop-blur-xl overflow-hidden shadow-2xl transition-all hover:border-opacity-50 group`}>
-      {/* Background Glow */}
       <div className={`absolute top-0 right-0 w-64 h-64 ${variant === 'main' ? 'bg-emerald-500/5' : variant === 'betting' ? 'bg-sky-500/5' : 'bg-violet-500/5'} blur-[80px] rounded-full pointer-events-none group-hover:opacity-100 transition-opacity opacity-50`} />
 
       <div className="p-6 relative z-10">
@@ -583,9 +602,8 @@ export default function StatsPage() {
                   <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} dy={10} />
                   <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.5)' }}
-                    itemStyle={{ color: "#fff", fontWeight: "bold" }}
-                    formatter={(value: any) => [eurDec(value), "Profit"]}
+                    content={<CustomTooltip />}
+                    cursor={{ stroke: '#52525b', strokeWidth: 1, strokeDasharray: '3 3' }}
                   />
                   <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" activeDot={{ r: 6, strokeWidth: 0, fill: "#fff" }} />
                 </AreaChart>
@@ -612,18 +630,28 @@ export default function StatsPage() {
                 </div>
              </div>
 
-             <div className="rounded-3xl bg-[#13151b]/60 border border-white/5 backdrop-blur-xl p-6 shadow-lg flex-1 min-h-[200px]">
+             <div className="rounded-3xl bg-[#13151b]/60 border border-white/5 backdrop-blur-xl p-6 shadow-lg flex-1 min-h-[250px]">
                 <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400"><Layers className="w-4 h-4" /></div>
                     <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-zinc-300">Mesečni Profit</h3>
                 </div>
-                <div className="h-[150px] w-full">
+                <div className="h-[200px] w-full">
                    <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={totalStats.monthlyData}>
-                         <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: "8px" }} itemStyle={{ color: "#fff", fontWeight: "bold" }} formatter={(value: any) => [eur(value), "Profit"]} />
+                         <XAxis 
+                           dataKey="month" 
+                           stroke="#52525b" 
+                           fontSize={10} 
+                           tickLine={false} 
+                           axisLine={false} 
+                           dy={10} 
+                         />
+                         <Tooltip 
+                            content={<CustomTooltip />} 
+                            cursor={{ fill: 'rgba(255,255,255,0.05)', radius: 4 }} 
+                         />
                          <Bar dataKey="profit" radius={[4, 4, 4, 4]}>
                             {totalStats.monthlyData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#10b981" : "#f43f5e"} />))}
-                            <LabelList dataKey="profit" position="top" formatter={(val: any) => val !== 0 ? (val > 0 ? "+" : "") + eur(val) : ""} style={{ fill: "#d4d4d8", fontSize: "10px", fontWeight: "bold", fontFamily: "monospace" }} />
                          </Bar>
                       </BarChart>
                    </ResponsiveContainer>
