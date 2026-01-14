@@ -329,9 +329,7 @@ async function addBet() {
 
     // --- PAMETNA TELEGRAM NOTIFIKACIJA ---
     try {
-      // 1. Določimo naslov glede na izbran status
       let naslov = "🆕 NOVA STAVA!";
-      
       if (wl === "WIN" || wl === "BACK WIN" || wl === "LAY WIN") {
         naslov = "✅ NOVA STAVA - TAKOJŠNJA ZMAGA!";
       } else if (wl === "LOSS") {
@@ -340,7 +338,6 @@ async function addBet() {
         naslov = "⚠️ NOVA STAVA - VOID";
       }
 
-      // 2. Sestavimo sporočilo
       const telegramMsg = `
 <b>${naslov}</b>
 
@@ -353,7 +350,6 @@ async function addBet() {
 📝 Status: <b>${wl}</b>
       `;
 
-      // 3. Pošljemo
       fetch("/api/send-telegram", {
         method: "POST",
         body: JSON.stringify({ message: telegramMsg }),
@@ -365,6 +361,10 @@ async function addBet() {
     
     resetForm();
     setShowAddForm(false);
+    
+    // --- NOTIFIKACIJA HEADRJU DA SE OSVEŽI ---
+    window.dispatchEvent(new Event("bets-updated"));
+    
     toast.success("Stava uspešno dodana!");
   }
 
@@ -385,6 +385,10 @@ async function addBet() {
             setFullEditOpen(false);
             setEditingBet(null);
         }
+        
+        // --- NOTIFIKACIJA HEADRJU DA SE OSVEŽI ---
+        window.dispatchEvent(new Event("bets-updated"));
+
         toast.success("Stava uspešno izbrisana", {
             style: { background: '#09090b', border: '1px solid #27272a', color: 'white' }
         });
@@ -413,33 +417,22 @@ async function addBet() {
     const { error } = await supabase.from("bets").update({ wl: statusEditWl }).eq("id", statusEditId);
     if (error) { setMsg(error.message); return; }
     
-    // Dobimo stavo za obvestilo (preden posodobimo state)
     const updatedBet = rows.find(r => r.id === statusEditId);
-
     setRows((prev) => prev.map((r) => (r.id === statusEditId ? { ...r, wl: statusEditWl } : r)));
 
-    // --- TELEGRAM NOTIFIKACIJA ZA SPREMEMBO STATUSA ---
     if (updatedBet && (statusEditWl === "WIN" || statusEditWl === "LOSS" || statusEditWl === "BACK WIN" || statusEditWl === "LAY WIN")) {
        const isWin = statusEditWl === "WIN" || statusEditWl === "BACK WIN" || statusEditWl === "LAY WIN";
        const emoji = isWin ? "✅" : "❌";
        const naslov = isWin ? "ZMAGA!" : "PORAZ";
-       
-       const msg = `
-<b>${emoji} STAVA ZAKLJUČENA: ${naslov}</b>
-
-⚽ ${updatedBet.dogodek}
-🎯 ${updatedBet.tip}
-📊 Status: <b>${statusEditWl}</b>
-       `;
-
-       fetch("/api/send-telegram", {
-          method: "POST",
-          body: JSON.stringify({ message: msg }),
-       });
+       const msg = `<b>${emoji} STAVA ZAKLJUČENA: ${naslov}</b>\n\n⚽ ${updatedBet.dogodek}\n🎯 ${updatedBet.tip}\n📊 Status: <b>${statusEditWl}</b>`;
+       fetch("/api/send-telegram", { method: "POST", body: JSON.stringify({ message: msg }) });
     }
-    // ------------------------------------------------
 
     setStatusEditOpen(false); setStatusEditId(null);
+    
+    // --- NOTIFIKACIJA HEADRJU DA SE OSVEŽI ---
+    window.dispatchEvent(new Event("bets-updated"));
+
     toast.success("Status posodobljen");
   }
 
@@ -467,6 +460,10 @@ async function addBet() {
     if (error) { alert("Napaka pri shranjevanju: " + error.message); return; }
     setRows((prev) => prev.map((r) => (r.id === updatedBet.id ? updatedBet : r)));
     setFullEditOpen(false); setEditingBet(null);
+    
+    // --- NOTIFIKACIJA HEADRJU DA SE OSVEŽI ---
+    window.dispatchEvent(new Event("bets-updated"));
+
     toast.success("Stava posodobljena");
   }
 
@@ -615,7 +612,7 @@ async function addBet() {
           </div>
         </div>
 
-        {/* --- TABLE (POSODOBNJENO: STICKY, SCROLL, MONO FONT, EMPTY STATE) --- */}
+        {/* --- TABLE (POSODOBNJENO) --- */}
         <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden relative z-0 flex flex-col h-[calc(100vh-350px)] min-h-[500px]">
           {/* Header Bar */}
           <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between shrink-0">
@@ -681,12 +678,23 @@ async function addBet() {
                         <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-rose-300 font-medium font-mono tracking-tight">{(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : "-"}</span></td>
                         <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-zinc-400 font-mono tracking-tight">{(r.vplacilo2 ?? 0) > 0 ? eurCompact(r.vplacilo2 ?? 0) : "-"}</span></td>
                         <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-zinc-500 font-mono tracking-tight">{(r.komisija ?? 0) > 0 ? eurCompact(r.komisija ?? 0) : "-"}</span></td>
-                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className={`font-mono font-bold tracking-tight ${r.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurCompact(r.profit)}</span></td>
+                        
+                        {/* --- PROFIT (BADGE STYLE) --- */}
+                        <td className="py-3 px-3 text-center border-b border-zinc-800/30">
+                            <div className={`inline-flex items-center justify-center px-2 py-1 rounded-md font-mono font-bold text-xs tracking-tight border min-w-[70px] ${
+                                r.profit > 0 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_-4px_rgba(16,185,129,0.3)]" : 
+                                r.profit < 0 ? "bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-[0_0_10px_-4px_rgba(244,63,94,0.3)]" : 
+                                "bg-zinc-800 border-zinc-700 text-zinc-400"
+                            }`}>
+                                {eurCompact(r.profit)}
+                            </div>
+                        </td>
                         
                         <td className="py-3 px-3 text-center border-b border-zinc-800/30"><div className="flex flex-col items-center gap-1"><span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-300 rounded">{r.tipster}</span><span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">{r.sport}</span></div></td>
                         <td className="py-3 px-3 text-zinc-400 text-center text-xs border-b border-zinc-800/30">{r.stavnica}</td>
                         <td className="py-3 px-2 text-center border-b border-zinc-800/30">
-                           <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                           {/* --- GUMBI (VEDNO VIDNI) --- */}
+                           <div className="flex items-center justify-center gap-2">
                               <button onClick={() => openFullEdit(r)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-blue-500/20 text-zinc-400 hover:text-blue-400 transition-colors"><Pencil className="w-4 h-4" /></button>
                               <button onClick={() => openDeleteModal(r.id)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
                            </div>
