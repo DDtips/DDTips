@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { Toaster, toast } from "sonner";
 import {
   Calendar,
   TrendingUp,
@@ -23,7 +24,10 @@ import {
   ChevronDown,
   Save,
   RefreshCw,
-  Minus
+  Minus,
+  AlertTriangle,
+  Loader2,
+  Inbox // Nova ikona za empty state
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -43,8 +47,8 @@ type BetRow = {
   kvota1: number;
   vplacilo1: number;
   lay_kvota: number | null;
-  vplacilo2: number | null; // Liability
-  komisija: number | null; // Fiksni znesek
+  vplacilo2: number | null;
+  komisija: number | null;
   sport: string;
   cas_stave: PreLive;
   tipster: string;
@@ -231,7 +235,12 @@ export default function BetsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [mounted, setMounted] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false); // NOVO: Kontrola za prikaz forme
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  // --- STATE ZA BRISANJE (MODAL) ---
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [betToDelete, setBetToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // ADD Form states
   const [datum, setDatum] = useState(() => new Date().toISOString().slice(0, 10));
@@ -280,8 +289,7 @@ export default function BetsPage() {
   }, [mode, betSide]);
 
   async function loadBets() {
-    // ČE JE MODAL ODPRT, NE OSVEŽI (Varnost)
-    if (fullEditOpen || statusEditOpen) return;
+    if (fullEditOpen || statusEditOpen || isDeleteModalOpen) return;
 
     setLoading(true);
     setMsg(null);
@@ -316,20 +324,39 @@ export default function BetsPage() {
 
     const { data, error } = await supabase.from("bets").insert(payload).select("*").single();
     if (error) { setMsg(error.message); return; }
+    
     setRows((prev) => [data as BetRow, ...prev]);
     resetForm();
-    setShowAddForm(false); // Zapri formo po dodajanju
+    setShowAddForm(false);
+    toast.success("Stava uspešno dodana!");
   }
 
-  async function deleteBet(id: string) {
-    if (!confirm("Si prepričan, da želiš izbrisati to stavo?")) return;
-    const { error } = await supabase.from("bets").delete().eq("id", id);
-    if (error) { setMsg(error.message); return; }
-    setRows((prev) => prev.filter((r) => r.id !== id));
-    
-    if (fullEditOpen && editingBet?.id === id) {
-        setFullEditOpen(false);
-        setEditingBet(null);
+  function openDeleteModal(id: string) {
+    setBetToDelete(id);
+    setIsDeleteModalOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!betToDelete) return;
+    setDeleting(true);
+
+    try {
+        const { error } = await supabase.from("bets").delete().eq("id", betToDelete);
+        if (error) throw error;
+        setRows((prev) => prev.filter((r) => r.id !== betToDelete));
+        if (fullEditOpen && editingBet?.id === betToDelete) {
+            setFullEditOpen(false);
+            setEditingBet(null);
+        }
+        toast.success("Stava uspešno izbrisana", {
+            style: { background: '#09090b', border: '1px solid #27272a', color: 'white' }
+        });
+        setIsDeleteModalOpen(false);
+        setBetToDelete(null);
+    } catch (error: any) {
+        toast.error("Napaka pri brisanju: " + error.message);
+    } finally {
+        setDeleting(false);
     }
   }
 
@@ -350,6 +377,7 @@ export default function BetsPage() {
     if (error) { setMsg(error.message); return; }
     setRows((prev) => prev.map((r) => (r.id === statusEditId ? { ...r, wl: statusEditWl } : r)));
     setStatusEditOpen(false); setStatusEditId(null);
+    toast.success("Status posodobljen");
   }
 
   async function saveFullEdit() {
@@ -376,6 +404,7 @@ export default function BetsPage() {
     if (error) { alert("Napaka pri shranjevanju: " + error.message); return; }
     setRows((prev) => prev.map((r) => (r.id === updatedBet.id ? updatedBet : r)));
     setFullEditOpen(false); setEditingBet(null);
+    toast.success("Stava posodobljena");
   }
 
   const filteredRows = useMemo(() => {
@@ -411,6 +440,8 @@ export default function BetsPage() {
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
+      <Toaster position="top-center" theme="dark" richColors />
+
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
 
@@ -421,14 +452,11 @@ export default function BetsPage() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
       `}</style>
 
-      {/* --- POPRAVEK: ZGORNJI PADDING pt-48 --- */}
       <div className="relative max-w-[1800px] mx-auto px-4 md:px-6 pt-48 pb-12">
         
-        {/* --- GLAVNI HEADER (FILTER MESECA + NOVA STAVA) --- */}
+        {/* HEADER STATS */}
         <section className="mb-8 flex flex-col md:flex-row items-stretch gap-4 justify-between">
-          {/* LEVO: Filter in Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
-             {/* Filter Meseca */}
              <div className="col-span-2 md:col-span-1 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-3 flex items-center gap-3 group relative z-50">
                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-400 group-focus-within:text-emerald-500 transition-colors"><Filter className="w-5 h-5" /></div>
                <div className="flex-1 relative">
@@ -436,32 +464,21 @@ export default function BetsPage() {
                   <MonthSelect value={selectedMonth} onChange={setSelectedMonth} options={availableMonths} />
                </div>
              </div>
-
-             {/* Profit */}
              <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 backdrop-blur-sm p-3 flex flex-col justify-center text-center">
                <span className="text-[9px] font-bold tracking-widest uppercase text-emerald-400/80 mb-1">Profit</span>
                <span className={`text-xl font-mono font-black ${monthlyStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(monthlyStats.profit)}</span>
              </div>
-
-             {/* W/L */}
              <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-3 flex flex-col justify-center text-center">
                <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">W / L</span>
                <span className="text-xl font-bold text-white"><span className="text-emerald-400">{monthlyStats.wins}</span><span className="text-zinc-600 mx-1">/</span><span className="text-rose-400">{monthlyStats.losses}</span></span>
              </div>
-
-             {/* Odprte */}
              <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-amber-500/20 backdrop-blur-sm p-3 flex flex-col justify-center text-center">
                <span className="text-[9px] font-bold tracking-widest uppercase text-amber-400/80 mb-1">Odprte</span>
                <span className="text-xl font-bold text-amber-400">{monthlyStats.openCount}</span>
              </div>
           </div>
-
-          {/* DESNO: Gumb Nova Stava */}
           <div className="flex items-center">
-             <button 
-                onClick={() => setShowAddForm(!showAddForm)} 
-                className={`h-full md:h-auto w-full md:w-auto px-6 py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all shadow-lg active:scale-95 ${showAddForm ? 'bg-zinc-800 text-zinc-300 border border-zinc-700' : 'bg-emerald-500 text-black hover:bg-emerald-400 shadow-emerald-500/20'}`}
-             >
+             <button onClick={() => setShowAddForm(!showAddForm)} className={`h-full md:h-auto w-full md:w-auto px-6 py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all shadow-lg active:scale-95 ${showAddForm ? 'bg-zinc-800 text-zinc-300 border border-zinc-700' : 'bg-emerald-500 text-black hover:bg-emerald-400 shadow-emerald-500/20'}`}>
                 {showAddForm ? <Minus className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
                 <span className="uppercase tracking-wider text-xs">{showAddForm ? "Zapri" : "Nova Stava"}</span>
              </button>
@@ -470,7 +487,7 @@ export default function BetsPage() {
 
         {msg && <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center">{msg}</div>}
 
-        {/* ADD FORM (SKRITA PO PRIVZETEM) */}
+        {/* ADD FORM */}
         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${showAddForm ? 'max-h-[800px] opacity-100 mb-10' : 'max-h-0 opacity-0 mb-0'}`}>
           <div className="rounded-3xl border border-zinc-800/60 bg-gradient-to-b from-zinc-900 to-black p-1 shadow-2xl">
             <div className="rounded-[20px] bg-zinc-900/50 p-6 backdrop-blur-md">
@@ -478,7 +495,6 @@ export default function BetsPage() {
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20"><Plus className="w-4 h-4 text-emerald-500" /></div>
                 <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Vnos Stave</h2>
               </div>
-              {/* Form Inputs... */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
                 <InputField label="Datum" value={datum} onChange={setDatum} type="date" icon={<Calendar className="w-3 h-3" />} />
                 <div className="space-y-1.5">
@@ -536,9 +552,10 @@ export default function BetsPage() {
           </div>
         </div>
 
-        {/* --- TABLE --- */}
-        <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden relative z-0">
-          <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
+        {/* --- TABLE (POSODOBNJENO: STICKY, SCROLL, MONO FONT, EMPTY STATE) --- */}
+        <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden relative z-0 flex flex-col h-[calc(100vh-350px)] min-h-[500px]">
+          {/* Header Bar */}
+          <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <Activity className="w-4 h-4 text-zinc-400" />
               <h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Seznam Stav</h2>
@@ -548,51 +565,73 @@ export default function BetsPage() {
               <span className="text-[10px] font-bold text-zinc-500 bg-zinc-900/80 border border-zinc-800 px-2 py-1 rounded-md">{computed.withProfit.length}</span>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-800/50 bg-zinc-900/50">
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Datum</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Status</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Mode</th>
-                  <th className="text-center py-4 px-4 font-bold tracking-wider uppercase text-zinc-500" style={{ minWidth: "180px" }}>Dogodek</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Back</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Vplač.</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Lay</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Liability</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Kom.</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Profit</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Tipster / Šport</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Stavnica</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500">Akcija</th>
+
+          {/* Table Container - Scrollable */}
+          <div className="overflow-auto custom-scrollbar flex-1 relative">
+            <table className="w-full text-sm border-separate border-spacing-0">
+              <thead className="sticky top-0 z-20">
+                <tr className="bg-[#0c0c0e] border-b border-zinc-800/50">
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Datum</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Status</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Mode</th>
+                  <th className="text-center py-4 px-4 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50" style={{ minWidth: "180px" }}>Dogodek</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Back</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Vplač.</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Lay</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Liability</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Kom.</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Profit</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Tipster / Šport</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Stavnica</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Akcija</th>
                 </tr>
               </thead>
               <tbody>
-                {computed.withProfit.map((r, idx) => {
-                  const rowMode: Mode = (r.mode as Mode) || (hasBack(r) && hasLay(r) ? "TRADING" : "BET");
-                  return (
-                    <tr key={r.id} className={`border-b border-zinc-800/30 hover:bg-zinc-800/40 transition-colors group ${idx % 2 === 0 ? "bg-zinc-900/20" : "bg-transparent"}`}>
-                      <td className="py-3 px-3 text-zinc-400 text-center whitespace-nowrap">{formatDateSlovenian(r.datum)}</td>
-                      <td className="py-3 px-3 text-center"><StatusBadge wl={r.wl} onClick={() => openStatusEdit(r)} /></td>
-                      <td className="py-3 px-3 text-center"><span className={`px-2 py-0.5 rounded text-xs font-bold border ${rowMode === "TRADING" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-sky-500/10 text-sky-400 border-sky-500/20"}`}>{rowMode}</span></td>
-                      <td className="py-3 px-4 text-center"><div className="space-y-0.5"><TooltipCell text={r.dogodek} className="text-white font-medium" /><TooltipCell text={r.tip} className="text-zinc-500 text-xs" /></div></td>
-                      <td className="py-3 px-3 text-zinc-300 font-medium text-center">{r.kvota1 > 0 ? r.kvota1.toFixed(2) : "-"}</td>
-                      <td className="py-3 px-3 text-zinc-400 text-center">{r.vplacilo1 > 0 ? eurCompact(r.vplacilo1) : "-"}</td>
-                      <td className="py-3 px-3 text-rose-300 font-medium text-center">{(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : "-"}</td>
-                      <td className="py-3 px-3 text-zinc-400 text-center">{(r.vplacilo2 ?? 0) > 0 ? eurCompact(r.vplacilo2 ?? 0) : "-"}</td>
-                      <td className="py-3 px-3 text-zinc-500 text-center">{(r.komisija ?? 0) > 0 ? eurCompact(r.komisija ?? 0) : "-"}</td>
-                      <td className="py-3 px-3 text-center"><span className={`font-mono font-bold ${r.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurCompact(r.profit)}</span></td>
-                      <td className="py-3 px-3 text-center"><div className="flex flex-col items-center gap-1"><span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-300 rounded">{r.tipster}</span><span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">{r.sport}</span></div></td>
-                      <td className="py-3 px-3 text-zinc-400 text-center text-xs">{r.stavnica}</td>
-                      <td className="py-3 px-2 text-center">
-                         <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            <button onClick={() => openFullEdit(r)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-blue-500/20 text-zinc-400 hover:text-blue-400 transition-colors"><Pencil className="w-4 h-4" /></button>
-                            <button onClick={() => deleteBet(r.id)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {computed.withProfit.length === 0 ? (
+                  /* --- EMPTY STATE --- */
+                  <tr>
+                    <td colSpan={13} className="py-24 text-center">
+                      <div className="flex flex-col items-center justify-center opacity-40">
+                        <div className="w-16 h-16 bg-zinc-800/50 rounded-full flex items-center justify-center mb-4 border border-zinc-700/50">
+                          <Inbox className="w-8 h-8 text-zinc-500" />
+                        </div>
+                        <h3 className="text-zinc-300 font-bold text-lg mb-1">Ni podatkov za ta mesec</h3>
+                        <p className="text-zinc-500 text-xs uppercase tracking-wider mb-6">V tem obdobju še ni vpisane nobene stave.</p>
+                        <button onClick={() => setShowAddForm(true)} className="px-5 py-2.5 rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 text-xs font-bold uppercase tracking-widest hover:bg-emerald-500 hover:text-black transition-all">
+                           + Dodaj prvo stavo
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  computed.withProfit.map((r, idx) => {
+                    const rowMode: Mode = (r.mode as Mode) || (hasBack(r) && hasLay(r) ? "TRADING" : "BET");
+                    return (
+                      <tr key={r.id} className={`border-b border-zinc-800/30 hover:bg-zinc-800/40 transition-colors group ${idx % 2 === 0 ? "bg-zinc-900/20" : "bg-transparent"}`}>
+                        <td className="py-3 px-3 text-zinc-400 text-center whitespace-nowrap border-b border-zinc-800/30">{formatDateSlovenian(r.datum)}</td>
+                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><StatusBadge wl={r.wl} onClick={() => openStatusEdit(r)} /></td>
+                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className={`px-2 py-0.5 rounded text-xs font-bold border ${rowMode === "TRADING" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-sky-500/10 text-sky-400 border-sky-500/20"}`}>{rowMode}</span></td>
+                        <td className="py-3 px-4 text-center border-b border-zinc-800/30"><div className="space-y-0.5"><TooltipCell text={r.dogodek} className="text-white font-medium" /><TooltipCell text={r.tip} className="text-zinc-500 text-xs" /></div></td>
+                        {/* MONOSPACE NUMBERS */}
+                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-zinc-300 font-medium font-mono tracking-tight">{r.kvota1 > 0 ? r.kvota1.toFixed(2) : "-"}</span></td>
+                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-zinc-400 font-mono tracking-tight">{r.vplacilo1 > 0 ? eurCompact(r.vplacilo1) : "-"}</span></td>
+                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-rose-300 font-medium font-mono tracking-tight">{(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : "-"}</span></td>
+                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-zinc-400 font-mono tracking-tight">{(r.vplacilo2 ?? 0) > 0 ? eurCompact(r.vplacilo2 ?? 0) : "-"}</span></td>
+                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-zinc-500 font-mono tracking-tight">{(r.komisija ?? 0) > 0 ? eurCompact(r.komisija ?? 0) : "-"}</span></td>
+                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className={`font-mono font-bold tracking-tight ${r.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurCompact(r.profit)}</span></td>
+                        
+                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><div className="flex flex-col items-center gap-1"><span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-300 rounded">{r.tipster}</span><span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">{r.sport}</span></div></td>
+                        <td className="py-3 px-3 text-zinc-400 text-center text-xs border-b border-zinc-800/30">{r.stavnica}</td>
+                        <td className="py-3 px-2 text-center border-b border-zinc-800/30">
+                           <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <button onClick={() => openFullEdit(r)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-blue-500/20 text-zinc-400 hover:text-blue-400 transition-colors"><Pencil className="w-4 h-4" /></button>
+                              <button onClick={() => openDeleteModal(r.id)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                           </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -669,7 +708,7 @@ export default function BetsPage() {
             
             <div className="flex gap-3 mt-8 pt-4 border-t border-zinc-800">
               <button 
-                onClick={() => deleteBet(editingBet.id)} 
+                onClick={() => openDeleteModal(editingBet.id)} 
                 className="px-4 py-2.5 bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold rounded-xl hover:bg-rose-500/20 transition-all flex items-center gap-2"
                 title="Izbriši to stavo"
               >
@@ -682,6 +721,32 @@ export default function BetsPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* --- CUSTOM MODAL ZA BRISANJE --- */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onClick={() => setIsDeleteModalOpen(false)} />
+            <div className="relative w-full max-w-sm bg-[#09090b] border border-white/10 rounded-2xl shadow-[0_0_50px_-10px_rgba(0,0,0,0.7)] p-6 overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-rose-500 to-transparent opacity-50" />
+                <div className="flex flex-col items-center text-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
+                        <AlertTriangle className="w-6 h-6 text-rose-500" />
+                    </div>
+                    <div className="space-y-1">
+                        <h3 className="text-lg font-bold text-white">Izbriši stavo?</h3>
+                        <p className="text-sm text-zinc-400">Ali ste prepričani, da želite izbrisati to stavo? Tega dejanja ni mogoče razveljaviti.</p>
+                    </div>
+                    <div className="flex gap-3 w-full mt-2">
+                        <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-2.5 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 text-xs font-bold uppercase tracking-wider hover:bg-zinc-800 hover:text-white transition-colors">Prekliči</button>
+                        <button onClick={confirmDelete} disabled={deleting} className="flex-1 py-2.5 rounded-xl bg-rose-600/10 border border-rose-600/20 text-rose-500 text-xs font-bold uppercase tracking-wider hover:bg-rose-600 hover:text-white transition-all hover:shadow-[0_0_20px_-5px_rgba(225,29,72,0.4)] flex items-center justify-center gap-2">
+                            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            {deleting ? "Brisanje..." : "Izbriši"}
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
       )}
 

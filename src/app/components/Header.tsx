@@ -57,26 +57,7 @@ export default function Header() {
   // State za dež denarja
   const [moneyDrops, setMoneyDrops] = useState<MoneyDrop[]>([]);
 
-  useEffect(() => {
-    setMounted(true);
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", handleScroll);
-    fetchTodayStats();
-
-    // GENERIRANJE KAPLJIC
-    const drops = Array.from({ length: 60 }).map((_, i) => ({
-      id: i,
-      left: Math.random() * 100,                   
-      duration: 3 + Math.random() * 4,             
-      delay: -(Math.random() * 10),                
-      size: 14 + Math.random() * 20,               
-      opacity: 0.1 + Math.random() * 0.4           
-    }));
-    setMoneyDrops(drops);
-
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
+  // Funkcija za pridobivanje podatkov
   async function fetchTodayStats() {
     const today = new Date().toISOString().split('T')[0];
     const { data, error } = await supabase.from("bets").select("*").eq("datum", today);
@@ -94,6 +75,54 @@ export default function Header() {
       setTodayStats(stats);
     }
   }
+
+  useEffect(() => {
+    // Če smo na login strani, ne delaj ničesar (optimizacija)
+    if (pathname === "/login") return;
+
+    setMounted(true);
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    
+    // 1. Prvi nalaganje podatkov
+    fetchTodayStats();
+
+    // 2. Generiranje kapljic
+    const drops = Array.from({ length: 60 }).map((_, i) => ({
+      id: i,
+      left: Math.random() * 100,                   
+      duration: 3 + Math.random() * 4,             
+      delay: -(Math.random() * 10),                
+      size: 14 + Math.random() * 20,               
+      opacity: 0.1 + Math.random() * 0.4           
+    }));
+    setMoneyDrops(drops);
+
+    // 3. REALTIME LISTENER
+    const channel = supabase
+      .channel('header-bets-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bets' },
+        (payload) => {
+          console.log('Sprememba v bazi zaznana, osvežujem header...', payload);
+          fetchTodayStats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      supabase.removeChannel(channel);
+    };
+  }, [pathname]); // Dodal sem pathname v dependency array
+
+  // --- KLJUČNA SPREMEMBA: SKRIVANJE HEADERA ---
+  // Če je pot "/login", vrnemo null, kar pomeni, da se nič ne izriše.
+  if (pathname === "/login") {
+    return null;
+  }
+  // -------------------------------------------
 
   const NavItem = ({ href, icon: Icon, label }: any) => {
     const active = pathname === href;
@@ -182,7 +211,7 @@ export default function Header() {
                                     : <ArrowDownRight className="w-5 h-5 text-rose-400" />
                                 }
                             </div>
-                            {/* Številka + Znak € z odmikom (ml-1) */}
+                            {/* Številka + Znak € */}
                             <span className={`text-4xl font-mono font-black tracking-tighter drop-shadow-xl text-white`}>
                                 {todayStats.profit >= 0 ? "+" : ""}{todayStats.profit.toFixed(2)}
                                 <span className={`ml-1 ${isPositiveOrZero ? "text-emerald-500" : "text-rose-500"}`}>€</span>
