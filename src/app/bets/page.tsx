@@ -27,7 +27,7 @@ import {
   Minus,
   AlertTriangle,
   Loader2,
-  Inbox // Nova ikona za empty state
+  Inbox
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -326,6 +326,29 @@ export default function BetsPage() {
     if (error) { setMsg(error.message); return; }
     
     setRows((prev) => [data as BetRow, ...prev]);
+
+    // --- TELEGRAM NOTIFIKACIJA ZA NOVO STAVO ---
+    try {
+      const telegramMsg = `
+<b>🆕 NOVA STAVA!</b>
+
+🏆 <b>${sport}</b>
+⚽ ${dogodek.trim()}
+🎯 Tip: ${tip.trim()}
+💰 Vplačilo: ${vplacilo1 || vplacilo2}€
+📊 Kvota: ${kvota1 || layKvota}
+👤 Tipster: ${tipster}
+      `;
+
+      fetch("/api/send-telegram", {
+        method: "POST",
+        body: JSON.stringify({ message: telegramMsg }),
+      });
+    } catch (err) {
+      console.error("Telegram error:", err);
+    }
+    // -------------------------------------------
+    
     resetForm();
     setShowAddForm(false);
     toast.success("Stava uspešno dodana!");
@@ -375,7 +398,33 @@ export default function BetsPage() {
     if (!statusEditId) return;
     const { error } = await supabase.from("bets").update({ wl: statusEditWl }).eq("id", statusEditId);
     if (error) { setMsg(error.message); return; }
+    
+    // Dobimo stavo za obvestilo (preden posodobimo state)
+    const updatedBet = rows.find(r => r.id === statusEditId);
+
     setRows((prev) => prev.map((r) => (r.id === statusEditId ? { ...r, wl: statusEditWl } : r)));
+
+    // --- TELEGRAM NOTIFIKACIJA ZA SPREMEMBO STATUSA ---
+    if (updatedBet && (statusEditWl === "WIN" || statusEditWl === "LOSS" || statusEditWl === "BACK WIN" || statusEditWl === "LAY WIN")) {
+       const isWin = statusEditWl === "WIN" || statusEditWl === "BACK WIN" || statusEditWl === "LAY WIN";
+       const emoji = isWin ? "✅" : "❌";
+       const naslov = isWin ? "ZMAGA!" : "PORAZ";
+       
+       const msg = `
+<b>${emoji} STAVA ZAKLJUČENA: ${naslov}</b>
+
+⚽ ${updatedBet.dogodek}
+🎯 ${updatedBet.tip}
+📊 Status: <b>${statusEditWl}</b>
+       `;
+
+       fetch("/api/send-telegram", {
+          method: "POST",
+          body: JSON.stringify({ message: msg }),
+       });
+    }
+    // ------------------------------------------------
+
     setStatusEditOpen(false); setStatusEditId(null);
     toast.success("Status posodobljen");
   }
