@@ -63,15 +63,14 @@ export default function Header() {
     window.addEventListener("scroll", handleScroll);
     fetchTodayStats();
 
-    // GENERIRANJE KAPLJIC (samo enkrat na začetku)
-    // Naredimo 60 naključnih elementov po celi širini
+    // GENERIRANJE KAPLJIC
     const drops = Array.from({ length: 60 }).map((_, i) => ({
       id: i,
-      left: Math.random() * 100,                   // 0% do 100% širine
-      duration: 3 + Math.random() * 4,             // 3s do 7s trajanje padanja
-      delay: -(Math.random() * 10),                // Negativen delay za takojšen start
-      size: 14 + Math.random() * 20,               // Velikost fonta
-      opacity: 0.1 + Math.random() * 0.4           // Prosojnost
+      left: Math.random() * 100,                   
+      duration: 3 + Math.random() * 4,             
+      delay: -(Math.random() * 10),                
+      size: 14 + Math.random() * 20,               
+      opacity: 0.1 + Math.random() * 0.4           
     }));
     setMoneyDrops(drops);
 
@@ -107,7 +106,7 @@ export default function Header() {
     );
   };
 
-  const isPositive = todayStats.profit > 0; // Mora biti strogo večje od 0 za efekt
+  const isPositive = todayStats.profit > 0;
   const isPositiveOrZero = todayStats.profit >= 0;
 
   return (
@@ -116,11 +115,10 @@ export default function Header() {
       {/* --- PREMIUM OZADJE + MONEY RAIN --- */}
       <div className={`absolute inset-0 -z-10 transition-all duration-500 overflow-hidden ${scrolled ? 'backdrop-blur-xl bg-black/80 border-b border-white/5' : 'backdrop-blur-sm bg-transparent border-b border-transparent'}`}>
          
-         {/* Gradient in tekstura */}
          <div className="absolute inset-0 bg-gradient-to-b from-black via-black/90 to-transparent" />
          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
 
-         {/* --- EFEKT DENARJA (Samo če je profit > 0) --- */}
+         {/* EFEKT DENARJA */}
          {isPositive && mounted && (
             <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
               {moneyDrops.map((drop) => (
@@ -146,7 +144,7 @@ export default function Header() {
       <div className="max-w-[1800px] mx-auto px-6 flex flex-col gap-2 relative z-10">
         
         {/* --- GLAVNA VRSTICA --- */}
-        <div className="relative flex items-center justify-between h-20">
+        <div className="relative flex items-center justify-between h-24">
             
             {/* LEVO: NAVIGACIJA */}
             <nav className="flex items-center gap-1">
@@ -157,47 +155,74 @@ export default function Header() {
                 </div>
             </nav>
 
-            {/* SREDINA: PROFIT (Absolutno centrirano) */}
+            {/* SREDINA: PROFIT (POVEČAN XL DESIGN) */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
-                <div className={`relative group flex items-center gap-8 px-8 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-500 ${isPositiveOrZero ? 'bg-[#0B1221]/80 border-emerald-500/30 shadow-[0_0_40px_-10px_rgba(16,185,129,0.2)]' : 'bg-[#1a0f0f]/80 border-rose-500/30 shadow-[0_0_40px_-10px_rgba(244,63,94,0.2)]'}`}>
-                    
-                    {/* Sijaj za kartico */}
-                    <div className={`absolute inset-0 rounded-2xl opacity-20 blur-xl transition-opacity duration-500 ${isPositiveOrZero ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                
+                {/* Zunanji sijaj (Blur zadaj) */}
+                <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[130%] h-[140%] blur-[80px] opacity-40 rounded-full pointer-events-none transition-colors duration-700 ${isPositiveOrZero ? 'bg-emerald-500/30' : 'bg-rose-500/30'}`} />
 
-                    {/* Glavni znesek */}
-                    <div className="flex flex-col items-center border-r border-white/10 pr-8">
-                        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-1">Danes</span>
-                        <div className="flex items-center gap-2">
-                            {isPositiveOrZero ? <ArrowUpRight className="w-5 h-5 text-emerald-500" /> : <ArrowDownRight className="w-5 h-5 text-rose-500" />}
-                            <span className={`text-3xl font-mono font-black tracking-tight ${isPositiveOrZero ? "text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]" : "text-rose-400 drop-shadow-[0_0_15px_rgba(244,63,94,0.5)]"}`}>
-                                {todayStats.profit >= 0 ? "+" : ""}{todayStats.profit.toFixed(2)}€
+                {/* Glavna kartica */}
+                <div className={`relative flex items-center gap-10 px-10 py-4 rounded-[2rem] border backdrop-blur-xl overflow-hidden transition-all duration-500 group ${isPositiveOrZero ? 'bg-black/60 border-emerald-500/20 shadow-[0_0_60px_-15px_rgba(16,185,129,0.3)]' : 'bg-black/60 border-rose-500/20 shadow-[0_0_60px_-15px_rgba(244,63,94,0.3)]'}`}>
+                    
+                    {/* Notranji gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50 pointer-events-none" />
+                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.05] mix-blend-overlay" />
+
+                    {/* LEVA STRAN: ZNESEK */}
+                    <div className="flex flex-col items-end pr-10 border-r border-white/10 relative z-10">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className={`w-2 h-2 rounded-full animate-pulse transition-colors duration-500 ${isPositiveOrZero ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]'}`}></span>
+                            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Profit Today</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                             {/* Ikona puščice */}
+                            <div className={`p-1.5 rounded-full border bg-opacity-10 ${isPositiveOrZero ? 'bg-emerald-500 border-emerald-500/30' : 'bg-rose-500 border-rose-500/30'}`}>
+                                {isPositiveOrZero 
+                                    ? <ArrowUpRight className="w-5 h-5 text-emerald-400" /> 
+                                    : <ArrowDownRight className="w-5 h-5 text-rose-400" />
+                                }
+                            </div>
+                            {/* Številka + Znak € z odmikom (ml-1) */}
+                            <span className={`text-4xl font-mono font-black tracking-tighter drop-shadow-xl text-white`}>
+                                {todayStats.profit >= 0 ? "+" : ""}{todayStats.profit.toFixed(2)}
+                                <span className={`ml-1 ${isPositiveOrZero ? "text-emerald-500" : "text-rose-500"}`}>€</span>
                             </span>
                         </div>
                     </div>
 
-                    {/* W/L/O Števci */}
-                    <div className="flex gap-6">
-                        <div className="flex flex-col items-center group/stat">
-                            <span className="text-[8px] font-black text-zinc-600 uppercase mb-0.5 group-hover/stat:text-emerald-500 transition-colors">Win</span>
-                            <span className="text-lg font-bold text-white">{todayStats.wins}</span>
+                    {/* DESNA STRAN: STATISTIKA */}
+                    <div className="flex gap-3 relative z-10">
+                        {/* WIN */}
+                        <div className="flex flex-col items-center justify-center w-12 h-14 rounded-xl bg-zinc-900/50 border border-white/5 shadow-inner transition-transform hover:scale-105">
+                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Win</span>
+                            <span className="text-lg font-black text-emerald-400 drop-shadow-sm">{todayStats.wins}</span>
                         </div>
-                        <div className="flex flex-col items-center group/stat">
-                            <span className="text-[8px] font-black text-zinc-600 uppercase mb-0.5 group-hover/stat:text-rose-500 transition-colors">Loss</span>
-                            <span className="text-lg font-bold text-white">{todayStats.losses}</span>
+                        
+                        {/* LOSS */}
+                        <div className="flex flex-col items-center justify-center w-12 h-14 rounded-xl bg-zinc-900/50 border border-white/5 shadow-inner transition-transform hover:scale-105">
+                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Loss</span>
+                            <span className="text-lg font-black text-rose-400 drop-shadow-sm">{todayStats.losses}</span>
                         </div>
-                        <div className="flex flex-col items-center group/stat">
-                            <span className="text-[8px] font-black text-zinc-600 uppercase mb-0.5 group-hover/stat:text-amber-500 transition-colors">Open</span>
-                            <span className="text-lg font-bold text-white">{todayStats.open}</span>
+                        
+                        {/* OPEN */}
+                        <div className="flex flex-col items-center justify-center w-12 h-14 rounded-xl bg-zinc-900/50 border border-white/5 shadow-inner transition-transform hover:scale-105">
+                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Open</span>
+                            <span className="text-lg font-black text-amber-400 drop-shadow-sm">{todayStats.open}</span>
                         </div>
                     </div>
+
                 </div>
             </div>
 
             {/* DESNO: ODJAVA */}
             <div className="flex items-center">
-                <Link href="/login" className="group flex items-center gap-2 px-5 py-2.5 rounded-xl bg-zinc-900/60 border border-white/5 hover:bg-rose-950/30 hover:border-rose-500/30 transition-all duration-300">
-                    <span className="text-[11px] font-bold text-zinc-400 group-hover:text-rose-400 uppercase tracking-wider">Odjava</span>
-                    <LogOut className="w-4 h-4 text-zinc-500 group-hover:text-rose-400 transition-colors" />
+                <Link href="/login" className="group relative flex items-center gap-2.5 px-6 py-2.5 rounded-xl bg-black/40 border border-white/5 overflow-hidden transition-all duration-300 hover:border-rose-500/40 hover:shadow-[0_0_25px_-5px_rgba(244,63,94,0.3)] active:scale-95">
+                    <div className="absolute inset-0 bg-rose-500/0 group-hover:bg-rose-500/5 transition-colors duration-300" />
+                    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                    <span className="relative z-10 text-[11px] font-black text-zinc-500 group-hover:text-rose-400 uppercase tracking-[0.15em] transition-colors duration-300">
+                        Odjava
+                    </span>
+                    <LogOut className="relative z-10 w-4 h-4 text-zinc-600 group-hover:text-rose-400 transition-colors duration-300 group-hover:-translate-x-0.5" />
                 </Link>
             </div>
         </div>
@@ -225,18 +250,25 @@ export default function Header() {
 
       <style jsx>{`
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-        /* Animacija padanja denarja - od zgoraj navzdol */
         @keyframes moneyFall {
           0% { transform: translateY(-50px) rotate(0deg); opacity: 0; }
           20% { opacity: 1; }
           80% { opacity: 0.8; }
           100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
         }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+
         .animate-marquee { animation: marquee 40s linear infinite; }
         .animate-money-fall { 
             animation-name: moneyFall; 
             animation-timing-function: linear; 
             animation-iteration-count: infinite; 
+        }
+        .animate-shimmer {
+            animation: shimmer 1s infinite;
         }
         .hover\:pause:hover { animation-play-state: paused; }
       `}</style>
