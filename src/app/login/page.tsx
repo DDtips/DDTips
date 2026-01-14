@@ -6,8 +6,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { 
   Mail, 
   Lock, 
-  ArrowRight, 
   Loader2, 
+  ArrowRight,
   CheckCircle2, 
   XCircle 
 } from "lucide-react";
@@ -22,222 +22,146 @@ export default function LoginPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [msgType, setMsgType] = useState<"error" | "success">("error");
 
-  function cleanEmail(x: string) {
-    return x.trim().toLowerCase();
-  }
+  function cleanEmail(x: string) { return x.trim().toLowerCase(); }
 
   function validate(): string | null {
-    if (!cleanEmail(email)) return "Prosimo, vpišite veljaven email naslov.";
-    if (!password) return "Prosimo, vpišite geslo.";
-    if (password.length < 6) return "Geslo mora vsebovati vsaj 6 znakov.";
+    if (!cleanEmail(email)) return "Vpišite veljaven email.";
+    if (!password) return "Vpišite geslo.";
+    if (password.length < 6) return "Geslo mora imeti vsaj 6 znakov.";
     return null;
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    
     const v = validate();
-    if (v) {
-      setMsg(v);
-      setMsgType("error");
-      return;
-    }
-
-    setLoading(true);
-    setMsg(null);
+    if (v) { setMsg(v); setMsgType("error"); return; }
+    setLoading(true); setMsg(null);
 
     try {
       if (view === "register") {
-        const { data, error } = await supabase.auth.signUp({
-          email: cleanEmail(email),
-          password,
-        });
-
+        const { data, error } = await supabase.auth.signUp({ email: cleanEmail(email), password });
         if (error) throw error;
-
-        if (!data.session) {
-          setMsg("Uspešno! Preverite email za potrditev računa.");
-          setMsgType("success");
-        } else {
-          setMsg("Račun ustvarjen! Preusmerjanje...");
-          setMsgType("success");
-          setTimeout(() => router.replace("/"), 1000);
-        }
-
+        if (!data.session) { setMsg("Uspešno! Preverite email."); setMsgType("success"); }
+        else { setMsg("Račun ustvarjen!"); setMsgType("success"); setTimeout(() => router.replace("/"), 1000); }
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: cleanEmail(email),
-          password,
-        });
-
+        const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail(email), password });
         if (error) throw error;
-
-        if (!data.session) {
-          setMsg("Prijava ni uspela. Preverite podatke.");
-          setMsgType("error");
-        } else {
-          setMsg("Dobrodošli nazaj!");
-          setMsgType("success");
-          setTimeout(() => router.replace("/"), 500);
-        }
+        if (!data.session) { setMsg("Prijava ni uspela."); setMsgType("error"); }
+        else { setMsg("Dobrodošli!"); setMsgType("success"); setTimeout(() => router.replace("/"), 500); }
       }
-    } catch (error: any) {
-      console.error("AUTH ERROR:", error);
-      setMsg(view === "login" ? "Napačen email ali geslo." : error.message);
-      setMsgType("error");
-    } finally {
-      setLoading(false);
-    }
+    } catch (error: any) { setMsg(error.message); setMsgType("error"); } 
+    finally { setLoading(false); }
   }
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-black font-sans selection:bg-emerald-500/30">
+    <main className="relative h-screen w-full flex flex-col items-center justify-start pt-64 overflow-hidden bg-black font-sans selection:bg-emerald-500/30">
       
-      {/* --- ISTO OZADJE KOT NA OSTALIH STRANEH --- */}
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
-      <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
+      {/* 1. OZADJE */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <img 
+          src="/images/ozadje-login.png" 
+          alt="Background" 
+          className="w-full h-full object-cover opacity-40 grayscale-[0.3]" 
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0B1120] via-black/80 to-black" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.04] mix-blend-soft-light" />
+      </div>
 
-      {/* --- Kartica --- */}
-      <div className="relative z-10 w-full max-w-[420px] p-6">
-        <div className="overflow-hidden rounded-3xl border border-zinc-800/50 bg-zinc-900/40 backdrop-blur-xl shadow-2xl">
-          
-          {/* Header z LOGOTIPOM */}
-          <div className="p-8 pb-6 text-center flex flex-col items-center">
+      {/* 2. VSEBINA - Širina povečana na 500px */}
+      <div className="relative z-10 w-full max-w-[500px] px-6 animate-in fade-in slide-in-from-bottom-12 duration-700">
+        
+        {/* KARTICA */}
+        <div className="relative w-full rounded-[2.5rem] border border-white/10 shadow-2xl ring-1 ring-white/5 overflow-visible">
             
-            {/* LOGO CONTAINER */}
-            <div className="mb-6 relative group">
-              {/* Sijaj za logotipom */}
-              <div className="absolute inset-0 bg-emerald-500/20 blur-2xl rounded-full opacity-40 group-hover:opacity-60 transition-opacity duration-500"></div>
-              
-              {/* Slika logotipa - Mora biti PNG brez ozadja! */}
-              <img 
-                src="/images/logo-full.png" 
-                alt="DD Tips" 
-                className="relative h-24 w-auto object-contain drop-shadow-2xl transform group-hover:scale-105 transition-transform duration-500"
-              />
-            </div>
+            {/* Oplemeniteno temno ozadje kartice */}
+            <div className="absolute inset-0 rounded-[2.5rem] bg-[#09090b]/95 backdrop-blur-xl"></div>
+            
+            {/* Zgornji rob sijaj */}
+            <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent opacity-70"></div>
 
-            <h1 className="text-2xl font-bold tracking-tight text-white">
-              Dobrodošli na DDTips
-            </h1>
-            <p className="mt-2 text-sm text-zinc-400">
-              Prijavite se za dostop do napredne statistike.
-            </p>
-          </div>
-
-          {/* Tabs (Login/Register) */}
-          <div className="px-8">
-            <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/40 p-1 border border-zinc-800/50">
-              <button
-                onClick={() => { setView("login"); setMsg(null); }}
-                className={`relative flex items-center justify-center rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
-                  view === "login" 
-                    ? "bg-zinc-800 text-white shadow-lg border border-zinc-700" 
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30"
-                }`}
-              >
-                Prijava
-              </button>
-              <button
-                onClick={() => { setView("register"); setMsg(null); }}
-                className={`relative flex items-center justify-center rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
-                  view === "register" 
-                    ? "bg-zinc-800 text-white shadow-lg border border-zinc-700" 
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30"
-                }`}
-              >
-                Registracija
-              </button>
-            </div>
-          </div>
-
-          {/* Form */}
-          <div className="p-8 pt-6">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Email</label>
-                <div className="group relative">
-                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-emerald-500">
-                    <Mail className="h-4 w-4" />
-                  </div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="vas@email.com"
-                    className="w-full rounded-xl border border-zinc-800 bg-black/40 py-3 pl-10 pr-4 text-sm text-white placeholder-zinc-700 transition-all focus:border-emerald-500/50 focus:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center ml-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Geslo</label>
-                  {view === "login" && (
-                    <button type="button" className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors">
-                      Pozabljeno?
-                    </button>
-                  )}
-                </div>
-                <div className="group relative">
-                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-emerald-500">
-                    <Lock className="h-4 w-4" />
-                  </div>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-xl border border-zinc-800 bg-black/40 py-3 pl-10 pr-4 text-sm text-white placeholder-zinc-700 transition-all focus:border-emerald-500/50 focus:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
-                  />
-                </div>
-              </div>
-
-              {/* Status Message */}
-              {msg && (
-                <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
-                  msgType === "error" 
-                    ? "border-red-500/20 bg-red-500/10 text-red-400" 
-                    : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                } animate-in fade-in zoom-in duration-200`}>
-                  {msgType === "error" ? <XCircle className="h-4 w-4 shrink-0" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />}
-                  <p className="font-medium">{msg}</p>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-emerald-500 hover:shadow-emerald-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 mt-4 border border-emerald-500/50"
-              >
-                {/* Shine effect */}
-                <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent z-0" />
+            {/* --- VELIK LEBDEČI LOGOTIP --- */}
+            {/* Pozicija: -top-28 (112px gor) */}
+            <div className="absolute -top-28 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center">
                 
-                <span className="relative z-10 flex items-center gap-2">
-                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {!loading && (view === "login" ? "Prijava" : "Ustvari Račun")}
-                  {!loading && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />}
-                </span>
-              </button>
-            </form>
-          </div>
+                {/* Sijaj za logotipom */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 bg-emerald-500/25 blur-[70px] rounded-full pointer-events-none"></div>
+                
+                {/* Slika logotipa: w-56 h-56 (224px) */}
+                <div className="relative w-56 h-56 drop-shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-transform duration-500 hover:scale-105">
+                    <img src="/images/logo-full.png" alt="DDTips Logo" className="w-full h-full object-contain"/>
+                </div>
+            </div>
 
-          {/* Footer area */}
-          <div className="border-t border-zinc-800 bg-zinc-900/50 p-5 text-center">
-            <p className="text-[10px] text-zinc-600 uppercase tracking-wide">
-              Zaščiteno z <span className="text-zinc-400 font-bold">Supabase Auth</span>
-            </p>
-          </div>
+            {/* VSEBINA KARTICE */}
+            {/* Povečan pt-36 (144px), da se inputi začnejo pod logotipom */}
+            <div className="relative px-10 pb-12 pt-36 flex flex-col items-center">
+            
+                <form onSubmit={handleSubmit} className="w-full space-y-5">
+                    
+                    {/* INPUT: EMAIL */}
+                    <div className="group relative">
+                        <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none transition-colors duration-300 text-zinc-500 group-focus-within:text-emerald-500">
+                            <Mail className="w-5 h-5" />
+                        </div>
+                        <input 
+                            type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="Email Address"
+                            className="w-full pl-14 pr-4 py-5 bg-black/60 border border-zinc-800 rounded-2xl text-white text-[14px] tracking-wide placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:bg-black/80 focus:ring-1 focus:ring-emerald-500/20 transition-all duration-300"
+                        />
+                    </div>
+                    
+                    {/* INPUT: PASSWORD */}
+                    <div className="space-y-2">
+                        <div className="group relative">
+                            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none transition-colors duration-300 text-zinc-500 group-focus-within:text-emerald-500">
+                                <Lock className="w-5 h-5" />
+                            </div>
+                            <input 
+                                type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Password"
+                                className="w-full pl-14 pr-4 py-5 bg-black/60 border border-zinc-800 rounded-2xl text-white text-[14px] tracking-wide placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:bg-black/80 focus:ring-1 focus:ring-emerald-500/20 transition-all duration-300"
+                            />
+                        </div>
+                    </div>
+
+                    {/* ERROR / SUCCESS MESSAGE */}
+                    {msg && (
+                        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-[12px] font-bold animate-in fade-in zoom-in duration-300 ${msgType === "error" ? "border-red-500/20 bg-red-500/5 text-red-400" : "border-emerald-500/20 bg-emerald-500/5 text-emerald-400"}`}>
+                            {msgType === "error" ? <XCircle className="h-4 w-4 shrink-0" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />} <p>{msg}</p>
+                        </div>
+                    )}
+
+                    {/* ACTION BUTTON - MOČAN ZELEN GRADIENT */}
+                    <button type="submit" disabled={loading} className="group/btn relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 p-[1px] shadow-[0_0_25px_-5px_rgba(16,185,129,0.5)] transition-all duration-300 hover:shadow-[0_0_35px_-5px_rgba(16,185,129,0.7)] hover:brightness-110 active:scale-[0.98] mt-2">
+                        <div className="relative flex items-center justify-center gap-2 rounded-2xl px-4 py-5 transition-all duration-300">
+                            {loading ? <Loader2 className="h-5 w-5 animate-spin text-white" /> : (
+                                <>
+                                    <span className="text-[13px] font-black uppercase tracking-[0.15em] text-white">
+                                        {view === 'login' ? 'Vstopi v sistem' : 'Ustvari račun'}
+                                    </span>
+                                    <ArrowRight className="h-4 w-4 text-white transition-transform duration-300 group-hover/btn:translate-x-1" />
+                                </>
+                            )}
+                        </div>
+                    </button>
+                </form>
+
+                {/* TOGGLE VIEW - FOOTER */}
+                <div className="mt-10 pt-6 w-full flex flex-col items-center gap-2">
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                        {view === 'login' ? 'Nimaš računa?' : 'Že imaš račun?'}
+                    </p>
+                    <button onClick={() => { setView(view === 'login' ? 'register' : 'login'); setMsg(null); }} className="text-[12px] font-black text-white hover:text-emerald-400 transition-colors tracking-[0.15em] uppercase hover:underline underline-offset-4 decoration-emerald-500/50">
+                        {view === 'login' ? 'Registracija' : 'Prijava'}
+                    </button>
+                </div>
+
+            </div>
         </div>
         
         {/* Copyright */}
-        <div className="mt-8 text-center opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] text-zinc-600 font-medium uppercase tracking-widest">
-            &copy; {new Date().getFullYear()} DDTips Analytics
-          </p>
-        </div>
+        <p className="text-[9px] text-zinc-700 font-bold uppercase tracking-[0.3em] mt-8 text-center opacity-60">
+            &copy; {new Date().getFullYear()} DD Tips Analytics
+        </p>
       </div>
-    </div>
+    </main>
   );
 }

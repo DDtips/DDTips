@@ -2,9 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, BarChart3, TrendingUp, Home } from "lucide-react";
+import { LogOut, BarChart3, TrendingUp, Home, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+
+// --- TIP ZA KAPLJICE DENARJA ---
+type MoneyDrop = {
+  id: number;
+  left: number;       // Pozicija levo (0-100%)
+  duration: number;   // Hitrost padanja
+  delay: number;      // Zamik začetka
+  size: number;       // Velikost simbola
+  opacity: number;    // Prosojnost
+};
 
 // --- LOGIKA ZA PROFIT ---
 function calcProfit(b: any): number {
@@ -24,7 +34,7 @@ function calcProfit(b: any): number {
     const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
     const profitIfLayWins = layStake - backStake;
     if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
-    else if (b.wl === "LAY WIN") brutoProfit = profitIfLayWins;
+    else if (b.wl === "LAY WIN") brutoProfit = layStake - backStake;
     else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
     else if (b.wl === "LOSS") brutoProfit = Math.min(profitIfBackWins, profitIfLayWins);
   } else if (!hasBack && hasLay) {
@@ -37,16 +47,6 @@ function calcProfit(b: any): number {
   return brutoProfit > 0 ? brutoProfit - komZnesek : brutoProfit;
 }
 
-// --- TIP ZA DROP (DEŽ) ---
-type MoneyDrop = {
-  id: number;
-  left: number;       // Pozicija levo (0-100%)
-  duration: number;   // Hitrost (sekunde)
-  delay: number;      // Zamik (negativne številke za takojšen start)
-  size: number;       // Velikost pisave
-  opacity: number;    // Prosojnost
-};
-
 export default function Header() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
@@ -54,35 +54,33 @@ export default function Header() {
   const [todayStats, setTodayStats] = useState({ profit: 0, wins: 0, losses: 0, open: 0 });
   const [todayGames, setTodayGames] = useState<any[]>([]);
   
-  // State za generiran denar
+  // State za dež denarja
   const [moneyDrops, setMoneyDrops] = useState<MoneyDrop[]>([]);
 
   useEffect(() => {
     setMounted(true);
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
-    
     fetchTodayStats();
 
-    // --- GENERIRAJ RANDOM DENAR ---
-    // Ustvarimo 50 "kapljic" denarja z naključnimi lastnostmi
-    const drops = Array.from({ length: 50 }).map((_, i) => ({
+    // GENERIRANJE KAPLJIC (samo enkrat na začetku)
+    // Naredimo 60 naključnih elementov po celi širini
+    const drops = Array.from({ length: 60 }).map((_, i) => ({
       id: i,
-      left: Math.random() * 100,                   // Razporedi po celi širini
-      duration: 3 + Math.random() * 5,             // Trajanje med 3s in 8s
-      delay: -(Math.random() * 10),                // NEGATIVNI delay: animacija je že "v teku" ko prideš
-      size: 16 + Math.random() * 24,               // Velikost med 16px in 40px
-      opacity: 0.1 + Math.random() * 0.5           // Opacitarnost med 0.1 in 0.6
+      left: Math.random() * 100,                   // 0% do 100% širine
+      duration: 3 + Math.random() * 4,             // 3s do 7s trajanje padanja
+      delay: -(Math.random() * 10),                // Negativen delay za takojšen start
+      size: 14 + Math.random() * 20,               // Velikost fonta
+      opacity: 0.1 + Math.random() * 0.4           // Prosojnost
     }));
     setMoneyDrops(drops);
-    
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   async function fetchTodayStats() {
     const today = new Date().toISOString().split('T')[0];
     const { data, error } = await supabase.from("bets").select("*").eq("datum", today);
-
     if (data && !error) {
       setTodayGames(data);
       const stats = data.reduce((acc, bet) => {
@@ -98,72 +96,44 @@ export default function Header() {
     }
   }
 
-  const NavItem = ({ href, icon: Icon, label, variant = "default" }: any) => {
+  const NavItem = ({ href, icon: Icon, label }: any) => {
     const active = pathname === href;
-    const isLogout = variant === "logout";
     return (
-      <Link href={href} className={`group relative flex items-center gap-2.5 px-5 py-2.5 rounded-full font-semibold text-sm transition-all duration-300 ${isLogout ? "hover:bg-red-500/10 text-slate-400 hover:text-red-400" : active ? "text-white bg-green-500/10 border border-green-500/30 shadow-[0_0_20px_rgba(34,197,94,0.1)]" : "text-slate-400 hover:text-white hover:bg-white/5"}`}>
-        <Icon className={`w-4 h-4 ${active && !isLogout ? "text-green-400" : ""}`} />
-        <span className="hidden lg:inline">{label}</span>
+      <Link href={href} className={`relative flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 group overflow-hidden ${active ? "bg-white/10 text-white shadow-lg border border-white/10" : "text-zinc-400 hover:text-white hover:bg-white/5"}`}>
+        <Icon className={`w-4 h-4 transition-colors ${active ? "text-emerald-400" : "group-hover:text-emerald-400"}`} />
+        <span className="text-[11px] font-bold uppercase tracking-wider">{label}</span>
+        {active && <div className="absolute bottom-0 left-0 h-[2px] w-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" />}
       </Link>
     );
   };
 
-  const getStatusBadge = (wl: string) => {
-    if (["WIN", "BACK WIN", "LAY WIN"].includes(wl)) return <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">WIN</span>;
-    if (wl === "LOSS") return <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-400">LOSS</span>;
-    if (wl === "VOID") return <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-zinc-500/10 border border-zinc-500/30 text-zinc-400">VOID</span>;
-    return <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 animate-pulse">OPEN</span>;
-  };
-
-  const TickerContent = () => (
-    <>
-      {todayGames.length > 0 ? (
-        todayGames.map((game, i) => (
-          <div key={i} className="flex items-center gap-3 text-xs mx-6">
-            <span className="text-zinc-500 text-[10px] uppercase font-bold tracking-wide border-r border-white/10 pr-3">{game.sport}</span>
-            <span className="text-white font-bold">{game.dogodek}</span>
-            <span className="text-zinc-400 mx-1">/</span>
-            <span className="text-emerald-400 font-medium">{game.tip}</span>
-            <div className="ml-2">{getStatusBadge(game.wl)}</div>
-          </div>
-        ))
-      ) : (
-        <span className="text-xs text-zinc-600 italic mx-12">Danes še ni vpisanih dogodkov...</span>
-      )}
-    </>
-  );
-
-  const showMoneyRain = todayStats.profit > 0;
+  const isPositive = todayStats.profit > 0; // Mora biti strogo večje od 0 za efekt
   const isPositiveOrZero = todayStats.profit >= 0;
 
   return (
-    <header className="fixed top-0 inset-x-0 z-[100] transition-all duration-500">
+    <header className={`fixed top-0 inset-x-0 z-[100] transition-all duration-500 ${scrolled ? 'pt-0' : 'pt-4'}`}>
       
-      {/* --- OZADJE HEADERJA (Premium Dark Mesh + RANDOM MONEY RAIN) --- */}
-      <div className={`absolute inset-0 -z-10 transition-all duration-500 overflow-hidden ${scrolled ? 'backdrop-blur-xl border-b border-white/5' : 'backdrop-blur-sm border-b border-transparent'}`}>
+      {/* --- PREMIUM OZADJE + MONEY RAIN --- */}
+      <div className={`absolute inset-0 -z-10 transition-all duration-500 overflow-hidden ${scrolled ? 'backdrop-blur-xl bg-black/80 border-b border-white/5' : 'backdrop-blur-sm bg-transparent border-b border-transparent'}`}>
          
-         <div className={`absolute inset-0 bg-[#0B1120] transition-opacity duration-500 ${scrolled ? 'opacity-95' : 'opacity-90'}`} />
-         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-overlay pointer-events-none" />
-         
-         {/* Ambientne luči */}
-         <div className="absolute top-[-100px] left-[10%] w-[500px] h-[500px] bg-emerald-500/10 blur-[120px] rounded-full pointer-events-none mix-blend-screen" />
-         <div className="absolute top-[-100px] right-[10%] w-[500px] h-[500px] bg-blue-500/10 blur-[120px] rounded-full pointer-events-none mix-blend-screen" />
+         {/* Gradient in tekstura */}
+         <div className="absolute inset-0 bg-gradient-to-b from-black via-black/90 to-transparent" />
+         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
 
-         {/* --- DYNAMIC RANDOM MONEY RAIN --- */}
-         {showMoneyRain && mounted && (
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+         {/* --- EFEKT DENARJA (Samo če je profit > 0) --- */}
+         {isPositive && mounted && (
+            <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
               {moneyDrops.map((drop) => (
                 <div
                   key={drop.id}
-                  className="absolute bottom-[-50px] font-black text-emerald-400 animate-float-custom select-none"
+                  className="absolute top-[-50px] font-black text-emerald-500 select-none animate-money-fall"
                   style={{
                     left: `${drop.left}%`,
                     fontSize: `${drop.size}px`,
                     opacity: drop.opacity,
                     animationDuration: `${drop.duration}s`,
-                    animationDelay: `${drop.delay}s`, // NEGATIVNI DELAY = TAKOJŠEN EFEKT
-                    textShadow: '0 0 10px rgba(52, 211, 153, 0.5)' // Glow efekt
+                    animationDelay: `${drop.delay}s`,
+                    textShadow: '0 0 15px rgba(16, 185, 129, 0.4)'
                   }}
                 >
                   €
@@ -173,95 +143,103 @@ export default function Header() {
          )}
       </div>
 
-      <div className={`max-w-[1800px] mx-auto px-6 flex flex-col gap-5 transition-all duration-300 ${scrolled ? 'py-3' : 'py-5'}`}>
+      <div className="max-w-[1800px] mx-auto px-6 flex flex-col gap-2 relative z-10">
         
-        {/* --- ZGORNJA VRSTICA --- */}
-        <div className="w-full flex items-center justify-between gap-4">
+        {/* --- GLAVNA VRSTICA --- */}
+        <div className="relative flex items-center justify-between h-20">
             
-            {/* 1. DANAŠNJI PROFIL */}
-            <div className="hidden xl:flex flex-1 justify-center z-10">
-                <div className={`
-                    flex items-center gap-6 px-8 py-3 rounded-2xl border shadow-2xl relative overflow-hidden group transition-all duration-500
-                    ml-0 
-                    ${isPositiveOrZero
-                        ? "bg-gradient-to-br from-emerald-950/80 via-[#0B1120] to-[#0B1120] border-emerald-500/40 shadow-[0_0_35px_-5px_rgba(16,185,129,0.3)]" 
-                        : "bg-gradient-to-br from-rose-950/80 via-[#0B1120] to-[#0B1120] border-rose-500/30 shadow-[0_0_30px_-10px_rgba(244,63,94,0.3)]"}
-                `}>
-                  
-                  {/* (Lokalni noise v okencu) */}
-                  <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none"></div>
-
-                  {/* Profit Content */}
-                  <div className="flex flex-col items-center border-r border-white/10 pr-6 relative z-10">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-1">Danes</span>
-                    <span className={`text-3xl font-mono font-black leading-none ${isPositiveOrZero ? "text-emerald-400 drop-shadow-[0_0_20px_rgba(52,211,153,0.8)]" : "text-rose-400 drop-shadow-[0_0_15px_rgba(244,63,94,0.5)]"}`}>
-                      {todayStats.profit >= 0 ? "+" : ""}{todayStats.profit.toFixed(2)}€
-                    </span>
-                  </div>
-                  <div className="flex gap-6 relative z-10">
-                    <div className="flex flex-col items-center"><span className="text-[9px] font-black text-emerald-500/70 uppercase mb-0.5">WIN</span><span className="text-xl font-bold text-white">{todayStats.wins}</span></div>
-                    <div className="flex flex-col items-center"><span className="text-[9px] font-black text-rose-500/70 uppercase mb-0.5">LOSS</span><span className="text-xl font-bold text-white">{todayStats.losses}</span></div>
-                    <div className="flex flex-col items-center"><span className="text-[9px] font-black text-amber-500/70 uppercase mb-0.5">OPEN</span><span className="text-xl font-bold text-white">{todayStats.open}</span></div>
-                  </div>
+            {/* LEVO: NAVIGACIJA */}
+            <nav className="flex items-center gap-1">
+                <div className="flex items-center p-1.5 bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-white/5 shadow-xl">
+                    <NavItem href="/" icon={Home} label="Domov" />
+                    <NavItem href="/bets" icon={TrendingUp} label="Stave" />
+                    <NavItem href="/stats" icon={BarChart3} label="Statistika" />
                 </div>
-            </div>
-
-            {/* 2. NAVIGATION */}
-            <nav className="shrink-0 flex items-center p-1.5 rounded-full border border-white/5 bg-slate-950/30 backdrop-blur-md z-20 shadow-lg">
-              <NavItem href="/" icon={Home} label="Home" />
-              <NavItem href="/bets" icon={TrendingUp} label="Stave" />
-              <NavItem href="/stats" icon={BarChart3} label="Statistika" />
-              <div className="w-px h-6 bg-white/10 mx-2" />
-              <NavItem href="/login" icon={LogOut} label="Odjava" variant="logout" />
             </nav>
-        </div>
 
-        {/* --- SPODNJA VRSTICA: TICKER --- */}
-        <div className="w-full overflow-hidden bg-slate-950/30 border border-white/5 rounded-xl h-10 flex items-center shadow-inner relative group">
-          <div className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-[#0B1120] via-[#0B1120] to-transparent z-20 px-3 flex items-center">
-             <div className="flex items-center gap-2 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">
-                <div className="relative flex h-1.5 w-1.5">
-                  {todayStats.open > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
-                  <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${todayStats.open > 0 ? "bg-emerald-500" : "bg-slate-600"}`}></span>
+            {/* SREDINA: PROFIT (Absolutno centrirano) */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                <div className={`relative group flex items-center gap-8 px-8 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-500 ${isPositiveOrZero ? 'bg-[#0B1221]/80 border-emerald-500/30 shadow-[0_0_40px_-10px_rgba(16,185,129,0.2)]' : 'bg-[#1a0f0f]/80 border-rose-500/30 shadow-[0_0_40px_-10px_rgba(244,63,94,0.2)]'}`}>
+                    
+                    {/* Sijaj za kartico */}
+                    <div className={`absolute inset-0 rounded-2xl opacity-20 blur-xl transition-opacity duration-500 ${isPositiveOrZero ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+
+                    {/* Glavni znesek */}
+                    <div className="flex flex-col items-center border-r border-white/10 pr-8">
+                        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-1">Danes</span>
+                        <div className="flex items-center gap-2">
+                            {isPositiveOrZero ? <ArrowUpRight className="w-5 h-5 text-emerald-500" /> : <ArrowDownRight className="w-5 h-5 text-rose-500" />}
+                            <span className={`text-3xl font-mono font-black tracking-tight ${isPositiveOrZero ? "text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]" : "text-rose-400 drop-shadow-[0_0_15px_rgba(244,63,94,0.5)]"}`}>
+                                {todayStats.profit >= 0 ? "+" : ""}{todayStats.profit.toFixed(2)}€
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* W/L/O Števci */}
+                    <div className="flex gap-6">
+                        <div className="flex flex-col items-center group/stat">
+                            <span className="text-[8px] font-black text-zinc-600 uppercase mb-0.5 group-hover/stat:text-emerald-500 transition-colors">Win</span>
+                            <span className="text-lg font-bold text-white">{todayStats.wins}</span>
+                        </div>
+                        <div className="flex flex-col items-center group/stat">
+                            <span className="text-[8px] font-black text-zinc-600 uppercase mb-0.5 group-hover/stat:text-rose-500 transition-colors">Loss</span>
+                            <span className="text-lg font-bold text-white">{todayStats.losses}</span>
+                        </div>
+                        <div className="flex flex-col items-center group/stat">
+                            <span className="text-[8px] font-black text-zinc-600 uppercase mb-0.5 group-hover/stat:text-amber-500 transition-colors">Open</span>
+                            <span className="text-lg font-bold text-white">{todayStats.open}</span>
+                        </div>
+                    </div>
                 </div>
-                <span className="text-[9px] font-black uppercase text-emerald-400 tracking-widest">Danes</span>
-             </div>
-          </div>
-
-          <div className="w-full overflow-hidden relative min-w-0">
-            <div className="flex w-max animate-marquee whitespace-nowrap hover:pause pl-24">
-              <div className="flex items-center"><TickerContent /></div>
-              <div className="flex items-center"><TickerContent /></div>
             </div>
-          </div>
-          <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0B1120] to-transparent z-20 pointer-events-none" />
+
+            {/* DESNO: ODJAVA */}
+            <div className="flex items-center">
+                <Link href="/login" className="group flex items-center gap-2 px-5 py-2.5 rounded-xl bg-zinc-900/60 border border-white/5 hover:bg-rose-950/30 hover:border-rose-500/30 transition-all duration-300">
+                    <span className="text-[11px] font-bold text-zinc-400 group-hover:text-rose-400 uppercase tracking-wider">Odjava</span>
+                    <LogOut className="w-4 h-4 text-zinc-500 group-hover:text-rose-400 transition-colors" />
+                </Link>
+            </div>
         </div>
 
+        {/* --- SPODAJ: TICKER --- */}
+        <div className={`relative h-7 w-full max-w-4xl mx-auto rounded-full overflow-hidden flex items-center transition-all duration-500 ${scrolled ? 'opacity-0 h-0' : 'opacity-100 bg-black/40 border border-white/5'}`}>
+            <div className="absolute left-0 inset-y-0 px-4 flex items-center bg-gradient-to-r from-black via-black to-transparent z-20">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mr-2 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                <span className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Live</span>
+            </div>
+            
+            <div className="flex w-max animate-marquee pl-24 whitespace-nowrap items-center hover:pause">
+                {todayGames.length > 0 ? todayGames.map((g, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 text-[10px] border-r border-white/5 last:border-0">
+                        <span className="text-zinc-500 font-bold uppercase">{g.sport}</span>
+                        <span className="text-zinc-300 font-medium">{g.dogodek}</span>
+                        <span className={`font-bold ${g.wl === 'WIN' ? 'text-emerald-400' : 'text-zinc-400'}`}>{g.tip}</span>
+                    </div>
+                )) : <span className="px-6 text-zinc-700 text-[9px] uppercase font-bold tracking-widest italic">Danes še ni vpisanih dogodkov...</span>}
+            </div>
+            
+            <div className="absolute right-0 inset-y-0 w-20 bg-gradient-to-l from-black to-transparent z-10 pointer-events-none" />
+        </div>
       </div>
 
       <style jsx>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        @keyframes floatUp {
-          0% { transform: translateY(100px); opacity: 0; }
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        /* Animacija padanja denarja - od zgoraj navzdol */
+        @keyframes moneyFall {
+          0% { transform: translateY(-50px) rotate(0deg); opacity: 0; }
           20% { opacity: 1; }
           80% { opacity: 0.8; }
-          100% { transform: translateY(-120vh); opacity: 0; } /* Leti čez cel ekran navzgor */
+          100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
         }
-        .animate-marquee {
-          animation: marquee 40s linear infinite;
-        }
-        .animate-float-custom {
-          animation-name: floatUp;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
+        .animate-marquee { animation: marquee 40s linear infinite; }
+        .animate-money-fall { 
+            animation-name: moneyFall; 
+            animation-timing-function: linear; 
+            animation-iteration-count: infinite; 
         }
         .hover\:pause:hover { animation-play-state: paused; }
       `}</style>
-
-      <div className={`absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-green-500/30 to-transparent transition-opacity duration-500 ${scrolled ? "opacity-100" : "opacity-0"}`} />
     </header>
   );
 }
