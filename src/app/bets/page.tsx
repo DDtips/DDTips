@@ -303,7 +303,7 @@ export default function BetsPage() {
     setWl("OPEN"); setDogodek(""); setTip(""); setMode("BET"); setBetSide("BACK"); setKvota1(""); setVplacilo1(""); setLayKvota(""); setVplacilo2(""); setKomisija("0");
   }
 
-  async function addBet() {
+async function addBet() {
     setMsg(null);
     if (!dogodek.trim() || !tip.trim()) { setMsg("Manjka dogodek ali tip."); return; }
     
@@ -327,10 +327,22 @@ export default function BetsPage() {
     
     setRows((prev) => [data as BetRow, ...prev]);
 
-    // --- TELEGRAM NOTIFIKACIJA ZA NOVO STAVO ---
+    // --- PAMETNA TELEGRAM NOTIFIKACIJA ---
     try {
+      // 1. Določimo naslov glede na izbran status
+      let naslov = "🆕 NOVA STAVA!";
+      
+      if (wl === "WIN" || wl === "BACK WIN" || wl === "LAY WIN") {
+        naslov = "✅ NOVA STAVA - TAKOJŠNJA ZMAGA!";
+      } else if (wl === "LOSS") {
+        naslov = "❌ NOVA STAVA - TAKOJŠEN PORAZ";
+      } else if (wl === "VOID") {
+        naslov = "⚠️ NOVA STAVA - VOID";
+      }
+
+      // 2. Sestavimo sporočilo
       const telegramMsg = `
-<b>🆕 NOVA STAVA!</b>
+<b>${naslov}</b>
 
 🏆 <b>${sport}</b>
 ⚽ ${dogodek.trim()}
@@ -338,8 +350,10 @@ export default function BetsPage() {
 💰 Vplačilo: ${vplacilo1 || vplacilo2}€
 📊 Kvota: ${kvota1 || layKvota}
 👤 Tipster: ${tipster}
+📝 Status: <b>${wl}</b>
       `;
 
+      // 3. Pošljemo
       fetch("/api/send-telegram", {
         method: "POST",
         body: JSON.stringify({ message: telegramMsg }),
@@ -347,7 +361,7 @@ export default function BetsPage() {
     } catch (err) {
       console.error("Telegram error:", err);
     }
-    // -------------------------------------------
+    // -------------------------------------
     
     resetForm();
     setShowAddForm(false);
