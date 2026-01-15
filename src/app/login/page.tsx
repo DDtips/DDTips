@@ -45,7 +45,7 @@ export default function LoginPage() {
         
         // --- 2. 📧 POŠLJI EMAIL OBVESTILO ADMINU ---
         try {
-            await fetch("/api/notify-admin", {
+            await fetch("/api/send-telegram/notify-admin", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
