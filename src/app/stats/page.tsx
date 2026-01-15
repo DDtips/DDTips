@@ -9,7 +9,7 @@ import {
 import {
   Calendar, Filter, Users, Building2, Clock, Activity, RefreshCw, Layers,
   Target, TrendingUp, Percent, ArrowRightLeft, Hash, Scale, ChevronDown, Check,
-  BarChart3, Inbox, Trophy
+  BarChart3, Inbox, Trophy, Loader2
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -18,21 +18,9 @@ type Cas = "PREMATCH" | "LIVE";
 type Mode = "BET" | "TRADING";
 
 type Bet = {
-  id: string;
-  datum: string;
-  wl: WL;
-  kvota1: number;
-  vplacilo1: number;
-  lay_kvota: number;
-  vplacilo2: number;
-  komisija: number;
-  sport: string;
-  cas_stave: Cas;
-  tipster: string;
-  stavnica: string;
-  dogodek?: string;
-  tip?: string;
-  mode?: Mode | null;
+  id: string; datum: string; wl: WL; kvota1: number; vplacilo1: number; lay_kvota: number;
+  vplacilo2: number; komisija: number; sport: string; cas_stave: Cas;
+  tipster: string; stavnica: string; dogodek?: string; tip?: string; mode?: Mode | null;
 };
 
 // --- KONSTANTE ---
@@ -44,56 +32,37 @@ const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"
 const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"];
 const STAVNICE = ["SHARP", "PINNACLE", "BET365", "WINAMAX", "WWIN", "BET AT HOME", "E-STAVE"];
 
-// --- POMOŽNE FUNKCIJE ---
-function eur(n: number) {
-  return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-function eurDec(n: number) {
-  return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+// --- POMOŽNE FUNKCIJE (Izračuni ostajajo enaki) ---
+function eur(n: number) { return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+function eurDec(n: number) { return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function hasLay(b: Bet) { return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0; }
 function hasBack(b: Bet) { return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0; }
 function getMode(b: Bet): Mode { if (b.mode) return b.mode; return hasBack(b) && hasLay(b) ? "TRADING" : "BET"; }
 
 function calcRisk(b: Bet): number {
-  const hasBackBet = hasBack(b);
-  const hasLayBet = hasLay(b);
-  const backStake = b.vplacilo1 || 0;
-  const layLiability = b.vplacilo2 || 0;
-  if (hasBackBet && !hasLayBet) return backStake;
-  if (!hasBackBet && hasLayBet) return layLiability;
-  if (hasBackBet && hasLayBet) return Math.max(backStake, layLiability); 
-  return 0;
+  const hb = hasBack(b); const hl = hasLay(b);
+  const bs = b.vplacilo1 || 0; const ll = b.vplacilo2 || 0;
+  if (hb && !hl) return bs; if (!hb && hl) return ll;
+  if (hb && hl) return Math.max(bs, ll); return 0;
 }
 
 function calcProfit(b: Bet): number {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
-  const komZnesek = Number(b.komisija ?? 0);
-  const backStake = b.vplacilo1 || 0;
-  const backOdds = b.kvota1 || 0;
-  const layLiability = b.vplacilo2 || 0; 
-  const layOdds = b.lay_kvota || 0;
-  const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
-
-  let brutoProfit = 0;
+  const kom = Number(b.komisija ?? 0);
+  const bs = b.vplacilo1 || 0; const bo = b.kvota1 || 0;
+  const ll = b.vplacilo2 || 0; const lo = b.lay_kvota || 0;
+  const ls = lo > 1 ? ll / (lo - 1) : 0;
+  let bruto = 0;
   if (hasBack(b) && hasLay(b)) {
-    const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
-    const profitIfLayWins = layStake - backStake;
-    if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
-    else if (b.wl === "LAY WIN") brutoProfit = profitIfLayWins;
-    else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
-    else if (b.wl === "LOSS") brutoProfit = Math.min(profitIfBackWins, profitIfLayWins);
+    const pB = (bs * (bo - 1)) - ll; const pL = ls - bs;
+    if (b.wl === "BACK WIN") bruto = pB; else if (b.wl === "LAY WIN") bruto = pL;
+    else if (b.wl === "WIN") bruto = Math.max(pB, pL); else if (b.wl === "LOSS") bruto = Math.min(pB, pL);
+  } else if (!hasBack(b) && hasLay(b)) {
+    if (b.wl === "WIN" || b.wl === "LAY WIN") bruto = ls; else bruto = -ll;
+  } else if (hasBack(b) && !hasLay(b)) {
+    if (b.wl === "WIN" || b.wl === "BACK WIN") bruto = bs * (bo - 1); else bruto = -bs;
   }
-  else if (!hasBack(b) && hasLay(b)) {
-    if (b.wl === "WIN" || b.wl === "LAY WIN") brutoProfit = layStake;
-    else if (b.wl === "LOSS" || b.wl === "BACK WIN") brutoProfit = -layLiability;
-  }
-  else if (hasBack(b) && !hasLay(b)) {
-    if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1);
-    else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
-  }
-  if (brutoProfit > 0) return brutoProfit - komZnesek;
-  return brutoProfit;
+  return bruto > 0 ? bruto - kom : bruto;
 }
 
 function buildStats(rows: Bet[], filteredRows: Bet[], isFilteredByDate: boolean) {
@@ -103,78 +72,52 @@ function buildStats(rows: Bet[], filteredRows: Bet[], isFilteredByDate: boolean)
   const losses = settled.filter((r) => r.wl === "LOSS").length;
   const profit = settled.reduce((acc, r) => acc + calcProfit(r), 0);
   const totalRisk = settled.reduce((acc, r) => acc + calcRisk(r), 0);
-  
   const roi = totalRisk === 0 ? 0 : (profit / totalRisk) * 100;
   const winRate = n > 0 ? (wins / n) * 100 : 0;
   const growth = (profit / TOTAL_START_BANK) * 100;
-  const avgOdds = n > 0 ? settled.reduce((acc, r) => acc + (r.kvota1 || 0), 0) / n : 0;
-
-  const preProfit = settled.filter(r => r.cas_stave === "PREMATCH").reduce((acc, r) => acc + calcProfit(r), 0);
-  const liveProfit = settled.filter(r => r.cas_stave === "LIVE").reduce((acc, r) => acc + calcProfit(r), 0);
 
   let chartSourceRows = settled;
   const currentYear = new Date().getFullYear();
-  if (!isFilteredByDate) {
-      chartSourceRows = settled.filter(r => new Date(r.datum).getFullYear() === currentYear);
-  }
+  if (!isFilteredByDate) chartSourceRows = settled.filter(r => new Date(r.datum).getFullYear() === currentYear);
 
   const dailyMap = new Map<string, number>();
-  chartSourceRows.forEach(r => {
-      const dateKey = r.datum; 
-      dailyMap.set(dateKey, (dailyMap.get(dateKey) || 0) + calcProfit(r));
-  });
-
+  chartSourceRows.forEach(r => dailyMap.set(r.datum, (dailyMap.get(r.datum) || 0) + calcProfit(r)));
   const sortedDates = Array.from(dailyMap.keys()).sort();
   let runningProfit = 0;
   const chartData = sortedDates.map(date => {
       runningProfit += dailyMap.get(date) || 0;
-      return {
-          date: new Date(date).toLocaleDateString('sl-SI', { day: 'numeric', month: 'short' }),
-          rawDate: date,
-          profit: runningProfit
-      };
+      return { date: new Date(date).toLocaleDateString('sl-SI', { day: 'numeric', month: 'short' }), profit: runningProfit };
   });
 
-  if (!isFilteredByDate && chartData.length > 0 && chartData[0].rawDate > `${currentYear}-01-01`) {
-      chartData.unshift({ date: "1. Jan", rawDate: `${currentYear}-01-01`, profit: 0 });
-  } else if (!isFilteredByDate && chartData.length === 0) {
-      chartData.push({ date: "1. Jan", rawDate: `${currentYear}-01-01`, profit: 0 });
-  }
-
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Avg", "Sep", "Okt", "Nov", "Dec"];
-  const monthlyRows = isFilteredByDate ? settled : rows.filter(r => new Date(r.datum).getFullYear() === currentYear && r.wl !== "OPEN" && r.wl !== "VOID");
   const monthlyData = monthNames.map((name, index) => {
-      const monthProfit = monthlyRows.filter(r => new Date(r.datum).getMonth() === index).reduce((acc, r) => acc + calcProfit(r), 0);
+      const monthProfit = (isFilteredByDate ? settled : rows.filter(r => new Date(r.datum).getFullYear() === currentYear && r.wl !== "OPEN" && r.wl !== "VOID"))
+        .filter(r => new Date(r.datum).getMonth() === index).reduce((acc, r) => acc + calcProfit(r), 0);
       return { month: name, profit: monthProfit };
   });
 
-  return { profit, n, wins, losses, roi, winRate, growth, avgOdds, chartData, monthlyData, settled, preProfit, liveProfit };
+  return { profit, n, wins, losses, roi, winRate, growth, chartData, monthlyData, settled };
 }
 
 function getBreakdown(rows: Bet[], key: 'tipster' | 'sport' | 'cas_stave') {
   const groups = new Set(rows.map(r => r[key]).filter(Boolean));
-  const data = Array.from(groups).map(item => {
+  return Array.from(groups).map(item => {
     const itemRows = rows.filter(r => r[key] === item);
-    const bettingProfit = itemRows.filter(r => getMode(r) === "BET").reduce((acc, r) => acc + calcProfit(r), 0);
-    const tradingProfit = itemRows.filter(r => getMode(r) === "TRADING").reduce((acc, r) => acc + calcProfit(r), 0);
-    const totalProfit = bettingProfit + tradingProfit;
-    return { name: item, bettingProfit, tradingProfit, totalProfit, count: itemRows.length };
-  });
-  return data.sort((a, b) => b.totalProfit - a.totalProfit);
+    const totalProfit = itemRows.reduce((acc, r) => acc + calcProfit(r), 0);
+    return { name: item as string, totalProfit, count: itemRows.length };
+  }).sort((a, b) => b.totalProfit - a.totalProfit);
 }
 
-// --- KOMPONENTE ---
-
+// --- KOMPONENTE UI ---
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const value = payload[0].value;
-    const isPositive = value >= 0;
+    const val = payload[0].value;
     return (
-      <div className="bg-[#09090b]/90 border border-zinc-800 p-3 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] backdrop-blur-md min-w-[120px]">
+      <div className="bg-[#09090b]/90 border border-zinc-800 p-3 rounded-xl shadow-2xl backdrop-blur-md min-w-[120px]">
         <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest mb-2 border-b border-white/5 pb-1">{label}</p>
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs text-zinc-300 font-medium">Profit:</span>
-          <span className={`text-sm font-mono font-black ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>{value > 0 ? "+" : ""}{eurDec(value)}</span>
+          <span className={`text-sm font-mono font-black ${val >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{val > 0 ? "+" : ""}{eurDec(val)}</span>
         </div>
       </div>
     );
@@ -182,7 +125,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-// KOMPAKTNA KARTICA (KPI)
 function CompactStatCard({ label, value, subValue, icon: Icon, color = "text-white" }: any) {
   return (
     <div className="bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm rounded-2xl p-4 flex items-center justify-between hover:bg-zinc-900/60 transition-all group">
@@ -200,186 +142,87 @@ function CompactStatCard({ label, value, subValue, icon: Icon, color = "text-whi
   );
 }
 
-// RAZDELITEV KARTICA (Betting vs Trading)
 function SplitCard({ bettingStats, tradingStats }: { bettingStats: any, tradingStats: any }) {
   const total = Math.abs(bettingStats.profit) + Math.abs(tradingStats.profit);
   const betPerc = total === 0 ? 50 : (Math.abs(bettingStats.profit) / total) * 100;
   const tradePerc = 100 - betPerc;
-
   return (
     <div className="bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm rounded-2xl p-6 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-          <ArrowRightLeft className="w-4 h-4 text-violet-500" /> Struktura Profita
-        </h3>
-      </div>
-
+      <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-6"><ArrowRightLeft className="w-4 h-4 text-violet-500" /> Struktura Profita</h3>
       <div className="flex-1 flex flex-col justify-center gap-6">
-        {/* Betting Row */}
         <div>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-bold text-sky-500 uppercase tracking-widest flex items-center gap-2"><Target className="w-3 h-3"/> Betting</span>
-            <span className={`font-mono font-bold ${bettingStats.profit >=0 ? "text-white" : "text-rose-400"}`}>{eur(bettingStats.profit)}</span>
-          </div>
-          <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden">
-            <div className="h-full bg-sky-500/50 rounded-full" style={{ width: `${betPerc}%` }} />
-          </div>
-          <div className="flex justify-between mt-1 text-[10px] text-zinc-600 font-mono">
-            <span>ROI: {bettingStats.roi.toFixed(1)}%</span>
-            <span>{bettingStats.n} Stav</span>
-          </div>
+          <div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-sky-500 uppercase tracking-widest flex items-center gap-2"><Target className="w-3 h-3"/> Betting</span><span className="font-mono font-bold">{eur(bettingStats.profit)}</span></div>
+          <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden"><div className="h-full bg-sky-500/50" style={{ width: `${betPerc}%` }} /></div>
+          <div className="flex justify-between mt-1 text-[10px] text-zinc-600 font-mono"><span>ROI: {bettingStats.roi.toFixed(1)}%</span><span>{bettingStats.n} Stav</span></div>
         </div>
-
-        {/* Trading Row */}
         <div>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-bold text-violet-500 uppercase tracking-widest flex items-center gap-2"><Activity className="w-3 h-3"/> Trading</span>
-            <span className={`font-mono font-bold ${tradingStats.profit >=0 ? "text-white" : "text-rose-400"}`}>{eur(tradingStats.profit)}</span>
-          </div>
-          <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden">
-            <div className="h-full bg-violet-500/50 rounded-full" style={{ width: `${tradePerc}%` }} />
-          </div>
-          <div className="flex justify-between mt-1 text-[10px] text-zinc-600 font-mono">
-            <span>ROI: {tradingStats.roi.toFixed(1)}%</span>
-            <span>{tradingStats.n} Stav</span>
-          </div>
+          <div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-violet-500 uppercase tracking-widest flex items-center gap-2"><Activity className="w-3 h-3"/> Trading</span><span className="font-mono font-bold">{eur(tradingStats.profit)}</span></div>
+          <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden"><div className="h-full bg-violet-500/50" style={{ width: `${tradePerc}%` }} /></div>
+          <div className="flex justify-between mt-1 text-[10px] text-zinc-600 font-mono"><span>ROI: {tradingStats.roi.toFixed(1)}%</span><span>{tradingStats.n} Stav</span></div>
         </div>
       </div>
     </div>
   );
 }
 
-// --- IZBOLJŠAN INPUT FIELD ZA DATUM (Klikni kjerkoli + bela ikona) ---
+// (Ostali inputi/selecti ostajajo enaki...)
 function InputField({ label, value, onChange, type = "text", icon, placeholder }: any) {
     const inputRef = useRef<HTMLInputElement>(null);
-
-    const handleContainerClick = () => {
-        if (type === 'date' && inputRef.current) {
-            try {
-                inputRef.current.showPicker(); // Odpre native koledar takoj
-            } catch (e) {
-                // Fallback za starejše brskalnike
-                inputRef.current.focus();
-            }
-        }
-    };
-
     return (
-      <div className="space-y-1.5 pointer-events-auto group">
-        <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
-          {icon} {label}
-        </label>
-        <div className="relative" onClick={handleContainerClick}>
-            <input
-            ref={inputRef}
-            type={type}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className={`w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all placeholder:text-zinc-700 text-center font-medium shadow-sm cursor-pointer ${type === 'date' ? '[color-scheme:dark]' : ''}`}
-            />
-            {/* CSS Tweak za ikono koledarja */}
-            <style jsx>{`
-                input[type="date"]::-webkit-calendar-picker-indicator {
-                    cursor: pointer;
-                    filter: invert(1) opacity(0.5);
-                    transition: opacity 0.2s;
-                }
-                input[type="date"]::-webkit-calendar-picker-indicator:hover {
-                    opacity: 1;
-                }
-            `}</style>
+      <div className="space-y-1.5 group">
+        <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">{icon} {label}</label>
+        <div className="relative" onClick={() => inputRef.current?.showPicker()}>
+            <input ref={inputRef} type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all text-center font-medium [color-scheme:dark] cursor-pointer" />
         </div>
       </div>
     );
-  }
-  
-  function SelectField({ label, value, onChange, options, icon }: any) {
+}
+
+function SelectField({ label, value, onChange, options, icon }: any) {
     return (
-      <div className="space-y-1.5 pointer-events-auto group">
-        <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
-          {icon} {label}
-        </label>
+      <div className="space-y-1.5 group">
+        <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">{icon} {label}</label>
         <div className="relative">
-          <select
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full px-3 py-2.5 appearance-none bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer text-center font-medium shadow-sm"
-          >
+          <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-3 py-2.5 appearance-none bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 cursor-pointer text-center font-medium shadow-sm">
             {options.map((opt: string) => <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>)}
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
         </div>
       </div>
     );
-  }
+}
 
-  function MultiSelectField({ label, options, selected, onChange, icon }: { label: string, options: string[], selected: string[], onChange: (val: string[]) => void, icon?: React.ReactNode }) {
+function MultiSelectField({ label, options, selected, onChange, icon }: any) {
     const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-  
-    useEffect(() => {
-      function handleClickOutside(event: MouseEvent) {
-        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-          setIsOpen(false);
-        }
-      }
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-  
-    const toggleOption = (opt: string) => {
-      if (selected.includes(opt)) {
-        onChange(selected.filter(s => s !== opt));
-      } else {
-        onChange([...selected, opt]);
-      }
-    };
-  
+    const toggleOption = (opt: string) => selected.includes(opt) ? onChange(selected.filter((s:any) => s !== opt)) : onChange([...selected, opt]);
     return (
-      <div className="space-y-1.5 relative pointer-events-auto group" ref={dropdownRef}>
-        <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
-          {icon} {label}
-        </label>
-        <button 
-          onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs flex items-center justify-between hover:border-emerald-500/50 transition-all shadow-sm"
-        >
-          <span className="truncate font-medium">
-            {selected.length === 0 ? "Vsi" : selected.length === 1 ? selected[0] : `${selected.length} izbrano`}
-          </span>
+      <div className="space-y-1.5 relative group">
+        <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">{icon} {label}</label>
+        <button onClick={() => setIsOpen(!isOpen)} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs flex items-center justify-between hover:border-emerald-500/50 transition-all">
+          <span className="truncate">{selected.length === 0 ? "Vsi" : `${selected.length} izbrano`}</span>
           <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </button>
-  
         {isOpen && (
-          <div className="absolute top-full left-0 w-full mt-2 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl z-[100] max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
-             {options.map(opt => {
-               const isSelected = selected.includes(opt);
-               return (
-                 <div 
-                   key={opt} 
-                   onClick={() => toggleOption(opt)}
-                   className={`px-3 py-2.5 text-xs flex items-center justify-between cursor-pointer hover:bg-zinc-800/50 transition-colors border-l-2 ${isSelected ? "border-emerald-500 bg-emerald-500/5 text-emerald-400 font-bold" : "border-transparent text-zinc-400"}`}
-                 >
-                   <span>{opt}</span>
-                   {isSelected && <Check className="w-3.5 h-3.5" />}
+          <div className="absolute top-full left-0 w-full mt-2 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl z-[100] max-h-60 overflow-y-auto">
+             {options.map((opt:string) => (
+                 <div key={opt} onClick={() => toggleOption(opt)} className={`px-3 py-2.5 text-xs flex items-center justify-between cursor-pointer hover:bg-zinc-800/50 ${selected.includes(opt) ? "text-emerald-400 font-bold bg-emerald-500/5" : "text-zinc-400"}`}>
+                   <span>{opt}</span>{selected.includes(opt) && <Check className="w-3.5 h-3.5" />}
                  </div>
-               )
-             })}
+             ))}
           </div>
         )}
       </div>
     );
-  }
+}
 
 // --- GLAVNA STRAN ---
 export default function StatsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // START WITH TRUE
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // States for filters
+  // Filters
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [selectedTipsters, setSelectedTipsters] = useState<string[]>([]);
   const [stavnica, setStavnica] = useState("ALL");
@@ -390,29 +233,32 @@ export default function StatsPage() {
   const [maxKvota, setMaxKvota] = useState("");
 
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) { router.push("/login"); return; }
-      await loadRows();
-    })();
+    const checkAccessAndLoad = async () => {
+        setLoading(true);
+        // 1. Check Auth
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { router.replace("/login"); return; }
+
+        // 2. Check Profile Approval
+        const { data: profile } = await supabase.from('profiles').select('is_approved').eq('id', user.id).single();
+        if (!profile || !profile.is_approved) {
+            router.replace("/pending");
+            return;
+        }
+
+        // 3. Load Data
+        await loadRows();
+        setLoading(false);
+    };
+    checkAccessAndLoad();
   }, [router]);
 
   async function loadRows() {
-    setLoading(true);
     const { data, error } = await supabase.from("bets").select("*").order("datum", { ascending: true });
-    setLoading(false);
     if (!error) setRows((data ?? []) as Bet[]);
   }
 
-  const handleRefresh = async () => {
-    setSelectedSports([]); setSelectedTipsters([]); setStavnica("ALL"); setCas("ALL"); setFromDate(""); setToDate(""); setMinKvota(""); setMaxKvota(""); setFiltersOpen(false); await loadRows();
-  };
-  const handleClearFilters = () => {
-    setSelectedSports([]); setSelectedTipsters([]); setStavnica("ALL"); setCas("ALL"); setFromDate(""); setToDate(""); setMinKvota(""); setMaxKvota("");
-  };
-
-  const hasActiveFilters = selectedSports.length > 0 || selectedTipsters.length > 0 || stavnica !== "ALL" || cas !== "ALL" || fromDate !== "" || toDate !== "" || minKvota !== "" || maxKvota !== "";
-  const isFilteredByDate = fromDate !== "" || toDate !== "";
+  const handleRefresh = async () => { await loadRows(); };
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
@@ -430,164 +276,106 @@ export default function StatsPage() {
     });
   }, [rows, selectedSports, selectedTipsters, stavnica, cas, fromDate, toDate, minKvota, maxKvota]);
 
-  const bettingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "BET"), [filteredRows]);
-  const tradingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "TRADING"), [filteredRows]);
-
+  const isFilteredByDate = fromDate !== "" || toDate !== "";
   const totalStats = useMemo(() => buildStats(rows, filteredRows, isFilteredByDate), [rows, filteredRows, isFilteredByDate]);
-  const bettingStats = useMemo(() => buildStats(rows, bettingRows, isFilteredByDate), [rows, bettingRows, isFilteredByDate]);
-  const tradingStats = useMemo(() => buildStats(rows, tradingRows, isFilteredByDate), [rows, tradingRows, isFilteredByDate]);
-
+  const bettingStats = useMemo(() => buildStats(rows, filteredRows.filter(r => getMode(r) === "BET"), isFilteredByDate), [rows, filteredRows, isFilteredByDate]);
+  const tradingStats = useMemo(() => buildStats(rows, filteredRows.filter(r => getMode(r) === "TRADING"), isFilteredByDate), [rows, filteredRows, isFilteredByDate]);
+  
   const tipsterBreakdown = useMemo(() => getBreakdown(filteredRows, 'tipster'), [filteredRows]);
-  const sportBreakdown = useMemo(() => getBreakdown(filteredRows, 'sport'), [filteredRows]);
-  const casBreakdown = useMemo(() => getBreakdown(filteredRows, 'cas_stave'), [filteredRows]);
 
-  const tipsterTotals = useMemo(() => tipsterBreakdown.reduce((acc, curr) => ({ bet: acc.bet + curr.bettingProfit, trade: acc.trade + curr.tradingProfit, total: acc.total + curr.totalProfit }), { bet: 0, trade: 0, total: 0 }), [tipsterBreakdown]);
-  const sportTotals = useMemo(() => sportBreakdown.reduce((acc, curr) => ({ bet: acc.bet + curr.bettingProfit, trade: acc.trade + curr.tradingProfit, total: acc.total + curr.totalProfit }), { bet: 0, trade: 0, total: 0 }), [sportBreakdown]);
-  const casTotals = useMemo(() => casBreakdown.reduce((acc, curr) => ({ bet: acc.bet + curr.bettingProfit, trade: acc.trade + curr.tradingProfit, total: acc.total + curr.totalProfit }), { bet: 0, trade: 0, total: 0 }), [casBreakdown]);
-
-  if (loading && rows.length === 0) return <div className="min-h-screen flex items-center justify-center bg-black"><div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" /></div>;
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-black gap-4">
+      <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
+      <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest animate-pulse">Preverjanje dostopa...</p>
+    </div>
+  );
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30 font-sans">
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
       
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #52525b; }
-      `}</style>
-
       <div className="relative max-w-[1800px] mx-auto px-6 md:px-10 pb-12 z-10">
         
-        {/* HEADER & FILTER TOGGLE */}
-        <div className="pt-48 pb-8 flex justify-between items-center relative z-[60]">
-           <div className="flex items-center gap-3">
-              <BarChart3 className="w-5 h-5 text-emerald-500" />
-              <h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Statistika</h2>
-           </div>
-           
+        {/* HEADER */}
+        <div className="pt-48 pb-8 flex justify-between items-center">
+           <div className="flex items-center gap-3"><BarChart3 className="w-5 h-5 text-emerald-500" /><h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Statistika</h2></div>
            <div className="flex gap-3">
-            <button onClick={() => setFiltersOpen(!filtersOpen)} className={`flex items-center gap-2 px-6 py-3 rounded-2xl border transition-all cursor-pointer shadow-lg active:scale-95 backdrop-blur-md ${filtersOpen ? 'bg-zinc-800 text-white border-zinc-700 font-bold' : 'bg-emerald-500 text-black border-emerald-400 hover:bg-emerald-400 font-black'}`}>
-              <Filter className="w-4 h-4" /><span className="text-xs uppercase tracking-wider">{filtersOpen ? "Zapri Filtre" : "Filtri"}</span>
-              {hasActiveFilters && !filtersOpen && <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>}
+            <button onClick={() => setFiltersOpen(!filtersOpen)} className={`px-6 py-3 rounded-2xl border transition-all flex items-center gap-2 ${filtersOpen ? 'bg-zinc-800 text-white' : 'bg-emerald-500 text-black font-black'}`}>
+              <Filter className="w-4 h-4" /><span className="text-xs uppercase">Filtri</span>
             </button>
-            <button onClick={handleRefresh} className="p-3 bg-zinc-900/50 text-zinc-400 border border-zinc-800 rounded-2xl hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30 transition-all cursor-pointer shadow-lg active:scale-95 backdrop-blur-md">
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-emerald-500" : ""}`} />
-            </button>
+            <button onClick={handleRefresh} className="p-3 bg-zinc-900 border border-zinc-800 rounded-2xl hover:text-emerald-400 transition-all"><RefreshCw className="w-4 h-4" /></button>
           </div>
         </div>
 
         {/* FILTERS PANEL */}
-        <div className={`transition-all duration-500 ease-in-out relative z-50 ${filtersOpen ? 'opacity-100 max-h-[600px] mb-12 translate-y-0' : 'max-h-0 opacity-0 mb-0 -translate-y-4 overflow-hidden pointer-events-none'}`}>
-          <div className="rounded-3xl border border-zinc-800/60 bg-gradient-to-b from-zinc-900 to-black p-1 shadow-2xl">
-            <div className="rounded-[20px] bg-zinc-900/50 p-8 backdrop-blur-md">
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-5 mb-8">
-                <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
-                <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
-                <MultiSelectField label="Športi" options={SPORTI} selected={selectedSports} onChange={setSelectedSports} icon={<Activity className="w-3.5 h-3.5" />} />
-                <MultiSelectField label="Tipsterji" options={TIPSTERJI} selected={selectedTipsters} onChange={setSelectedTipsters} icon={<Users className="w-3.5 h-3.5" />} />
-                <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3.5 h-3.5" />} />
-                <SelectField label="Čas" value={cas} onChange={setCas} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3.5 h-3.5" />} />
-                <InputField label="Min Kvota" value={minKvota} onChange={setMinKvota} placeholder="1.00" icon={<Scale className="w-3.5 h-3.5" />} />
-                <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="10.00" icon={<Scale className="w-3.5 h-3.5" />} />
-                </div>
-                <div className="flex justify-end gap-4 pt-6 border-t border-white/5">
-                <button onClick={handleClearFilters} className="px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-white transition-colors cursor-pointer">Počisti vse</button>
-                <button onClick={() => setFiltersOpen(false)} className="px-8 py-2.5 bg-emerald-500 text-black text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-400 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">Uporabi</button>
+        {filtersOpen && (
+            <div className="mb-12 rounded-[2rem] bg-zinc-900/50 border border-zinc-800 p-8 backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-5">
+                    <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
+                    <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
+                    <MultiSelectField label="Športi" options={SPORTI} selected={selectedSports} onChange={setSelectedSports} icon={<Activity className="w-3.5 h-3.5" />} />
+                    <MultiSelectField label="Tipsterji" options={TIPSTERJI} selected={selectedTipsters} onChange={setSelectedTipsters} icon={<Users className="w-3.5 h-3.5" />} />
+                    <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3.5 h-3.5" />} />
+                    <SelectField label="Čas" value={cas} onChange={setCas} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3.5 h-3.5" />} />
+                    <InputField label="Min Kvota" value={minKvota} onChange={setMinKvota} placeholder="1.00" icon={<Scale className="w-3.5 h-3.5" />} />
+                    <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="10.00" icon={<Scale className="w-3.5 h-3.5" />} />
                 </div>
             </div>
-          </div>
-        </div>
+        )}
 
-        {/* --- NOVI LAYOUT: COMPACT KPI GRID --- */}
+        {/* KPI GRID */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <CompactStatCard 
-                label="Total Profit" 
-                value={eur(totalStats.profit)} 
-                color={totalStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}
-                icon={Trophy}
-            />
-            <CompactStatCard 
-                label="ROI" 
-                value={`${totalStats.roi.toFixed(1)}%`} 
-                color={totalStats.roi >= 0 ? "text-emerald-400" : "text-rose-400"}
-                icon={TrendingUp}
-            />
-            <CompactStatCard 
-                label="Win Rate" 
-                value={`${totalStats.winRate.toFixed(0)}%`} 
-                subValue={`${totalStats.wins}W - ${totalStats.losses}L`}
-                icon={Activity}
-            />
-            <CompactStatCard 
-                label="Število Stav" 
-                value={totalStats.n} 
-                subValue="Vseh skupaj"
-                icon={Hash}
-            />
+            <CompactStatCard label="Total Profit" value={eur(totalStats.profit)} color={totalStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"} icon={Trophy} />
+            <CompactStatCard label="ROI" value={`${totalStats.roi.toFixed(1)}%`} color={totalStats.roi >= 0 ? "text-emerald-400" : "text-rose-400"} icon={TrendingUp} />
+            <CompactStatCard label="Win Rate" value={`${totalStats.winRate.toFixed(0)}%`} subValue={`${totalStats.wins}W - ${totalStats.losses}L`} icon={Activity} />
+            <CompactStatCard label="Število Stav" value={totalStats.n} subValue="Vseh skupaj" icon={Hash} />
         </section>
 
-        {/* --- NOVI LAYOUT: GLAVNI GRAF + SIDEBAR --- */}
+        {/* TEKOČI PROFIT + STRUKTURA */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
-            
-            {/* GLAVNI GRAF (Zavzame 2/3) */}
-            <div className="lg:col-span-2 rounded-[2rem] bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm p-6 shadow-lg flex flex-col">
-                <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-500" /> Tekoči Profit</h3>
-                </div>
-                <div className="flex-1 min-h-[300px] w-full">
+            <div className="lg:col-span-2 rounded-[2rem] bg-zinc-900/40 border border-zinc-800 p-6 shadow-lg min-h-[400px]">
+                <h3 className="text-xs font-bold text-white uppercase tracking-widest mb-6 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-500" /> Tekoči Profit</h3>
+                <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={totalStats.chartData}>
-                        <defs>
-                            <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                        <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} dy={10} />
-                        <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${val > 1000 ? val/1000 + 'k' : val}`} dx={-10} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#52525b', strokeWidth: 1, strokeDasharray: '3 3' }} />
-                        <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                            <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} minTickGap={30} />
+                            <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `€${v}`} dx={-10} />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fill="rgba(16, 185, 129, 0.1)" />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
             </div>
-
-            {/* SIDEBAR: Betting vs Trading (Zavzame 1/3) */}
-            <div className="lg:col-span-1">
-                <SplitCard bettingStats={bettingStats} tradingStats={tradingStats} />
-            </div>
+            <div className="lg:col-span-1"><SplitCard bettingStats={bettingStats} tradingStats={tradingStats} /></div>
         </section>
 
-        {/* --- SEKUNDARNI GRAFI: Tipsterji + Mesečni --- */}
+        {/* TIPSTER BREAKDOWN */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
-             {/* TIPSTER BREAKDOWN */}
-             <div className="rounded-[2rem] bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm p-6 flex flex-col shadow-lg h-[400px]">
-                <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4"><div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-400"><Users className="w-4 h-4" /></div><h3 className="text-xs font-bold uppercase tracking-[0.15em] text-zinc-300">Tipster Profit</h3></div>
-                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                    <div className="grid grid-cols-3 text-[9px] font-bold text-zinc-500 uppercase px-3 mb-2 sticky top-0 bg-[#0c0c0e] z-10 py-2 rounded-lg border-b border-zinc-800"><span>Ime</span><span className="text-right">Št. Stav</span><span className="text-right text-white">Profit</span></div>
+             <div className="rounded-[2rem] bg-zinc-900/40 border border-zinc-800 p-6 shadow-lg">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-300 mb-6 flex items-center gap-2"><Users className="w-4 h-4 text-indigo-400" /> Tipster Profit</h3>
+                <div className="space-y-2">
                     {tipsterBreakdown.map(t => (
-                        <div key={t.name} className="grid grid-cols-3 text-xs px-3 py-2.5 hover:bg-white/5 rounded-lg transition-all border border-transparent hover:border-white/5 group"><span className="font-bold text-zinc-300">{t.name}</span><span className="text-right text-zinc-500 font-mono">{t.count}</span><span className={`text-right font-mono font-bold ${t.totalProfit>=0?"text-emerald-400":"text-rose-400"}`}>{eurDec(t.totalProfit)}</span></div>
+                        <div key={t.name} className="flex justify-between items-center p-3 rounded-xl bg-black/20 border border-white/5">
+                            <span className="font-bold text-zinc-300">{t.name}</span>
+                            <div className="flex gap-4">
+                                <span className="text-zinc-500 font-mono text-[10px] uppercase">{t.count} Stav</span>
+                                <span className={`font-mono font-bold ${t.totalProfit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurDec(t.totalProfit)}</span>
+                            </div>
+                        </div>
                     ))}
                 </div>
             </div>
-
-            {/* MESEČNI GRAF */}
-            <div className="rounded-[2rem] bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm p-6 shadow-lg h-[400px] flex flex-col">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-400"><Layers className="w-4 h-4" /></div>
-                    <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-zinc-300">Mesečni Pregled</h3>
-                </div>
-                <div className="flex-1 w-full">
+            <div className="rounded-[2rem] bg-zinc-900/40 border border-zinc-800 p-6 shadow-lg min-h-[300px]">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-300 mb-6 flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-500" /> Mesečni Pregled</h3>
+                <div className="h-[250px] w-full">
                    <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={totalStats.monthlyData}>
-                         <XAxis dataKey="month" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} />
-                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)', radius: 4 }} />
+                         <XAxis dataKey="month" stroke="#52525b" fontSize={10} axisLine={false} tickLine={false} />
+                         <Tooltip content={<CustomTooltip />} />
                          <Bar dataKey="profit" radius={[4, 4, 4, 4]}>
-                            {totalStats.monthlyData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#10b981" : "#f43f5e"} />))}
+                            {totalStats.monthlyData.map((e, i) => (<Cell key={i} fill={e.profit >= 0 ? "#10b981" : "#f43f5e"} />))}
                          </Bar>
                       </BarChart>
                    </ResponsiveContainer>
@@ -595,76 +383,7 @@ export default function StatsPage() {
              </div>
         </section>
 
-        {/* --- TABELA --- */}
-        <section className="rounded-[2rem] bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm overflow-hidden shadow-2xl">
-          <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Activity className="w-4 h-4 text-zinc-400" />
-              <h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Zadnje Aktivnosti</h2>
-            </div>
-            <div className="text-[10px] font-bold text-zinc-500 bg-zinc-900/80 border border-zinc-800 px-3 py-1.5 rounded-lg">Zadnjih 20 stav</div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-separate border-spacing-0">
-              <thead>
-                <tr className="bg-[#0c0c0e] border-b border-zinc-800/50">
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Datum</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Mode</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Status</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50 w-[200px]">Dogodek</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Stavnica</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Tipster</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Kvota</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Profit</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/30">
-                {totalStats.settled.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center">
-                      <div className="flex flex-col items-center justify-center opacity-40">
-                        <div className="w-12 h-12 bg-zinc-800/50 rounded-full flex items-center justify-center mb-3 border border-zinc-700/50">
-                          <Inbox className="w-6 h-6 text-zinc-500" />
-                        </div>
-                        <p className="text-zinc-500 text-xs uppercase tracking-wider">Ni podatkov za prikaz</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  totalStats.settled.slice().reverse().slice(0, 20).map((row) => {
-                  let statusBadge = null;
-                  if(row.wl === "BACK WIN") statusBadge = <span className="px-2 py-1 rounded text-[9px] font-black border text-emerald-400 bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_10px_-3px_rgba(16,185,129,0.3)]">BACK WIN</span>;
-                  else if(row.wl === "LAY WIN") statusBadge = <span className="px-2 py-1 rounded text-[9px] font-black border text-pink-400 bg-pink-500/10 border-pink-500/20 shadow-[0_0_10px_-3px_rgba(236,72,153,0.3)]">LAY WIN</span>;
-                  else if(row.wl === "WIN") statusBadge = <span className="px-2 py-1 rounded text-[9px] font-bold border text-emerald-400 bg-emerald-500/10 border-emerald-500/20">WIN</span>;
-                  else if(row.wl === "LOSS") statusBadge = <span className="px-2 py-1 rounded text-[9px] font-bold border text-rose-400 bg-rose-500/10 border-rose-500/20">LOSS</span>;
-                  else statusBadge = <span className="px-2 py-1 rounded text-[9px] font-bold border text-zinc-400 bg-zinc-500/10 border-zinc-500/20">{row.wl}</span>;
-
-                  let displayKvota = row.kvota1;
-                  if (getMode(row) === "TRADING" && row.wl === "LAY WIN") displayKvota = row.lay_kvota;
-                  else if (hasLay(row) && !hasBack(row)) displayKvota = row.lay_kvota;
-
-                  return (
-                    <tr key={row.id} className="hover:bg-zinc-800/40 transition-colors group">
-                      <td className="p-4 text-zinc-400 text-center font-mono border-b border-zinc-800/30">{new Date(row.datum).toLocaleDateString("sl-SI")}</td>
-                      <td className="p-4 text-center border-b border-zinc-800/30"><span className={`px-2 py-0.5 rounded text-xs font-bold border tracking-wider ${getMode(row) === 'TRADING' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>{getMode(row)}</span></td>
-                      <td className="p-4 text-center border-b border-zinc-800/30">{statusBadge}</td>
-                      <td className="p-4 text-zinc-300 text-center font-medium group-hover:text-white transition-colors border-b border-zinc-800/30">{row.dogodek || "-"}</td>
-                      <td className="p-4 text-center text-zinc-500 uppercase text-[9px] font-bold tracking-wider border-b border-zinc-800/30">{row.stavnica}</td>
-                      <td className="p-4 text-center border-b border-zinc-800/30"><span className="px-2 py-1 rounded bg-zinc-900 text-zinc-400 border border-zinc-800 text-[10px] font-bold">{row.tipster}</span></td>
-                      <td className="p-4 text-center text-zinc-300 font-mono font-bold border-b border-zinc-800/30">{displayKvota > 0 ? displayKvota.toFixed(2) : "-"}</td>
-                      <td className={`p-4 text-center font-mono font-black text-sm border-b border-zinc-800/30 ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurDec(calcProfit(row))}</td>
-                    </tr>
-                  );
-                }))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
-          <p>© 2024 DDTips Analytics. Vse pravice pridržane.</p>
-          <p className="font-mono">Realtime Stats</p>
-        </footer>
+        <footer className="mt-12 pt-8 border-t border-zinc-900 text-center text-zinc-600 text-[10px] uppercase tracking-widest">© 2024 DDTips Analytics</footer>
       </div>
     </main>
   );

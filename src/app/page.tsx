@@ -17,25 +17,22 @@ import {
   Tooltip,
   CartesianGrid,
   ReferenceLine,
-  LabelList
 } from "recharts";
 import {
   TrendingUp,
   DollarSign,
   BarChart3,
-  Users,
   Activity,
   Zap,
   Clock,
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
-  Layers,
   PieChart as PieIcon,
   Hash,
   Trophy,
   CalendarDays,
-  Target
+  Users,
 } from "lucide-react";
 
 // --- TIPOVI IN KONSTANTE ---
@@ -136,15 +133,11 @@ function buildStats(rows: Bet[]) {
 
 // --- KOMPONENTE UI ---
 
-// POPRAVLJEN TOOLTIP ZA PIE CHART IN OSTALO
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const dataPoint = payload[0];
     const value = dataPoint.value;
-    // Če je pie chart, je 'name' v payloadu, sicer uporabimo 'label' ali ime serije
     const title = dataPoint.name || label;
-    
-    // Za profit uporabimo barve, za volume (pie) pa nevtralne
     const isProfitChart = dataPoint.name === 'profit' || title === 'Profit';
     
     return (
@@ -232,25 +225,47 @@ function DataTable({ title, data, icon }: any) {
 export default function HomePage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start loading as true
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    (async () => {
+    const checkUserAndLoad = async () => {
       setLoading(true);
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) { router.push("/login"); return; }
+      
+      // 1. Preveri, če je uporabnik prijavljen
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+
+      // 2. Preveri profil in status odobritve
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_approved')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !profile || !profile.is_approved) {
+        // Če ni profila ali ni odobren, ga vrzi na pending stran
+        router.replace("/pending");
+        return;
+      }
+
+      // 3. Če je vse OK, naloži podatke za dashboard
       await loadRows();
-    })();
+      setLoading(false);
+    };
+
+    checkUserAndLoad();
   }, [router]);
 
   async function loadRows() {
-    setLoading(true);
     const { data, error } = await supabase.from("bets").select("*").order("datum", { ascending: true });
-    setLoading(false);
-    if (error) return;
-    setRows((data ?? []) as Bet[]);
+    if (!error) {
+        setRows((data ?? []) as Bet[]);
+    }
   }
 
   const stats = useMemo(() => buildStats(rows), [rows]);
@@ -285,7 +300,6 @@ export default function HomePage() {
         sportVolume.set(sport, (sportVolume.get(sport) || 0) + risk); 
     });
     
-    // Sortiraj in dodaj %
     const data = Array.from(sportVolume.entries()).map(([name, value]) => ({ 
         name, 
         value,
@@ -296,7 +310,6 @@ export default function HomePage() {
   }, [rows]);
 
   const currentMonthName = new Date().toLocaleDateString("sl-SI", { month: "long", year: "numeric" });
-  const currentYearName = new Date().getFullYear();
   const sportData = useMemo(() => SPORTI.map((s) => ({ label: s, value: eur(stats.profitBySport.get(s) ?? 0), profit: stats.profitBySport.get(s) ?? 0 })).sort((a, b) => b.profit - a.profit), [stats]);
   const tipsterData = useMemo(() => TIPSTERJI.map((t) => ({ label: t, value: eur(stats.profitByTipster.get(t) ?? 0), profit: stats.profitByTipster.get(t) ?? 0 })).sort((a, b) => b.profit - a.profit), [stats]);
   
@@ -309,11 +322,15 @@ export default function HomePage() {
   const diffFromStart = skupnaBanka - CAPITAL_TOTAL;
   const isProfit = diffFromStart >= 0;
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-black"><div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" /></div>;
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-black gap-4 text-center p-6">
+      <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+      <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest animate-pulse">Checking Access & Loading Stats...</p>
+    </div>
+  );
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30 font-sans">
-      {/* --- OZADJE --- */}
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
 
@@ -326,7 +343,7 @@ export default function HomePage() {
 
       <div className="relative max-w-[1800px] mx-auto px-6 md:px-10 pt-48 pb-12 z-10">
         
-        {/* --- 1. VRSTICA: GLAVNI KPI --- */}
+        {/* KPI SEKCIJA */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricCard title="Začetni kapital" value={eur(CAPITAL_TOTAL)} icon={<DollarSign className="w-5 h-5" />} accentColor="indigo" big />
           <MetricCard title="Trenutno stanje" value={eur(stats.bankroll)} trend={stats.bankroll >= CAPITAL_TOTAL ? "up" : "down"} icon={<Wallet className="w-5 h-5" />} accentColor={stats.bankroll >= CAPITAL_TOTAL ? "emerald" : "rose"} big />
@@ -334,7 +351,7 @@ export default function HomePage() {
           <MetricCard title="Donos" value={`${stats.donosNaKapital.toFixed(2)}%`} trend={stats.donosNaKapital >= 0 ? "up" : "down"} icon={<BarChart3 className="w-5 h-5" />} accentColor="amber" big />
         </section>
 
-        {/* --- 2. VRSTICA: SEKUNDARNI METRICS --- */}
+        {/* SEKUNDARNI KPI */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
             <MiniStatCard title="Stave" value={stats.n} icon={<Hash className="w-5 h-5"/>} colorClass="text-white"/>
             <MiniStatCard title="Zmage" value={stats.wins} icon={<Trophy className="w-5 h-5"/>} colorClass="text-emerald-400"/>
@@ -342,13 +359,10 @@ export default function HomePage() {
             <MiniStatCard title="Win Rate" value={`${stats.winRate.toFixed(1)}%`} icon={<Zap className="w-5 h-5"/>} colorClass="text-violet-400"/>
         </section>
 
-        {/* --- 3. GLAVNI DEL (BENTO GRID - STRETCH) --- */}
+        {/* GRAFI IN DENARNICA */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6 items-stretch">
             
-            {/* LEVI STOLPEC: GRAFI (8/12) */}
             <div className="xl:col-span-8 flex flex-col gap-6">
-                
-                {/* 1. DNEVNI GRAF */}
                 <div className="bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded-[2rem] p-8 shadow-xl">
                     <div className="flex items-center justify-between mb-6">
                         <div><h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2"><Clock className="w-4 h-4 text-emerald-500"/> Dnevni Profit</h3><p className="text-[9px] text-zinc-600 uppercase tracking-widest mt-1">{currentMonthName}</p></div>
@@ -359,14 +373,9 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                {/* SPODNJA VRSTICA: Mesečni + Pie (Split 50/50) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-                    
-                    {/* Mesečni Graf */}
                     <div className="bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded-[2rem] p-6 shadow-xl flex flex-col">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2"><CalendarDays className="w-4 h-4 text-indigo-500"/> Mesečni Profit</h3>
-                        </div>
+                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2 mb-4"><CalendarDays className="w-4 h-4 text-indigo-500"/> Mesečni Profit</h3>
                         <div className="flex-1 min-h-[180px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={chartMonthly}>
@@ -385,11 +394,9 @@ export default function HomePage() {
                         </div>
                     </div>
 
-                    {/* Pie Chart (Izboljšana Legenda) */}
                     <div className="bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded-[2rem] p-6 shadow-xl flex flex-col">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2 mb-2"><PieIcon className="w-4 h-4 text-violet-500"/> Volume po športih</h3>
                         <div className="flex flex-row items-center h-full">
-                            {/* Legenda na levi */}
                             <div className="flex flex-col gap-2 flex-1 pr-2 max-h-[180px] overflow-y-auto custom-scrollbar">
                                 {pieData.slice(0, 5).map((entry, index) => (
                                     <div key={entry.name} className="flex items-center justify-between group">
@@ -401,7 +408,6 @@ export default function HomePage() {
                                     </div>
                                 ))}
                             </div>
-                            {/* Graf na desni */}
                             <div className="w-[140px] h-[140px] relative shrink-0">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
@@ -417,11 +423,8 @@ export default function HomePage() {
                 </div>
             </div>
 
-            {/* DESNI STOLPEC: WALLET (4/12) - PRENOVLJEN DIZAJN */}
             <div className="xl:col-span-4 flex flex-col h-full">
                 <div className="bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded-[2rem] flex flex-col h-full shadow-xl overflow-hidden">
-                    
-                    {/* Header: Total Balance */}
                     <div className="bg-black/20 p-6 border-b border-zinc-800/50">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2"><Wallet className="w-4 h-4 text-amber-500"/> Skupno Stanje</h3>
@@ -436,17 +439,12 @@ export default function HomePage() {
                         </div>
                     </div>
 
-                    {/* Bookie List (Justify Between za zapolnitev prostora) */}
                     <div className="flex-1 flex flex-col justify-between p-4 gap-2">
-                        {stats.balanceByBook.map((book, idx) => {
+                        {stats.balanceByBook.map((book) => {
                             const isPositive = book.profit >= 0;
-                            // Generiraj "Avatar"
                             const initials = book.name.substring(0, 1); 
-                            
                             return (
                                 <div key={book.name} className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/30 border border-transparent hover:border-zinc-700/50 hover:bg-zinc-900/60 transition-all group">
-                                    
-                                    {/* Left: Icon & Name */}
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400 border border-zinc-700 group-hover:text-white group-hover:border-zinc-500 transition-colors">
                                             {initials}
@@ -460,11 +458,8 @@ export default function HomePage() {
                                             </div>
                                         </div>
                                     </div>
-
-                                    {/* Right: Balance & Bar */}
                                     <div className="flex flex-col items-end gap-1">
                                         <span className={`text-sm font-mono font-bold ${isPositive ? 'text-white' : 'text-rose-200'}`}>{eur(book.balance)}</span>
-                                        {/* Mini bar */}
                                         <div className="w-16 h-1 bg-zinc-800 rounded-full overflow-hidden">
                                             <div 
                                                 className={`h-full rounded-full ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} opacity-60`} 
@@ -480,7 +475,7 @@ export default function HomePage() {
             </div>
         </div>
 
-        {/* --- 4. VRSTICA: PODATKOVNE TABELE --- */}
+        {/* TABELE PO ŠPORTIH IN TIPSTERJIH */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <DataTable title="Po športih" data={sportData} icon={<Activity className="w-4 h-4 text-emerald-400" />} />
           <DataTable title="Po tipsterjih" data={tipsterData} icon={<Users className="w-4 h-4 text-indigo-400" />} />
