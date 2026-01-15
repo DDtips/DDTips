@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner"; // Tu ne rabimo več { Toaster }, samo { toast }
 import {
   Calendar,
   TrendingUp,
@@ -327,28 +327,37 @@ async function addBet() {
     
     setRows((prev) => [data as BetRow, ...prev]);
 
-    // --- PAMETNA TELEGRAM NOTIFIKACIJA ---
+    // --- TELEGRAM NOTIFIKACIJA (ZGOŠČENA + STAVNICA) ---
     try {
-      let naslov = "🆕 NOVA STAVA!";
-      if (wl === "WIN" || wl === "BACK WIN" || wl === "LAY WIN") {
-        naslov = "✅ NOVA STAVA - TAKOJŠNJA ZMAGA!";
-      } else if (wl === "LOSS") {
-        naslov = "❌ NOVA STAVA - TAKOJŠEN PORAZ";
-      } else if (wl === "VOID") {
-        naslov = "⚠️ NOVA STAVA - VOID";
+      const vplaciloVal = parseNum(vplacilo1) || parseNum(vplacilo2);
+      const isBomba = vplaciloVal > 99;
+
+      let ikona = "🆕";
+      let statusText = "";
+      
+      if (isBomba) {
+        ikona = "💣 BOMBA"; 
       }
 
-      const telegramMsg = `
-<b>${naslov}</b>
+      if (wl === "WIN" || wl === "BACK WIN" || wl === "LAY WIN") {
+        statusText = " (WIN)";
+        if (!isBomba) ikona = "✅";
+      } else if (wl === "LOSS") {
+        statusText = " (LOSS)";
+        if (!isBomba) ikona = "❌";
+      } else if (wl === "VOID") {
+        statusText = " (VOID)";
+        if (!isBomba) ikona = "⚠️";
+      }
 
-🏆 <b>${sport}</b>
-⚽ ${dogodek.trim()}
-🎯 Tip: ${tip.trim()}
-💰 Vplačilo: ${vplacilo1 || vplacilo2}€
-📊 Kvota: ${kvota1 || layKvota}
-👤 Tipster: ${tipster}
-📝 Status: <b>${wl}</b>
-      `;
+      const header = isBomba 
+        ? `<b>💣 BOMBA STAVA (${vplaciloVal}€) 💣</b>\n` 
+        : `<b>${ikona} ${sport}</b>${statusText}\n`;
+
+      const telegramMsg = `${header}⚽ ${dogodek.trim()}
+🎯 <b>${tip.trim()}</b>
+📊 @${kvota1 || layKvota}  💰 ${vplaciloVal}€
+🏦 ${stavnica}  👤 ${tipster}`;
 
       fetch("/api/send-telegram", {
         method: "POST",
@@ -389,9 +398,8 @@ async function addBet() {
         // --- NOTIFIKACIJA HEADRJU DA SE OSVEŽI ---
         window.dispatchEvent(new Event("bets-updated"));
 
-        toast.success("Stava uspešno izbrisana", {
-            style: { background: '#09090b', border: '1px solid #27272a', color: 'white' }
-        });
+        toast.success("Stava uspešno izbrisana");
+        
         setIsDeleteModalOpen(false);
         setBetToDelete(null);
     } catch (error: any) {
@@ -441,6 +449,7 @@ async function addBet() {
     setMsg(null);
     if (!editingBet.dogodek.trim() || !editingBet.tip.trim()) { alert("Manjka dogodek ali tip."); return; }
 
+    // 1. Pripravimo posodobljen objekt
     const updatedBet: BetRow = {
       ...editingBet,
       kvota1: parseNum(editKvota1),
@@ -450,6 +459,9 @@ async function addBet() {
       komisija: parseNum(editKomisija)
     };
 
+    // 2. Shranimo v Supabase (Preverimo originalen 'editingBet' za star status)
+    const oldStatus = rows.find(r => r.id === updatedBet.id)?.wl || "OPEN";
+
     const { error } = await supabase.from("bets").update({
       datum: updatedBet.datum, wl: updatedBet.wl, dogodek: updatedBet.dogodek, tip: updatedBet.tip,
       sport: updatedBet.sport, cas_stave: updatedBet.cas_stave, tipster: updatedBet.tipster, stavnica: updatedBet.stavnica,
@@ -458,10 +470,42 @@ async function addBet() {
     }).eq("id", updatedBet.id);
 
     if (error) { alert("Napaka pri shranjevanju: " + error.message); return; }
+
+    // 3. Posodobimo tabelo
     setRows((prev) => prev.map((r) => (r.id === updatedBet.id ? updatedBet : r)));
-    setFullEditOpen(false); setEditingBet(null);
+
+    // --- TELEGRAM NOTIFIKACIJA (Če se je status spremenil) ---
+    if (oldStatus !== updatedBet.wl && ["WIN", "LOSS", "BACK WIN", "LAY WIN", "VOID"].includes(updatedBet.wl)) {
+        
+        const isWin = ["WIN", "BACK WIN", "LAY WIN"].includes(updatedBet.wl);
+        let emoji = isWin ? "✅" : "❌";
+        let naslov = isWin ? "ZMAGA" : "PORAZ";
+        
+        if (updatedBet.wl === "VOID") {
+            emoji = "⚠️";
+            naslov = "VOID";
+        }
+
+        // Izračunamo profit
+        const profit = calcProfit(updatedBet);
+
+        const msg = `<b>${emoji} ${naslov}: ${updatedBet.sport}</b>
+⚽ ${updatedBet.dogodek}
+🎯 <b>${updatedBet.tip}</b>
+💰 Profit: ${eurCompact(profit)}
+🏦 ${updatedBet.stavnica}`;
+
+        fetch("/api/send-telegram", {
+            method: "POST",
+            body: JSON.stringify({ message: msg }),
+        });
+    }
+    // ---------------------------------------------------------
+
+    setFullEditOpen(false); 
+    setEditingBet(null);
     
-    // --- NOTIFIKACIJA HEADRJU DA SE OSVEŽI ---
+    // Osvežimo header (profit zgoraj)
     window.dispatchEvent(new Event("bets-updated"));
 
     toast.success("Stava posodobljena");
@@ -500,8 +544,6 @@ async function addBet() {
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
-      <Toaster position="top-center" theme="dark" richColors />
-
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
 
