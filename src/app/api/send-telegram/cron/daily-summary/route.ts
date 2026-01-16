@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Inicializacija baze
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Funkcija za profit
 function calcProfit(b: any) {
   if (b.wl === "OPEN" || b.wl === "VOID") return 0;
   const kom = Number(b.komisija ?? 0);
@@ -38,38 +36,32 @@ function calcProfit(b: any) {
 
 export async function GET() {
   try {
-    // 1. DOLOČI VČERAJŠNJI DATUM (Pravilno glede na časovni pas)
-    const options = { timeZone: "Europe/Ljubljana", year: 'numeric', month: '2-digit', day: '2-digit' } as const;
-    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Ljubljana" }); // YYYY-MM-DD
+    // 1. DOLOČI VČERAJŠNJI DATUM (YYYY-MM-DD)
+    const now = new Date();
+    // Pridobimo včerajšnji datum v slovenskem časovnem pasu
+    const yesterday = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Ljubljana" }));
+    yesterday.setDate(yesterday.getDate() - 1);
     
-    const d = new Date(todayStr);
-    d.setDate(d.getDate() - 1); // Odštejemo 1 dan
-    
-    const dateStr = d.toISOString().split('T')[0]; // Dobimo včeraj v formatu YYYY-MM-DD
-    const displayDate = d.toLocaleDateString("sl-SI", { day: 'numeric', month: 'numeric' });
+    const dateStr = yesterday.toISOString().split('T')[0]; 
+    const displayDate = yesterday.toLocaleDateString("sl-SI", { day: 'numeric', month: 'numeric' });
 
-    console.log(`[CRON] Začenjam dnevni povzetek za datum: ${dateStr}`);
+    console.log(`[CRON] Iščem stave za datum: ${dateStr}`);
 
-    // 2. PREBERI STAVE (Uporabimo ilike, da ulovimo tudi datume s časom)
+    // 2. PREBERI STAVE
+    // Ker je stolpec tipa DATE, uporabimo .eq() za natančno ujemanje
     const { data: bets, error } = await supabase
       .from("bets")
       .select("*")
-      .ilike("datum", `${dateStr}%`);
+      .eq("datum", dateStr);
 
     if (error) throw error;
 
     if (!bets || bets.length === 0) {
-        console.log(`[CRON] Ni bilo najdenih stav za datum: ${dateStr}`);
         return NextResponse.json({ message: `Ni stav za ${dateStr}.` });
     }
 
-    console.log(`[CRON] Najdenih ${bets.length} stav.`);
-
     // 3. SEŠTEJ STATISTIKO
-    let profit = 0; 
-    let wins = 0; 
-    let losses = 0;
-    
+    let profit = 0; let wins = 0; let losses = 0;
     bets.forEach((b) => {
       profit += calcProfit(b);
       if (["WIN", "BACK WIN", "LAY WIN"].includes(b.wl)) wins++;
@@ -85,23 +77,16 @@ export async function GET() {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    if (!token || !chatId) {
-        console.error("[CRON] Telegram ENV variable manjkajo!");
-        return NextResponse.json({ error: "Config missing" }, { status: 500 });
+    if (token && chatId) {
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: "POST", 
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: "HTML" }),
+        });
     }
-
-    const tgRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST", 
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: "HTML" }),
-    });
-
-    const tgData = await tgRes.json();
-    console.log("[CRON] Odgovor Telegrama:", tgData);
 
     return NextResponse.json({ success: true, date: dateStr, count: bets.length });
   } catch (e: any) {
-    console.error("[CRON] Napaka:", e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
