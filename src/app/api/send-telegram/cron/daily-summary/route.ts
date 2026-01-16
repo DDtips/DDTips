@@ -89,6 +89,11 @@ export async function GET() {
     // ROI izračun
     const roi = totalStake > 0 ? ((totalProfit / totalStake) * 100).toFixed(1) : "0";
 
+    // Barvni indikatorji za profit
+    const profitEmoji = totalProfit >= 0 ? "🟢" : "🔴";
+    const profitSign = totalProfit >= 0 ? "+" : "";
+    const roiEmoji = parseFloat(roi) >= 0 ? "🟢" : "🔴";
+
     // Ustvari sporočilo
     const message = `📊 <b>Dnevno poročilo za ${formatDate(dateStr)}</b>
 
@@ -100,8 +105,8 @@ export async function GET() {
 
 💰 <b>Finance:</b>
 • Skupni vložek: ${totalStake.toFixed(2)} €
-• Profit: ${totalProfit >= 0 ? "+" : ""}${totalProfit.toFixed(2)} €
-• ROI: ${roi}%
+• Profit: ${profitEmoji} <b>${profitSign}${totalProfit.toFixed(2)} €</b>
+• ROI: ${roiEmoji} <b>${profitSign}${roi}%</b>
 
 ${totalProfit >= 0 ? "🎉 Odličen dan!" : "💪 Naslednjič bo bolje!"}`;
 
