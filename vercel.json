@@ -1,11 +1,11 @@
 {
   "crons": [
     {
-      "path": "/api/cron/daily-summary",
+      "path": "/api/send-telegram/cron/daily-summary",
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/monthly-summary",
+      "path": "/api/send-telegram/cron/monthly-summary",
       "schedule": "0 7 1 * *"
     }
   ]
