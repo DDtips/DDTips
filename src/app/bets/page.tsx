@@ -135,15 +135,31 @@ function calcProfit(b: BetRow): number {
   return brutoProfit;
 }
 
+// --- FUNKCIJA ZA EMOJI ŠPORTA ---
+function getSportEmoji(sport: string): string {
+  const sportEmojis: Record<string, string> = {
+    "NOGOMET": "⚽",
+    "TENIS": "🎾",
+    "KOŠARKA": "🏀",
+    "SM. SKOKI": "🎿",
+    "SMUČANJE": "⛷️",
+    "BIATLON": "🎯",
+    "OSTALO": "🏅"
+  };
+  return sportEmojis[sport] || "🏅";
+}
+
 // --- TELEGRAM HELPER FUNKCIJA ---
 function sendTelegramNotification(bet: BetRow, allBets: BetRow[]) {
   const vplacilo = bet.vplacilo1 || bet.vplacilo2 || 0;
   const kvota = bet.kvota1 || bet.lay_kvota || 0;
+  const sportEmoji = getSportEmoji(bet.sport);
+  const today = new Date().getDate();
   
   let msg = "";
 
   if (bet.wl === "OPEN") {
-    msg = `📝 <b>DODANA NOVA STAVA</b>\nStatus: OPEN\n\n🏀 <b>${bet.sport}</b>\n⚽ ${bet.dogodek}\n🎯 <b>${bet.tip}</b>\n📊 @${kvota} 💰 ${vplacilo}€\n🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
+    msg = `📝 <b>DODANA NOVA STAVA</b>\nStatus: OPEN\n\n${sportEmoji} <b>${bet.sport}</b>\n🆚 ${bet.dogodek}\n🎯 <b>${bet.tip}</b>\n📊 @${kvota} 💰 ${vplacilo}€\n🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
   } else if (["WIN", "BACK WIN", "LAY WIN"].includes(bet.wl)) {
     const profit = calcProfit(bet);
     const todayBets = allBets.filter((r) => r.datum === bet.datum && r.wl !== "OPEN" && r.wl !== "VOID");
@@ -152,7 +168,7 @@ function sendTelegramNotification(bet: BetRow, allBets: BetRow[]) {
     const dailySign = dailyProfit >= 0 ? "+" : "";
     const profitEmoji = profit >= 0 ? "🟢" : "🔴";
     const dailyEmoji = dailyProfit >= 0 ? "🟢" : "🔴";
-    msg = `✅🎉 <b>STAVA ZAKLJUČENA: ZMAGA!</b> 🎉✅\n\n🏀 <b>${bet.sport}</b>\n⚽ ${bet.dogodek}\n🎯 <b>${bet.tip}</b>\n\n💰 <b>Profit:</b> ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>\n📅 <b>Profit danes:</b> ${dailyEmoji} <b>${dailySign}${eurCompact(dailyProfit)}</b>\n\n🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
+    msg = `✅🎉 <b>STAVA ZAKLJUČENA: ZMAGA!</b> 🎉✅\n\n${sportEmoji} <b>${bet.sport}</b>\n🆚 ${bet.dogodek}\n🎯 <b>${bet.tip}</b>\n\n💰 <b>Profit:</b> ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>\n📆 <b>Profit danes (${today}.):</b> ${dailyEmoji} <b>${dailySign}${eurCompact(dailyProfit)}</b>\n\n🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
   } else if (bet.wl === "LOSS") {
     const profit = calcProfit(bet);
     const todayBets = allBets.filter((r) => r.datum === bet.datum && r.wl !== "OPEN" && r.wl !== "VOID");
@@ -161,9 +177,9 @@ function sendTelegramNotification(bet: BetRow, allBets: BetRow[]) {
     const dailySign = dailyProfit >= 0 ? "+" : "";
     const profitEmoji = profit >= 0 ? "🟢" : "🔴";
     const dailyEmoji = dailyProfit >= 0 ? "🟢" : "🔴";
-    msg = `❌😔 <b>STAVA ZAKLJUČENA: PORAZ</b> 😔❌\n\n🏀 <b>${bet.sport}</b>\n⚽ ${bet.dogodek}\n🎯 <b>${bet.tip}</b>\n\n💰 <b>Profit:</b> ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>\n📅 <b>Profit danes:</b> ${dailyEmoji} <b>${dailySign}${eurCompact(dailyProfit)}</b>\n\n🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
+    msg = `❌😔 <b>STAVA ZAKLJUČENA: PORAZ</b> 😔❌\n\n${sportEmoji} <b>${bet.sport}</b>\n🆚 ${bet.dogodek}\n🎯 <b>${bet.tip}</b>\n\n💰 <b>Profit:</b> ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>\n📆 <b>Profit danes (${today}.):</b> ${dailyEmoji} <b>${dailySign}${eurCompact(dailyProfit)}</b>\n\n🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
   } else if (bet.wl === "VOID") {
-    msg = `⚠️ <b>STAVA VOID</b>\n\n🏀 <b>${bet.sport}</b>\n⚽ ${bet.dogodek}\n🎯 <b>${bet.tip}</b>\n🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
+    msg = `⚠️ <b>STAVA VOID</b>\n\n${sportEmoji} <b>${bet.sport}</b>\n🆚 ${bet.dogodek}\n🎯 <b>${bet.tip}</b>\n🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
   }
 
   if (msg) {
