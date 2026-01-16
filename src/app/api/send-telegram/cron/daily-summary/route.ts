@@ -36,31 +36,39 @@ function calcProfit(b: any) {
 
 export async function GET() {
   try {
-    // 1. DOLOČI VČERAJŠNJI DATUM (YYYY-MM-DD)
-    const now = new Date();
-    // Pridobimo včerajšnji datum v slovenskem časovnem pasu
-    const yesterday = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Ljubljana" }));
-    yesterday.setDate(yesterday.getDate() - 1);
+    // 1. ROČNI IZRAČUN VČERAJŠNJEGA DATUMA (Slovenija čas)
+    // Prisilimo Vercel, da uporabi naš časovni pas
+    const sloTime = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Ljubljana",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    const d = new Date(sloTime);
+    d.setDate(d.getDate() - 1); // Odštejemo 1 dan, da dobimo včeraj
     
-    const dateStr = yesterday.toISOString().split('T')[0]; 
-    const displayDate = yesterday.toLocaleDateString("sl-SI", { day: 'numeric', month: 'numeric' });
+    const dateStr = d.toISOString().split('T')[0]; // Format: 2026-01-15
+    const displayDate = d.toLocaleDateString("sl-SI", { day: 'numeric', month: 'numeric' });
 
-    console.log(`[CRON] Iščem stave za datum: ${dateStr}`);
+    console.log(`[DEBUG] Iščem stave za včerajšnji datum: ${dateStr}`);
 
-    // 2. PREBERI STAVE
-    // Ker je stolpec tipa DATE, uporabimo .eq() za natančno ujemanje
+    // 2. PREBERI STAVE S TOLERANCO (Vse v tem dnevu)
+    // Uporabimo gte (večje ali enako) in lte (manjše ali enako), da zajamemo vse
     const { data: bets, error } = await supabase
       .from("bets")
       .select("*")
-      .eq("datum", dateStr);
+      .gte("datum", `${dateStr} 00:00:00`)
+      .lte("datum", `${dateStr} 23:59:59`);
 
     if (error) throw error;
 
     if (!bets || bets.length === 0) {
+        console.log(`[DEBUG] Ni stav za ${dateStr} v bazi.`);
         return NextResponse.json({ message: `Ni stav za ${dateStr}.` });
     }
 
-    // 3. SEŠTEJ STATISTIKO
+    // 3. STATISTIKA
     let profit = 0; let wins = 0; let losses = 0;
     bets.forEach((b) => {
       profit += calcProfit(b);
@@ -71,7 +79,7 @@ export async function GET() {
     const emoji = profit >= 0 ? "✅" : "🔻";
     const sign = profit > 0 ? "+" : "";
 
-    // 4. POŠLJI NA TELEGRAM
+    // 4. TELEGRAM
     const msg = `<b>📊 ANALIZA VČERAJ (${displayDate})</b>\n\n💰 <b>Profit: ${sign}${profit.toFixed(2)}€</b>\n${emoji} W: ${wins} / L: ${losses}\n📊 Skupaj: ${bets.length} stav`;
 
     const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -85,7 +93,7 @@ export async function GET() {
         });
     }
 
-    return NextResponse.json({ success: true, date: dateStr, count: bets.length });
+    return NextResponse.json({ success: true, debug_date: dateStr, found: bets.length });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
