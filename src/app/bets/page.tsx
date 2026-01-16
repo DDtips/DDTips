@@ -134,7 +134,84 @@ function calcProfit(b: BetRow): number {
   }
   return brutoProfit;
 }
+// --- TELEGRAM HELPER FUNKCIJA ---
+function sendTelegramNotification(bet: BetRow, allBets: BetRow[]) {
+  const vplacilo = bet.vplacilo1 || bet.vplacilo2 || 0;
+  const kvota = bet.kvota1 || bet.lay_kvota || 0;
+  
+  let msg = "";
 
+  if (bet.wl === "OPEN") {
+    // OPEN - nova stava
+    msg = `📝 <b>DODANA NOVA STAVA</b>
+Status: OPEN
+
+🏀 <b>${bet.sport}</b>
+⚽ ${bet.dogodek}
+🎯 <b>${bet.tip}</b>
+📊 @${kvota} 💰 ${vplacilo}€
+🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
+
+  } else if (["WIN", "BACK WIN", "LAY WIN"].includes(bet.wl)) {
+    // WIN - zmaga
+    const profit = calcProfit(bet);
+    const todayBets = allBets.filter((r) => r.datum === bet.datum && r.wl !== "OPEN" && r.wl !== "VOID");
+    const dailyProfit = todayBets.reduce((sum, r) => sum + calcProfit(r), 0);
+    
+    const profitSign = profit >= 0 ? "+" : "";
+    const dailySign = dailyProfit >= 0 ? "+" : "";
+    const profitEmoji = profit >= 0 ? "🟢" : "🔴";
+    const dailyEmoji = dailyProfit >= 0 ? "🟢" : "🔴";
+
+    msg = `✅🎉 <b>STAVA ZAKLJUČENA: ZMAGA!</b> 🎉✅
+
+🏀 <b>${bet.sport}</b>
+⚽ ${bet.dogodek}
+🎯 <b>${bet.tip}</b>
+
+💰 <b>Profit:</b> ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>
+📅 <b>Profit danes:</b> ${dailyEmoji} <b>${dailySign}${eurCompact(dailyProfit)}</b>
+
+🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
+
+  } else if (bet.wl === "LOSS") {
+    // LOSS - poraz
+    const profit = calcProfit(bet);
+    const todayBets = allBets.filter((r) => r.datum === bet.datum && r.wl !== "OPEN" && r.wl !== "VOID");
+    const dailyProfit = todayBets.reduce((sum, r) => sum + calcProfit(r), 0);
+    
+    const profitSign = profit >= 0 ? "+" : "";
+    const dailySign = dailyProfit >= 0 ? "+" : "";
+    const profitEmoji = profit >= 0 ? "🟢" : "🔴";
+    const dailyEmoji = dailyProfit >= 0 ? "🟢" : "🔴";
+
+    msg = `❌😔 <b>STAVA ZAKLJUČENA: PORAZ</b> 😔❌
+
+🏀 <b>${bet.sport}</b>
+⚽ ${bet.dogodek}
+🎯 <b>${bet.tip}</b>
+
+💰 <b>Profit:</b> ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>
+📅 <b>Profit danes:</b> ${dailyEmoji} <b>${dailySign}${eurCompact(dailyProfit)}</b>
+
+🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
+
+  } else if (bet.wl === "VOID") {
+    msg = `⚠️ <b>STAVA VOID</b>
+
+🏀 <b>${bet.sport}</b>
+⚽ ${bet.dogodek}
+🎯 <b>${bet.tip}</b>
+🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
+  }
+
+  if (msg) {
+    fetch("/api/send-telegram", {
+      method: "POST",
+      body: JSON.stringify({ message: msg }),
+    });
+  }
+}
 function getCurrentMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -326,68 +403,15 @@ export default function BetsPage() {
     setWl("OPEN"); setDogodek(""); setTip(""); setMode("BET"); setBetSide("BACK"); setKvota1(""); setVplacilo1(""); setLayKvota(""); setVplacilo2(""); setKomisija("0");
   }
 
-  async function addBet() {
-    setMsg(null);
-    if (!dogodek.trim() || !tip.trim()) { setMsg("Manjka dogodek ali tip."); return; }
-    const backOdds = parseNum(kvota1); const backStake = parseNum(vplacilo1);
-    const layOdds = parseNum(layKvota); const layStake = parseNum(vplacilo2);
-
-    if (mode === "TRADING" && !(backOdds > 1 && backStake > 0 && layOdds > 1 && layStake > 0)) { setMsg("Trading zahteva BACK in LAY."); return; }
-    if (mode === "BET" && betSide === "BACK" && !(backOdds > 1 && backStake > 0)) { setMsg("Manjka Back kvota/vplačilo."); return; }
-    if (mode === "BET" && betSide === "LAY" && !(layOdds > 1 && layStake > 0)) { setMsg("Manjka Lay kvota/vplačilo."); return; }
-
-    const payload: any = { datum, wl, dogodek: dogodek.trim(), tip: tip.trim(), komisija: parseNum(komisija), sport, cas_stave: casStave, tipster, stavnica, created_by: user?.id || null, mode };
-    if (mode === "TRADING") { payload.kvota1 = backOdds; payload.vplacilo1 = backStake; payload.lay_kvota = layOdds; payload.vplacilo2 = layStake; }
-    else {
-      if (betSide === "BACK") { payload.kvota1 = backOdds; payload.vplacilo1 = backStake; payload.lay_kvota = 0; payload.vplacilo2 = 0; }
-      else { payload.kvota1 = 0; payload.vplacilo1 = 0; payload.lay_kvota = layOdds; payload.vplacilo2 = layStake; }
-    }
-
-    const { data, error } = await supabase.from("bets").insert(payload).select("*").single();
-    if (error) { setMsg(error.message); return; }
-    setRows((prev) => [data as BetRow, ...prev]);
-
-    // --- TELEGRAM NOTIFIKACIJA (ZGOŠČENA + STAVNICA) ---
+// --- TELEGRAM NOTIFIKACIJA ---
     try {
-      const vplaciloVal = parseNum(vplacilo1) || parseNum(vplacilo2);
-      const isBomba = vplaciloVal > 99;
-
-      let ikona = "🆕";
-      let statusText = "";
-      if (isBomba) {
-        ikona = "💣 BOMBA";
-      }
-
-      if (wl === "WIN" || wl === "BACK WIN" || wl === "LAY WIN") {
-        statusText = " (WIN)";
-        if (!isBomba) ikona = "✅";
-      } else if (wl === "LOSS") {
-        statusText = " (LOSS)";
-        if (!isBomba) ikona = "❌";
-      } else if (wl === "VOID") {
-        statusText = " (VOID)";
-        if (!isBomba) ikona = "⚠️";
-      }
-
-      const header = isBomba
-        ? `<b>💣 BOMBA STAVA (${vplaciloVal}€) 💣</b>\n`
-        : `<b>${ikona} ${sport}</b>${statusText}\n`;
-
-      const telegramMsg = `${header}⚽ ${dogodek.trim()}
-🎯 <b>${tip.trim()}</b>
-📊 @${kvota1 || layKvota} 💰 ${vplaciloVal}€
-🏦 ${stavnica} 👤 ${tipster}`;
-
-      fetch("/api/send-telegram", {
-        method: "POST",
-        body: JSON.stringify({ message: telegramMsg }),
-      });
+      const newBet = data as BetRow;
+      const updatedRows = [newBet, ...rows];
+      sendTelegramNotification(newBet, updatedRows);
     } catch (err) {
       console.error("Telegram error:", err);
     }
     // -------------------------------------
-    resetForm();
-    setShowAddForm(false);
     // --- NOTIFIKACIJA HEADRJU DA SE OSVEŽI ---
     window.dispatchEvent(new Event("bets-updated"));
     toast.success("Stava uspešno dodana!");
@@ -500,10 +524,15 @@ ${dailyEmoji} Profit: <b>${dailySign}${eurCompact(dailyProfit)}</b>
   toast.success("Status posodobljen");
 }
 
-  async function saveFullEdit() {
-    if (!editingBet) return;
-    setMsg(null);
-    if (!editingBet.dogodek.trim() || !editingBet.tip.trim()) { alert("Manjka dogodek ali tip."); return; }
+// --- TELEGRAM NOTIFIKACIJA (če se je status spremenil) ---
+    if (oldStatus !== updatedBet.wl) {
+      try {
+        const updatedRows = rows.map((r) => (r.id === updatedBet.id ? updatedBet : r));
+        sendTelegramNotification(updatedBet, updatedRows);
+      } catch (err) {
+        console.error("Telegram error:", err);
+      }
+    }
 
     // 1. Pripravimo posodobljen objekt
     const updatedBet: BetRow = {
