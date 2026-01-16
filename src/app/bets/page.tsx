@@ -434,27 +434,71 @@ export default function BetsPage() {
     setFullEditOpen(true);
   }
 
-  async function saveStatusEdit() {
-    if (!statusEditId) return;
-    const { error } = await supabase.from("bets").update({ wl: statusEditWl }).eq("id", statusEditId);
-    if (error) { setMsg(error.message); return; }
-    const updatedBet = rows.find(r => r.id === statusEditId);
-    setRows((prev) => prev.map((r) => (r.id === statusEditId ? { ...r, wl: statusEditWl } : r)));
+async function saveStatusEdit() {
+  if (!statusEditId) return;
+  const { error } = await supabase.from("bets").update({ wl: statusEditWl }).eq("id", statusEditId);
+  if (error) { setMsg(error.message); return; }
+  
+  const oldBet = rows.find(r => r.id === statusEditId);
+  const updatedBet = oldBet ? { ...oldBet, wl: statusEditWl } : null;
+  
+  setRows((prev) => prev.map((r) => (r.id === statusEditId ? { ...r, wl: statusEditWl } : r)));
 
-    if (updatedBet && (statusEditWl === "WIN" || statusEditWl === "LOSS" || statusEditWl === "BACK WIN" || statusEditWl === "LAY WIN")) {
-      const isWin = statusEditWl === "WIN" || statusEditWl === "BACK WIN" || statusEditWl === "LAY WIN";
-      const emoji = isWin ? "✅" : "❌";
-      const naslov = isWin ? "ZMAGA!" : "PORAZ";
-      const msg = `<b>${emoji} STAVA ZAKLJUČENA: ${naslov}</b>\n\n⚽ ${updatedBet.dogodek}\n🎯 ${updatedBet.tip}\n📊 Status: <b>${statusEditWl}</b>`;
-      fetch("/api/send-telegram", { method: "POST", body: JSON.stringify({ message: msg }) });
+  // --- TELEGRAM NOTIFIKACIJA ---
+  if (updatedBet && ["WIN", "LOSS", "BACK WIN", "LAY WIN", "VOID"].includes(statusEditWl)) {
+    const isWin = ["WIN", "BACK WIN", "LAY WIN"].includes(statusEditWl);
+    let emoji = isWin ? "✅" : "❌";
+    let naslov = isWin ? "ZMAGA" : "PORAZ";
+    if (statusEditWl === "VOID") {
+      emoji = "⚠️";
+      naslov = "VOID";
     }
 
-    setStatusEditOpen(false); setStatusEditId(null);
-    // --- NOTIFIKACIJA HEADRJU DA SE OSVEŽI ---
-    window.dispatchEvent(new Event("bets-updated"));
+    // Izračunamo profit stave
+    const betWithNewStatus = { ...updatedBet, wl: statusEditWl } as BetRow;
+    const profit = calcProfit(betWithNewStatus);
 
-    toast.success("Status posodobljen");
+    // Izračunamo dnevni profit (vse stave z istim datumom)
+    const todayBets = rows
+      .map((r) => (r.id === statusEditId ? betWithNewStatus : r))
+      .filter((r) => r.datum === updatedBet.datum && r.wl !== "OPEN" && r.wl !== "VOID");
+    
+    const dailyProfit = todayBets.reduce((sum, r) => sum + calcProfit(r), 0);
+    const dailyWins = todayBets.filter((r) => ["WIN", "BACK WIN", "LAY WIN"].includes(r.wl)).length;
+    const dailyLosses = todayBets.filter((r) => r.wl === "LOSS").length;
+
+    // Barvni indikatorji
+    const profitEmoji = profit >= 0 ? "🟢" : "🔴";
+    const dailyEmoji = dailyProfit >= 0 ? "🟢" : "🔴";
+    const profitSign = profit >= 0 ? "+" : "";
+    const dailySign = dailyProfit >= 0 ? "+" : "";
+
+    const msg = `<b>${emoji} ${naslov}: ${updatedBet.sport}</b>
+
+⚽ ${updatedBet.dogodek}
+🎯 <b>${updatedBet.tip}</b>
+📊 Kvota: ${updatedBet.kvota1 || updatedBet.lay_kvota}
+
+💰 <b>Profit stave:</b> ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>
+
+📅 <b>Danes (${formatDateSlovenian(updatedBet.datum)}):</b>
+${dailyEmoji} Profit: <b>${dailySign}${eurCompact(dailyProfit)}</b>
+✅ ${dailyWins} W / ❌ ${dailyLosses} L
+
+🏦 ${updatedBet.stavnica} 👤 ${updatedBet.tipster}`;
+
+    fetch("/api/send-telegram", {
+      method: "POST",
+      body: JSON.stringify({ message: msg }),
+    });
   }
+  // ---------------------------------------------------------
+
+  setStatusEditOpen(false);
+  setStatusEditId(null);
+  window.dispatchEvent(new Event("bets-updated"));
+  toast.success("Status posodobljen");
+}
 
   async function saveFullEdit() {
     if (!editingBet) return;
