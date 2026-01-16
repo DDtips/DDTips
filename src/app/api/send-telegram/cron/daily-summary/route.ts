@@ -8,36 +8,43 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    // 1. Izračun včerajšnjega datuma
-    const d = new Date();
-    d.setHours(d.getHours() + 1); // Prilagodba na SLO čas
-    d.setDate(d.getDate() - 1);
-    const dateStr = d.toISOString().split('T')[0];
+    // DEBUG - preveri ali so env variables nastavljeni
+    const debugInfo = {
+      hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      urlPreview: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30) + "..."
+    };
 
-    // 2. DIAGNOSTIKA: Poglejmo, kaj je sploh v bazi
-    const { data: rawBets } = await supabase
-      .from("bets")
-      .select("datum")
-      .limit(5)
-      .order("datum", { ascending: false });
+    // Današnji datum v slovenskem času
+    const now = new Date();
+    const slovenianFormatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Ljubljana",
+      year: "numeric",
+      month: "2-digit", 
+      day: "2-digit",
+    });
+    const todayStr = slovenianFormatter.format(now);
+    
+    // Včerajšnji datum
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = slovenianFormatter.format(yesterday);
 
-    // 3. Poskus iskanja stav
+    // Poizvedba
     const { data: bets, error } = await supabase
       .from("bets")
       .select("*")
-      .eq("datum", dateStr);
+      .eq("datum", yesterdayStr);
 
-    if (error) throw error;
+    return NextResponse.json({ 
+      debug: debugInfo,
+      danes: todayStr,
+      iskan_datum: yesterdayStr,
+      error: error?.message || null,
+      najdeno: bets?.length ?? 0,
+      prvih2: bets?.slice(0, 2) || []
+    });
 
-    if (!bets || bets.length === 0) {
-      return NextResponse.json({ 
-        message: "Ni stav.",
-        iskan_datum: dateStr,
-        kaj_vidi_baza: rawBets // TUKAJ BOVA VIDELA ODGOVOR
-      });
-    }
-
-    return NextResponse.json({ success: true, najdeno: bets.length });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
