@@ -62,7 +62,7 @@ function calcProfit(b: any): number {
   return brutoProfit;
 }
 
-function getLastMonthRange(): { year: number; month: string; monthLabel: string; monthPrefix: string } {
+function getLastWeekRange(): { startDate: string; endDate: string; weekLabel: string } {
   const now = new Date();
   const slovenianFormatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Ljubljana",
@@ -70,31 +70,32 @@ function getLastMonthRange(): { year: number; month: string; monthLabel: string;
     month: "2-digit",
     day: "2-digit",
   });
+
+  // Poišči prejšnji ponedeljek (začetek preteklega tedna)
+  const today = new Date(slovenianFormatter.format(now));
+  const dayOfWeek = today.getDay();
+  const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   
-  const todayParts = slovenianFormatter.formatToParts(now);
-  const currentYear = parseInt(todayParts.find(p => p.type === "year")!.value);
-  const currentMonth = parseInt(todayParts.find(p => p.type === "month")!.value);
+  // Prejšnji ponedeljek = ta ponedeljek - 7 dni
+  const lastMonday = new Date(today);
+  lastMonday.setDate(today.getDate() - diffToMonday - 7);
   
-  let lastMonth = currentMonth - 1;
-  let year = currentYear;
-  if (lastMonth === 0) {
-    lastMonth = 12;
-    year = currentYear - 1;
-  }
-  
-  const month = String(lastMonth).padStart(2, '0');
-  
-  const monthNames = [
-    "januar", "februar", "marec", "april", "maj", "junij",
-    "julij", "avgust", "september", "oktober", "november", "december"
-  ];
-  const monthLabel = `${monthNames[lastMonth - 1]} ${year}`;
-  const monthPrefix = `${year}-${month}`;
-  
-  return { year, month, monthLabel, monthPrefix };
+  // Prejšnja nedelja = prejšnji ponedeljek + 6 dni
+  const lastSunday = new Date(lastMonday);
+  lastSunday.setDate(lastMonday.getDate() + 6);
+
+  const startDate = slovenianFormatter.format(lastMonday);
+  const endDate = slovenianFormatter.format(lastSunday);
+
+  // Formatiranje za prikaz (d.m. - d.m.yyyy)
+  const formatShort = (d: Date) => `${d.getDate()}.${d.getMonth() + 1}.`;
+  const formatFull = (d: Date) => `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
+  const weekLabel = `${formatShort(lastMonday)} - ${formatFull(lastSunday)}`;
+
+  return { startDate, endDate, weekLabel };
 }
 
-// Najboljši tipster meseca
+// Najboljši tipster tedna
 function getBestTipster(bets: any[]): { name: string; profit: number } | null {
   const tipsterProfits: Record<string, number> = {};
   
@@ -112,7 +113,7 @@ function getBestTipster(bets: any[]): { name: string; profit: number } | null {
   return { name: best[0], profit: best[1] };
 }
 
-// Najboljši šport meseca
+// Najboljši šport tedna
 function getBestSport(bets: any[]): { name: string; profit: number } | null {
   const sportProfits: Record<string, number> = {};
   
@@ -130,22 +131,46 @@ function getBestSport(bets: any[]): { name: string; profit: number } | null {
   return { name: best[0], profit: best[1] };
 }
 
+// Najboljši dan tedna
+function getBestDay(bets: any[]): { date: string; profit: number } | null {
+  const dayProfits: Record<string, number> = {};
+  
+  bets.forEach((b) => {
+    if (b.wl && b.wl !== "OPEN" && b.wl !== "VOID" && b.datum) {
+      const profit = calcProfit(b);
+      dayProfits[b.datum] = (dayProfits[b.datum] || 0) + profit;
+    }
+  });
+  
+  const entries = Object.entries(dayProfits);
+  if (entries.length === 0) return null;
+  
+  const best = entries.reduce((a, b) => a[1] > b[1] ? a : b);
+  
+  // Formatiraj datum
+  const [year, month, day] = best[0].split("-");
+  const formattedDate = `${parseInt(day)}.${parseInt(month)}.`;
+  
+  return { date: formattedDate, profit: best[1] };
+}
+
 export async function GET() {
   try {
-    const { monthLabel, monthPrefix } = getLastMonthRange();
+    const { startDate, endDate, weekLabel } = getLastWeekRange();
 
-    // Pridobi vse stave preteklega meseca
+    // Pridobi vse stave preteklega tedna
     const { data: bets, error } = await supabase
       .from("bets")
       .select("*")
-      .like("datum", `${monthPrefix}%`);
+      .gte("datum", startDate)
+      .lte("datum", endDate);
 
     if (error) throw error;
 
     if (!bets || bets.length === 0) {
-      const msg = `📊 <b>MESEČNO POROČILO</b>\n🗓️ ${monthLabel.toUpperCase()}\n\n😴 V preteklem mesecu ni bilo nobenih stav.`;
+      const msg = `📅 <b>TEDENSKO POROČILO</b>\n🗓️ ${weekLabel}\n\n😴 V preteklem tednu ni bilo nobenih stav.`;
       await sendTelegram(msg);
-      return NextResponse.json({ message: "Ni stav za pretekli mesec.", month: monthLabel });
+      return NextResponse.json({ message: "Ni stav za pretekli teden.", week: weekLabel });
     }
 
     // Izračunaj statistiko
@@ -168,9 +193,10 @@ export async function GET() {
     // Win rate
     const winRate = settledBets.length > 0 ? (wins / settledBets.length) * 100 : 0;
 
-    // Najboljši tipster in šport
+    // Najboljši tipster, šport in dan
     const bestTipster = getBestTipster(bets);
     const bestSport = getBestSport(bets);
+    const bestDay = getBestDay(bets);
 
     // Emoji indikatorji
     const profitEmoji = totalProfit >= 0 ? "🟢" : "🔴";
@@ -180,21 +206,21 @@ export async function GET() {
 
     // Zaključno sporočilo
     let endMessage = "";
-    if (totalProfit >= 500) {
-      endMessage = "🔥🏆💰 IZJEMEN MESEC! 💰🏆🔥";
-    } else if (totalProfit >= 200) {
-      endMessage = "🎉🥇 Odličen mesec! 🥇🎉";
+    if (totalProfit >= 200) {
+      endMessage = "🔥🏆💰 IZJEMEN TEDEN! 💰🏆🔥";
+    } else if (totalProfit >= 100) {
+      endMessage = "🎉🥇 Odličen teden! 🥇🎉";
     } else if (totalProfit >= 0) {
-      endMessage = "✅ Pozitiven mesec! 👏";
-    } else if (totalProfit >= -100) {
-      endMessage = "💪 Naslednji mesec bo boljši!";
+      endMessage = "✅ Pozitiven teden! 👏";
+    } else if (totalProfit >= -50) {
+      endMessage = "💪 Naslednji teden bo boljši!";
     } else {
-      endMessage = "😤 Težek mesec, gremo naprej! 💪";
+      endMessage = "😤 Težek teden, gremo naprej! 💪";
     }
 
     // Sestavi sporočilo
-    let msg = `📊 <b>MESEČNO POROČILO</b>
-🗓️ <b>${monthLabel.toUpperCase()}</b>
+    let msg = `📅 <b>TEDENSKO POROČILO</b>
+🗓️ <b>${weekLabel}</b>
 
 💰 <b>Finance:</b>
 - Profit: ${profitEmoji} <b>${profitSign}${totalProfit.toFixed(2)} €</b>
@@ -206,6 +232,12 @@ export async function GET() {
 - Dobljene: ${wins} ✅
 - Izgubljene: ${losses} ❌${voidBets > 0 ? `\n• Void: ${voidBets} ⚪` : ""}${pending > 0 ? `\n• V teku: ${pending} ⏳` : ""}
 - Win rate: ${winRate.toFixed(1)}%`;
+
+    // Dodaj najboljši dan če obstaja in je v plusu
+    if (bestDay && bestDay.profit > 0) {
+      const daySign = bestDay.profit >= 0 ? "+" : "";
+      msg += `\n\n📆 <b>Najboljši dan:</b>\n• ${bestDay.date} → ${daySign}${bestDay.profit.toFixed(2)} €`;
+    }
 
     // Dodaj najboljšega tipsterja če obstaja in je v plusu
     if (bestTipster && bestTipster.profit > 0) {
@@ -225,13 +257,13 @@ export async function GET() {
 
     return NextResponse.json({ 
       success: true, 
-      month: monthLabel,
+      week: weekLabel,
       stats: { totalProfit, roi, totalStake, wins, losses, pending, totalBets, winRate }
     });
 
   } catch (e: any) {
-    console.error("Monthly summary error:", e);
-    await sendTelegram(`❌ <b>Napaka pri mesečnem poročilu</b>\n\n${e.message}`);
+    console.error("Weekly summary error:", e);
+    await sendTelegram(`❌ <b>Napaka pri tedenskem poročilu</b>\n\n${e.message}`);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

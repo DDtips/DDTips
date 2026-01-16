@@ -164,8 +164,8 @@ function sendTelegramNotification(bet: BetRow, allBets: BetRow[]) {
   const kvota = bet.kvota1 || bet.lay_kvota || 0;
   const sportEmoji = getSportEmoji(bet.sport);
 const today = new Date();
-const dayEmoji = getNumberEmojis(today.getDate());
-const monthEmoji = getNumberEmojis(today.getMonth() + 1);
+const day = today.getDate();
+const month = today.getMonth() + 1;
   
   let msg = "";
 
@@ -179,7 +179,7 @@ const monthEmoji = getNumberEmojis(today.getMonth() + 1);
     const dailySign = dailyProfit >= 0 ? "+" : "";
     const profitEmoji = profit >= 0 ? "🟢" : "🔴";
     const dailyEmoji = dailyProfit >= 0 ? "🟢" : "🔴";
-    msg = `✅🎉 <b>STAVA ZAKLJUČENA: ZMAGA!</b> 🎉✅\n\n${sportEmoji} <b>${bet.sport}</b>\n🆚 ${bet.dogodek}\n🎯 <b>${bet.tip}</b>\n\n💰 <b>Profit:</b> ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>\n🗓️ <b>Profit danes (${dayEmoji}.${monthEmoji}.):</b> ${dailyEmoji} <b>${dailySign}${eurCompact(dailyProfit)}</b>\n\n🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
+    msg = `✅🎉 <b>STAVA ZAKLJUČENA: ZMAGA!</b> 🎉✅\n\n${sportEmoji} <b>${bet.sport}</b>\n🆚 ${bet.dogodek}\n🎯 <b>${bet.tip}</b>\n\n💰 <b>Profit:</b> ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>\n🗓️ <b>Profit danes (${day}.${month}.):</b> ${dailyEmoji} <b>${dailySign}${eurCompact(dailyProfit)}</b>\n\n🏦 ${bet.stavnica} 👤 ${bet.tipster}`;
   } else if (bet.wl === "LOSS") {
     const profit = calcProfit(bet);
     const todayBets = allBets.filter((r) => r.datum === bet.datum && r.wl !== "OPEN" && r.wl !== "VOID");

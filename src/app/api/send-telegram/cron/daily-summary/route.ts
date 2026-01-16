@@ -38,14 +38,74 @@ function getYesterdayDateString(): string {
 }
 
 function formatDate(dateStr: string): string {
-  // Pretvori 2026-01-15 v 15.01.2026
   const [year, month, day] = dateStr.split("-");
   return `${day}.${month}.${year}`;
+}
+
+function formatDateShort(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-");
+  return `${parseInt(day)}.${parseInt(month)}.`;
+}
+
+// Izračun profita za stavo (upošteva BACK, LAY, TRADING)
+function calcProfit(b: any): number {
+  if (b.wl === "OPEN" || b.wl === "VOID" || !b.wl) return 0;
+
+  const komZnesek = Number(b.komisija ?? 0);
+  const backStake = b.vplacilo1 || 0;
+  const backOdds = b.kvota1 || 0;
+  const layLiability = b.vplacilo2 || 0;
+  const layOdds = b.lay_kvota || 0;
+  
+  const hasBack = backOdds > 1 && backStake > 0;
+  const hasLay = layOdds > 1 && layLiability > 0;
+  const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
+
+  let brutoProfit = 0;
+
+  if (hasBack && hasLay) {
+    const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
+    const profitIfLayWins = layStake - backStake;
+
+    if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
+    else if (b.wl === "LAY WIN") brutoProfit = profitIfLayWins;
+    else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
+    else if (b.wl === "LOSS") brutoProfit = Math.min(profitIfBackWins, profitIfLayWins);
+  }
+  else if (!hasBack && hasLay) {
+    if (b.wl === "WIN" || b.wl === "LAY WIN") brutoProfit = layStake;
+    else if (b.wl === "LOSS" || b.wl === "BACK WIN") brutoProfit = -layLiability;
+  }
+  else if (hasBack && !hasLay) {
+    if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1);
+    else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
+  }
+
+  if (brutoProfit > 0) {
+    return brutoProfit - komZnesek;
+  }
+  return brutoProfit;
+}
+
+// Pridobi začetek tedna (ponedeljek)
+function getWeekStart(dateStr: string): string {
+  const date = new Date(dateStr);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(date.setDate(diff));
+  return monday.toISOString().split("T")[0];
+}
+
+// Pridobi začetek meseca
+function getMonthStart(dateStr: string): string {
+  return dateStr.slice(0, 7) + "-01";
 }
 
 export async function GET() {
   try {
     const dateStr = getYesterdayDateString();
+    const weekStart = getWeekStart(dateStr);
+    const monthStart = getMonthStart(dateStr);
 
     // Pridobi vse stave za včeraj
     const { data: bets, error } = await supabase
@@ -53,12 +113,47 @@ export async function GET() {
       .select("*")
       .eq("datum", dateStr);
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
+
+    // Pridobi stave za teden
+    const { data: weekBets, error: weekError } = await supabase
+      .from("bets")
+      .select("*")
+      .gte("datum", weekStart)
+      .lte("datum", dateStr);
+
+    if (weekError) throw weekError;
+
+    // Pridobi stave za mesec
+    const { data: monthBets, error: monthError } = await supabase
+      .from("bets")
+      .select("*")
+      .gte("datum", monthStart)
+      .lte("datum", dateStr);
+
+    if (monthError) throw monthError;
 
     if (!bets || bets.length === 0) {
-      const message = `📊 <b>Dnevno poročilo za ${formatDate(dateStr)}</b>\n\nVčeraj ni bilo nobenih stav.`;
+      // Izračunaj tedenski in mesečni profit tudi če včeraj ni bilo stav
+      const weekSettled = (weekBets || []).filter((b) => b.wl && b.wl !== "OPEN" && b.wl !== "VOID");
+      const monthSettled = (monthBets || []).filter((b) => b.wl && b.wl !== "OPEN" && b.wl !== "VOID");
+      
+      const weekProfit = weekSettled.reduce((sum, b) => sum + calcProfit(b), 0);
+      const monthProfit = monthSettled.reduce((sum, b) => sum + calcProfit(b), 0);
+      
+      const weekEmoji = weekProfit >= 0 ? "🟢" : "🔴";
+      const weekSign = weekProfit >= 0 ? "+" : "";
+      const monthEmoji = monthProfit >= 0 ? "🟢" : "🔴";
+      const monthSign = monthProfit >= 0 ? "+" : "";
+
+      const message = `📊 <b>Dnevno poročilo za ${formatDate(dateStr)}</b>
+
+😴 Včeraj ni bilo nobenih stav.
+
+📅 <b>Pregled obdobja:</b>
+- Teden: ${weekEmoji} <b>${weekSign}${weekProfit.toFixed(2)} €</b>
+- Mesec: ${monthEmoji} <b>${monthSign}${monthProfit.toFixed(2)} €</b>`;
+
       await sendTelegram(message);
       return NextResponse.json({ 
         success: true, 
@@ -67,48 +162,71 @@ export async function GET() {
       });
     }
 
-    // Izračunaj statistiko
+    // Izračunaj statistiko za včeraj
     const totalBets = bets.length;
-    const wonBets = bets.filter((b) => b.wl === "WIN").length;
-    const lostBets = bets.filter((b) => b.wl === "LOSS" || b.wl === "LOSE").length;
-    const pendingBets = bets.filter((b) => !b.wl || b.wl === "PENDING" || b.wl === "").length;
+    const wonBets = bets.filter((b) => ["WIN", "BACK WIN", "LAY WIN"].includes(b.wl)).length;
+    const lostBets = bets.filter((b) => b.wl === "LOSS").length;
+    const pendingBets = bets.filter((b) => !b.wl || b.wl === "OPEN").length;
+    const voidBets = bets.filter((b) => b.wl === "VOID").length;
     
-    // Izračunaj finance
-    const totalStake = bets.reduce((sum, b) => sum + (b.vplacilo1 || 0), 0);
+    // Izračunaj finance za včeraj
+    const totalStake = bets.reduce((sum, b) => sum + (b.vplacilo1 || 0) + (b.vplacilo2 || 0), 0);
+    const settledBets = bets.filter((b) => b.wl && b.wl !== "OPEN" && b.wl !== "VOID");
+    const totalProfit = settledBets.reduce((sum, b) => sum + calcProfit(b), 0);
+
+    // Izračunaj tedenski in mesečni profit
+    const weekSettled = (weekBets || []).filter((b) => b.wl && b.wl !== "OPEN" && b.wl !== "VOID");
+    const monthSettled = (monthBets || []).filter((b) => b.wl && b.wl !== "OPEN" && b.wl !== "VOID");
     
-    // Profit izračun: WIN = (kvota - 1) * vplacilo, LOSS = -vplacilo
-    const totalProfit = bets.reduce((sum, b) => {
-      if (b.wl === "WIN") {
-        return sum + ((b.kvota1 - 1) * b.vplacilo1);
-      } else if (b.wl === "LOSS" || b.wl === "LOSE") {
-        return sum - b.vplacilo1;
-      }
-      return sum; // pending - ne šteje
-    }, 0);
+    const weekProfit = weekSettled.reduce((sum, b) => sum + calcProfit(b), 0);
+    const monthProfit = monthSettled.reduce((sum, b) => sum + calcProfit(b), 0);
 
     // ROI izračun
-    const roi = totalStake > 0 ? ((totalProfit / totalStake) * 100).toFixed(1) : "0";
+    const settledStake = settledBets.reduce((sum, b) => sum + (b.vplacilo1 || 0), 0);
+    const roi = settledStake > 0 ? ((totalProfit / settledStake) * 100).toFixed(1) : "0";
 
-    // Barvni indikatorji za profit
+    // Emoji indikatorji
     const profitEmoji = totalProfit >= 0 ? "🟢" : "🔴";
     const profitSign = totalProfit >= 0 ? "+" : "";
     const roiEmoji = parseFloat(roi) >= 0 ? "🟢" : "🔴";
+    const roiSign = parseFloat(roi) >= 0 ? "+" : "";
+    const weekEmoji = weekProfit >= 0 ? "🟢" : "🔴";
+    const weekSign = weekProfit >= 0 ? "+" : "";
+    const monthEmoji = monthProfit >= 0 ? "🟢" : "🔴";
+    const monthSign = monthProfit >= 0 ? "+" : "";
+
+    // Izberi zaključno sporočilo glede na rezultat
+    let endMessage = "";
+    if (totalProfit >= 100) {
+      endMessage = "🔥🎉💰 IZJEMEN DAN! 💰🎉🔥";
+    } else if (totalProfit >= 50) {
+      endMessage = "🎉✨ Odličen dan! ✨🎉";
+    } else if (totalProfit >= 0) {
+      endMessage = "✅ Pozitiven dan! 👍";
+    } else if (totalProfit >= -50) {
+      endMessage = "💪 Naslednjič bo bolje!";
+    } else {
+      endMessage = "😤 Težek dan, gremo naprej! 💪";
+    }
 
     // Ustvari sporočilo
     const message = `📊 <b>Dnevno poročilo za ${formatDate(dateStr)}</b>
 
 📈 <b>Statistika:</b>
-• Skupaj stav: ${totalBets}
-• Dobljene: ${wonBets} ✅
-• Izgubljene: ${lostBets} ❌
-• V teku: ${pendingBets} ⏳
+- Skupaj stav: ${totalBets}
+- Dobljene: ${wonBets} ✅
+- Izgubljene: ${lostBets} ❌${voidBets > 0 ? `\n• Void: ${voidBets} ⚪` : ""}${pendingBets > 0 ? `\n• V teku: ${pendingBets} ⏳` : ""}
 
-💰 <b>Finance:</b>
-• Skupni vložek: ${totalStake.toFixed(2)} €
-• Profit: ${profitEmoji} <b>${profitSign}${totalProfit.toFixed(2)} €</b>
-• ROI: ${roiEmoji} <b>${profitSign}${roi}%</b>
+💰 <b>Dnevni profit:</b>
+- Vložek: ${totalStake.toFixed(2)} €
+- Profit: ${profitEmoji} <b>${profitSign}${totalProfit.toFixed(2)} €</b>
+- ROI: ${roiEmoji} <b>${roiSign}${roi}%</b>
 
-${totalProfit >= 0 ? "🎉 Odličen dan!" : "💪 Naslednjič bo bolje!"}`;
+📅 <b>Pregled obdobja:</b>
+- Teden: ${weekEmoji} <b>${weekSign}${weekProfit.toFixed(2)} €</b>
+- Mesec: ${monthEmoji} <b>${monthSign}${monthProfit.toFixed(2)} €</b>
+
+${endMessage}`;
 
     const sent = await sendTelegram(message);
 
@@ -116,15 +234,12 @@ ${totalProfit >= 0 ? "🎉 Odličen dan!" : "💪 Naslednjič bo bolje!"}`;
       success: true, 
       telegramSent: sent,
       datum: dateStr,
-      stats: { totalBets, wonBets, lostBets, pendingBets, totalStake, totalProfit }
+      stats: { totalBets, wonBets, lostBets, pendingBets, totalStake, totalProfit, weekProfit, monthProfit }
     });
 
   } catch (e: any) {
     console.error("Daily summary error:", e);
-    
-    // Pošlji error na Telegram
     await sendTelegram(`❌ <b>Napaka pri dnevnem poročilu</b>\n\n${e.message}`);
-    
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
