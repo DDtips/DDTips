@@ -486,35 +486,35 @@ export default function BetsPage() {
     // 3. Posodobimo tabelo
     setRows((prev) => prev.map((r) => (r.id === updatedBet.id ? updatedBet : r)));
 
-   // --- TELEGRAM NOTIFIKACIJA (Če se je status spremenil) ---
-if (oldStatus !== updatedBet.wl && ["WIN", "LOSS", "BACK WIN", "LAY WIN", "VOID"].includes(updatedBet.wl)) {
-  const isWin = ["WIN", "BACK WIN", "LAY WIN"].includes(updatedBet.wl);
-  let emoji = isWin ? "✅" : "❌";
-  let naslov = isWin ? "ZMAGA" : "PORAZ";
-  if (updatedBet.wl === "VOID") {
-    emoji = "⚠️";
-    naslov = "VOID";
-  }
+    // --- TELEGRAM NOTIFIKACIJA (Če se je status spremenil) ---
+    if (oldStatus !== updatedBet.wl && ["WIN", "LOSS", "BACK WIN", "LAY WIN", "VOID"].includes(updatedBet.wl)) {
+      const isWin = ["WIN", "BACK WIN", "LAY WIN"].includes(updatedBet.wl);
+      let emoji = isWin ? "✅" : "❌";
+      let naslov = isWin ? "ZMAGA" : "PORAZ";
+      if (updatedBet.wl === "VOID") {
+        emoji = "⚠️";
+        naslov = "VOID";
+      }
 
-  // Izračunamo profit stave
-  const profit = calcProfit(updatedBet);
+      // Izračunamo profit stave
+      const profit = calcProfit(updatedBet);
 
-  // Izračunamo dnevni profit (vse stave z istim datumom)
-  const todayBets = rows
-    .map((r) => (r.id === updatedBet.id ? updatedBet : r)) // uporabi posodobljeno stavo
-    .filter((r) => r.datum === updatedBet.datum && r.wl !== "OPEN" && r.wl !== "VOID");
-  
-  const dailyProfit = todayBets.reduce((sum, r) => sum + calcProfit(r), 0);
-  const dailyWins = todayBets.filter((r) => ["WIN", "BACK WIN", "LAY WIN"].includes(r.wl)).length;
-  const dailyLosses = todayBets.filter((r) => r.wl === "LOSS").length;
+      // Izračunamo dnevni profit (vse stave z istim datumom)
+      const todayBets = rows
+        .map((r) => (r.id === updatedBet.id ? updatedBet : r)) // uporabi posodobljeno stavo
+        .filter((r) => r.datum === updatedBet.datum && r.wl !== "OPEN" && r.wl !== "VOID");
+      
+      const dailyProfit = todayBets.reduce((sum, r) => sum + calcProfit(r), 0);
+      const dailyWins = todayBets.filter((r) => ["WIN", "BACK WIN", "LAY WIN"].includes(r.wl)).length;
+      const dailyLosses = todayBets.filter((r) => r.wl === "LOSS").length;
 
-  // Barvni indikatorji
-  const profitEmoji = profit >= 0 ? "🟢" : "🔴";
-  const dailyEmoji = dailyProfit >= 0 ? "🟢" : "🔴";
-  const profitSign = profit >= 0 ? "+" : "";
-  const dailySign = dailyProfit >= 0 ? "+" : "";
+      // Barvni indikatorji
+      const profitEmoji = profit >= 0 ? "🟢" : "🔴";
+      const dailyEmoji = dailyProfit >= 0 ? "🟢" : "🔴";
+      const profitSign = profit >= 0 ? "+" : "";
+      const dailySign = dailyProfit >= 0 ? "+" : "";
 
-  const msg = `<b>${emoji} ${naslov}: ${updatedBet.sport}</b>
+      const msg = `<b>${emoji} ${naslov}: ${updatedBet.sport}</b>
 
 ⚽ ${updatedBet.dogodek}
 🎯 <b>${updatedBet.tip}</b>
@@ -528,12 +528,48 @@ ${dailyEmoji} Profit: <b>${dailySign}${eurCompact(dailyProfit)}</b>
 
 🏦 ${updatedBet.stavnica} 👤 ${updatedBet.tipster}`;
 
-  fetch("/api/send-telegram", {
-    method: "POST",
-    body: JSON.stringify({ message: msg }),
-  });
-}
-// ---------------------------------------------------------
+      fetch("/api/send-telegram", {
+        method: "POST",
+        body: JSON.stringify({ message: msg }),
+      });
+    }
+    // ---------------------------------------------------------
+
+    setFullEditOpen(false);
+    setEditingBet(null);
+    // Osvežimo header (profit zgoraj)
+    window.dispatchEvent(new Event("bets-updated"));
+
+    toast.success("Stava posodobljena");
+  }
+
+  const filteredRows = useMemo(() => {
+    const filtered = rows.filter((r) => r.datum.startsWith(selectedMonth));
+    return filtered.sort((a, b) => {
+      if (b.datum > a.datum) return 1;
+      if (b.datum < a.datum) return -1;
+      const tA = a.created_at || "";
+      const tB = b.created_at || "";
+      if (tB > tA) return 1;
+      if (tB < tA) return -1;
+      return 0;
+    });
+  }, [rows, selectedMonth]);
+
+  const computed = useMemo(() => ({ withProfit: filteredRows.map((r) => ({ ...r, profit: calcProfit(r) })) }), [filteredRows]);
+  const availableMonths = useMemo(() => {
+    const months = new Set(rows.map((r) => r.datum.slice(0, 7)));
+    return Array.from(months).sort().reverse();
+  }, [rows]);
+
+  const monthlyStats = useMemo(() => {
+    const settled = computed.withProfit.filter((r) => r.wl !== "OPEN" && r.wl !== "VOID");
+    const profit = settled.reduce((acc, r) => acc + r.profit, 0);
+    const wins = settled.filter((r) => r.wl === "WIN" || r.wl === "BACK WIN" || r.wl === "LAY WIN").length;
+    const losses = settled.filter((r) => r.wl === "LOSS").length;
+    const openCount = computed.withProfit.filter((r) => r.wl === "OPEN").length;
+    return { profit, wins, losses, openCount };
+  }, [computed.withProfit]);
 
   // --- 🔒 UI PRI PREVERJANJU DOSTOPA ---
   if (loading) return (
@@ -808,7 +844,7 @@ ${dailyEmoji} Profit: <b>${dailySign}${eurCompact(dailyProfit)}</b>
                   <InputField label="Back Kvota" value={editKvota1} onChange={setEditKvota1} icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                   <InputField label="Back Vplačilo" value={editVplacilo1} onChange={setEditVplacilo1} icon={<DollarSign className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                   <InputField label="Lay Kvota" value={editLayKvota} onChange={setEditLayKvota} icon={<TrendingUp className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
-                  <InputField label="Lay Liability" value={editVplacilo2} onChange={setVplacilo2} icon={<DollarSign className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
+                  <InputField label="Lay Liability" value={editVplacilo2} onChange={setEditVplacilo2} icon={<DollarSign className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
