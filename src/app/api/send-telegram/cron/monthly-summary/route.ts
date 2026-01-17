@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// PREPREČI CACHING
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -62,7 +66,7 @@ function calcProfit(b: any): number {
   return brutoProfit;
 }
 
-function getLastMonthRange(): { year: number; month: string; monthLabel: string; monthPrefix: string } {
+function getLastMonthRange(): { year: number; month: string; monthLabel: string; startDate: string; endDate: string } {
   const now = new Date();
   const slovenianFormatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Ljubljana",
@@ -84,14 +88,20 @@ function getLastMonthRange(): { year: number; month: string; monthLabel: string;
   
   const month = String(lastMonth).padStart(2, '0');
   
+  // Izračunaj zadnji dan meseca
+  const lastDay = new Date(year, lastMonth, 0).getDate();
+  
   const monthNames = [
     "januar", "februar", "marec", "april", "maj", "junij",
     "julij", "avgust", "september", "oktober", "november", "december"
   ];
   const monthLabel = `${monthNames[lastMonth - 1]} ${year}`;
-  const monthPrefix = `${year}-${month}`;
   
-  return { year, month, monthLabel, monthPrefix };
+  // Začetek in konec meseca
+  const startDate = `${year}-${month}-01`;
+  const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+  
+  return { year, month, monthLabel, startDate, endDate };
 }
 
 // Najboljši tipster meseca
@@ -132,15 +142,23 @@ function getBestSport(bets: any[]): { name: string; profit: number } | null {
 
 export async function GET() {
   try {
-    const { monthLabel, monthPrefix } = getLastMonthRange();
+    const { monthLabel, startDate, endDate } = getLastMonthRange();
 
-    // Pridobi vse stave preteklega meseca
+    console.log("Monthly summary for:", monthLabel, "from", startDate, "to", endDate);
+
+    // Pridobi vse stave preteklega meseca - POPRAVLJEN QUERY!
     const { data: bets, error } = await supabase
       .from("bets")
       .select("*")
-      .like("datum", `${monthPrefix}%`);
+      .gte("datum", startDate)
+      .lte("datum", endDate);
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error:", error);
+      throw error;
+    }
+
+    console.log("Bets found:", bets?.length || 0);
 
     if (!bets || bets.length === 0) {
       const msg = `📊 <b>MESEČNO POROČILO</b>\n🗓️ ${monthLabel.toUpperCase()}\n\n😴 V preteklem mesecu ni bilo nobenih stav.`;
@@ -221,10 +239,13 @@ export async function GET() {
 
     msg += `\n\n${endMessage}`;
 
-    await sendTelegram(msg);
+    console.log("Sending monthly summary to Telegram");
+    const sent = await sendTelegram(msg);
+    console.log("Telegram sent:", sent);
 
     return NextResponse.json({ 
       success: true, 
+      telegramSent: sent,
       month: monthLabel,
       stats: { totalProfit, roi, totalStake, wins, losses, pending, totalBets, winRate }
     });

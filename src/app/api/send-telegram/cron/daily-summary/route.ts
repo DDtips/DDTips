@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// PREPREČI CACHING - to je ključno!
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -107,6 +111,8 @@ export async function GET() {
     const weekStart = getWeekStart(dateStr);
     const monthStart = getMonthStart(dateStr);
 
+    console.log("Daily summary starting for date:", dateStr);
+
     // Pridobi vse stave za včeraj
     const { data: bets, error } = await supabase
       .from("bets")
@@ -114,6 +120,8 @@ export async function GET() {
       .eq("datum", dateStr);
 
     if (error) throw error;
+
+    console.log("Bets found:", bets?.length || 0);
 
     // Pridobi stave za teden
     const { data: weekBets, error: weekError } = await supabase
@@ -154,11 +162,15 @@ export async function GET() {
 - Teden: ${weekEmoji} <b>${weekSign}${weekProfit.toFixed(2)} €</b>
 - Mesec: ${monthEmoji} <b>${monthSign}${monthProfit.toFixed(2)} €</b>`;
 
-      await sendTelegram(message);
+      console.log("Sending no-bets message to Telegram");
+      const sent = await sendTelegram(message);
+      console.log("Telegram sent:", sent);
+
       return NextResponse.json({ 
         success: true, 
         message: "Ni stav za včeraj",
-        datum: dateStr 
+        datum: dateStr,
+        telegramSent: sent
       });
     }
 
@@ -228,7 +240,9 @@ export async function GET() {
 
 ${endMessage}`;
 
+    console.log("Sending daily summary to Telegram");
     const sent = await sendTelegram(message);
+    console.log("Telegram sent:", sent);
 
     return NextResponse.json({ 
       success: true, 
