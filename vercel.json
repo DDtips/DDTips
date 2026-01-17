@@ -5,10 +5,6 @@
       "schedule": "0 7 * * *"
     },
     {
-      "path": "/api/send-telegram/cron/monthly-summary",
-      "schedule": "0 7 1 * *"
-    },
-    {
       "path": "/api/send-telegram/cron/weekly-summary",
       "schedule": "0 8 * * 1"
     }
