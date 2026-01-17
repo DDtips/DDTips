@@ -693,7 +693,7 @@ export default function StatsPage() {
         </section>
 
         <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
-          <p>© 2024 DDTips Analytics. Vse pravice pridržane.</p>
+          <p>© 2026 DDTips Analytics. Vse pravice pridržane.</p>
           <p className="font-mono">Realtime Stats</p>
         </footer>
       </div>

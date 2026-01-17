@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, BarChart3, TrendingUp, Home, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { LogOut, BarChart3, TrendingUp, Home, ArrowUpRight, ArrowDownRight, FileText } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -188,6 +188,7 @@ export default function Header() {
                       <NavItem href="/" icon={Home} label="Domov" />
                       <NavItem href="/bets" icon={TrendingUp} label="Stave" />
                       <NavItem href="/stats" icon={BarChart3} label="Statistika" />
+                      <NavItem href="/porocila" icon={FileText} label="Poročila" />
                   </div>
               </nav>
 
@@ -283,6 +284,7 @@ export default function Header() {
            <MobileNavItem href="/" icon={Home} label="Domov" />
            <MobileNavItem href="/bets" icon={TrendingUp} label="Stave" />
            <MobileNavItem href="/stats" icon={BarChart3} label="Statistika" />
+           <MobileNavItem href="/porocila" icon={FileText} label="Poročila" />
         </div>
       </nav>
     </>

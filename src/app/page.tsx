@@ -483,7 +483,7 @@ export default function HomePage() {
         </section>
 
         <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
-          <p className="hover:text-zinc-400 transition-colors">© 2024 DDTips Analytics.</p>
+          <p className="hover:text-zinc-400 transition-colors">© 2026 DDTips Analytics.</p>
           <p className="font-mono bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/50">Last sync: {mounted ? new Date().toLocaleTimeString() : "--:--:--"}</p>
         </footer>
       </div>
