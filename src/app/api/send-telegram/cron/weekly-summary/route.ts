@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// PREPREČI CACHING - Zagotovi, da Vercel vsakič dejansko izvede kodo
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -8,6 +12,16 @@ const supabase = createClient(
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID!;
+
+// Funkcija za preprečevanje napak pri Telegram HTML formatiranju
+function escapeHTML(str: string): string {
+  if (!str) return "";
+  return str.replace(/[&<>]/g, (tag) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+  }[tag] || tag));
+}
 
 async function sendTelegram(message: string) {
   const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
@@ -20,6 +34,12 @@ async function sendTelegram(message: string) {
       parse_mode: "HTML",
     }),
   });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error("Telegram API Error:", errorData);
+  }
+  
   return response.ok;
 }
 
@@ -56,10 +76,7 @@ function calcProfit(b: any): number {
     else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
   }
 
-  if (brutoProfit > 0) {
-    return brutoProfit - komZnesek;
-  }
-  return brutoProfit;
+  return brutoProfit > 0 ? brutoProfit - komZnesek : brutoProfit;
 }
 
 function getLastWeekRange(): { startDate: string; endDate: string; weekLabel: string } {
@@ -71,23 +88,19 @@ function getLastWeekRange(): { startDate: string; endDate: string; weekLabel: st
     day: "2-digit",
   });
 
-  // Poišči prejšnji ponedeljek (začetek preteklega tedna)
   const today = new Date(slovenianFormatter.format(now));
   const dayOfWeek = today.getDay();
   const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   
-  // Prejšnji ponedeljek = ta ponedeljek - 7 dni
   const lastMonday = new Date(today);
   lastMonday.setDate(today.getDate() - diffToMonday - 7);
   
-  // Prejšnja nedelja = prejšnji ponedeljek + 6 dni
   const lastSunday = new Date(lastMonday);
   lastSunday.setDate(lastMonday.getDate() + 6);
 
   const startDate = slovenianFormatter.format(lastMonday);
   const endDate = slovenianFormatter.format(lastSunday);
 
-  // Formatiranje za prikaz (d.m. - d.m.yyyy)
   const formatShort = (d: Date) => `${d.getDate()}.${d.getMonth() + 1}.`;
   const formatFull = (d: Date) => `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
   const weekLabel = `${formatShort(lastMonday)} - ${formatFull(lastSunday)}`;
@@ -95,70 +108,53 @@ function getLastWeekRange(): { startDate: string; endDate: string; weekLabel: st
   return { startDate, endDate, weekLabel };
 }
 
-// Najboljši tipster tedna
 function getBestTipster(bets: any[]): { name: string; profit: number } | null {
   const tipsterProfits: Record<string, number> = {};
-  
   bets.forEach((b) => {
     if (b.wl && b.wl !== "OPEN" && b.wl !== "VOID" && b.tipster) {
       const profit = calcProfit(b);
       tipsterProfits[b.tipster] = (tipsterProfits[b.tipster] || 0) + profit;
     }
   });
-  
   const entries = Object.entries(tipsterProfits);
   if (entries.length === 0) return null;
-  
   const best = entries.reduce((a, b) => a[1] > b[1] ? a : b);
   return { name: best[0], profit: best[1] };
 }
 
-// Najboljši šport tedna
 function getBestSport(bets: any[]): { name: string; profit: number } | null {
   const sportProfits: Record<string, number> = {};
-  
   bets.forEach((b) => {
     if (b.wl && b.wl !== "OPEN" && b.wl !== "VOID" && b.sport) {
       const profit = calcProfit(b);
       sportProfits[b.sport] = (sportProfits[b.sport] || 0) + profit;
     }
   });
-  
   const entries = Object.entries(sportProfits);
   if (entries.length === 0) return null;
-  
   const best = entries.reduce((a, b) => a[1] > b[1] ? a : b);
   return { name: best[0], profit: best[1] };
 }
 
-// Najboljši dan tedna
 function getBestDay(bets: any[]): { date: string; profit: number } | null {
   const dayProfits: Record<string, number> = {};
-  
   bets.forEach((b) => {
     if (b.wl && b.wl !== "OPEN" && b.wl !== "VOID" && b.datum) {
       const profit = calcProfit(b);
       dayProfits[b.datum] = (dayProfits[b.datum] || 0) + profit;
     }
   });
-  
   const entries = Object.entries(dayProfits);
   if (entries.length === 0) return null;
-  
   const best = entries.reduce((a, b) => a[1] > b[1] ? a : b);
-  
-  // Formatiraj datum
   const [year, month, day] = best[0].split("-");
-  const formattedDate = `${parseInt(day)}.${parseInt(month)}.`;
-  
-  return { date: formattedDate, profit: best[1] };
+  return { date: `${parseInt(day)}.${parseInt(month)}.`, profit: best[1] };
 }
 
 export async function GET() {
   try {
     const { startDate, endDate, weekLabel } = getLastWeekRange();
 
-    // Pridobi vse stave preteklega tedna
     const { data: bets, error } = await supabase
       .from("bets")
       .select("*")
@@ -168,102 +164,66 @@ export async function GET() {
     if (error) throw error;
 
     if (!bets || bets.length === 0) {
-      const msg = `📅 <b>TEDENSKO POROČILO</b>\n🗓️ ${weekLabel}\n\n😴 V preteklem tednu ni bilo nobenih stav.`;
-      await sendTelegram(msg);
-      return NextResponse.json({ message: "Ni stav za pretekli teden.", week: weekLabel });
+      const emptyMsg = `📅 <b>TEDENSKO POROČILO</b>\n🗓️ ${weekLabel}\n\n😴 V preteklem tednu ni bilo nobenih stav.`;
+      await sendTelegram(emptyMsg);
+      return NextResponse.json({ success: true, message: "Ni stav." });
     }
 
-    // Izračunaj statistiko
     const settledBets = bets.filter((b) => b.wl && b.wl !== "OPEN" && b.wl !== "VOID");
     const totalBets = bets.length;
     const wins = bets.filter((b) => ["WIN", "BACK WIN", "LAY WIN"].includes(b.wl)).length;
     const losses = bets.filter((b) => b.wl === "LOSS").length;
-    const pending = bets.filter((b) => !b.wl || b.wl === "OPEN").length;
     const voidBets = bets.filter((b) => b.wl === "VOID").length;
+    const pending = bets.filter((b) => !b.wl || b.wl === "OPEN").length;
 
-    // Finance
     const totalProfit = settledBets.reduce((sum, b) => sum + calcProfit(b), 0);
-    const totalStake = settledBets.reduce((sum, b) => {
-      const backStake = b.vplacilo1 || 0;
-      const layLiability = b.vplacilo2 || 0;
-      return sum + Math.max(backStake, layLiability);
-    }, 0);
+    const totalStake = settledBets.reduce((sum, b) => sum + Math.max(b.vplacilo1 || 0, b.vplacilo2 || 0), 0);
     const roi = totalStake > 0 ? (totalProfit / totalStake) * 100 : 0;
-
-    // Win rate
     const winRate = settledBets.length > 0 ? (wins / settledBets.length) * 100 : 0;
 
-    // Najboljši tipster, šport in dan
     const bestTipster = getBestTipster(bets);
     const bestSport = getBestSport(bets);
     const bestDay = getBestDay(bets);
 
-    // Emoji indikatorji
-    const profitEmoji = totalProfit >= 0 ? "🟢" : "🔴";
-    const profitSign = totalProfit >= 0 ? "+" : "";
-    const roiEmoji = roi >= 0 ? "🟢" : "🔴";
-    const roiSign = roi >= 0 ? "+" : "";
-
-    // Zaključno sporočilo
-    let endMessage = "";
-    if (totalProfit >= 200) {
-      endMessage = "🔥🏆💰 IZJEMEN TEDEN! 💰🏆🔥";
-    } else if (totalProfit >= 100) {
-      endMessage = "🎉🥇 Odličen teden! 🥇🎉";
-    } else if (totalProfit >= 0) {
-      endMessage = "✅ Pozitiven teden! 👏";
-    } else if (totalProfit >= -50) {
-      endMessage = "💪 Naslednji teden bo boljši!";
-    } else {
-      endMessage = "😤 Težek teden, gremo naprej! 💪";
-    }
-
-    // Sestavi sporočilo
     let msg = `📅 <b>TEDENSKO POROČILO</b>
 🗓️ <b>${weekLabel}</b>
 
 💰 <b>Finance:</b>
-- Profit: ${profitEmoji} <b>${profitSign}${totalProfit.toFixed(2)} €</b>
+- Profit: ${totalProfit >= 0 ? "🟢" : "🔴"} <b>${totalProfit >= 0 ? "+" : ""}${totalProfit.toFixed(2)} €</b>
 - Vložek: ${totalStake.toFixed(2)} €
-- ROI: ${roiEmoji} <b>${roiSign}${roi.toFixed(1)}%</b>
+- ROI: ${roi >= 0 ? "🟢" : "🔴"} <b>${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%</b>
 
 📈 <b>Statistika:</b>
 - Skupaj stav: ${totalBets}
 - Dobljene: ${wins} ✅
-- Izgubljene: ${losses} ❌${voidBets > 0 ? `\n• Void: ${voidBets} ⚪` : ""}${pending > 0 ? `\n• V teku: ${pending} ⏳` : ""}
+- Izgubljene: ${losses} ❌${voidBets > 0 ? `\n- Void: ${voidBets} ⚪` : ""}${pending > 0 ? `\n- V teku: ${pending} ⏳` : ""}
 - Win rate: ${winRate.toFixed(1)}%`;
 
-    // Dodaj najboljši dan če obstaja in je v plusu
     if (bestDay && bestDay.profit > 0) {
-      const daySign = bestDay.profit >= 0 ? "+" : "";
-      msg += `\n\n📆 <b>Najboljši dan:</b>\n• ${bestDay.date} → ${daySign}${bestDay.profit.toFixed(2)} €`;
+      msg += `\n\n📆 <b>Najboljši dan:</b>\n• ${bestDay.date} → +${bestDay.profit.toFixed(2)} €`;
     }
 
-    // Dodaj najboljšega tipsterja če obstaja in je v plusu
     if (bestTipster && bestTipster.profit > 0) {
-      const tipsterSign = bestTipster.profit >= 0 ? "+" : "";
-      msg += `\n\n🏅 <b>Najboljši tipster:</b>\n• ${bestTipster.name}: ${tipsterSign}${bestTipster.profit.toFixed(2)} €`;
+      msg += `\n\n🏅 <b>Najboljši tipster:</b>\n• ${escapeHTML(bestTipster.name)}: +${bestTipster.profit.toFixed(2)} €`;
     }
 
-    // Dodaj najboljši šport če obstaja in je v plusu
     if (bestSport && bestSport.profit > 0) {
-      const sportSign = bestSport.profit >= 0 ? "+" : "";
-      msg += `\n\n⚽ <b>Najboljši šport:</b>\n• ${bestSport.name}: ${sportSign}${bestSport.profit.toFixed(2)} €`;
+      msg += `\n\n⚽ <b>Najboljši šport:</b>\n• ${escapeHTML(bestSport.name)}: +${bestSport.profit.toFixed(2)} €`;
     }
 
-    msg += `\n\n${endMessage}`;
+    msg += `\n\n${totalProfit >= 0 ? "✅ Pozitiven teden! 👏" : "😤 Težek teden, gremo naprej! 💪"}`;
 
-    await sendTelegram(msg);
+    const sent = await sendTelegram(msg);
 
     return NextResponse.json({ 
       success: true, 
+      telegramSent: sent, 
       week: weekLabel,
-      stats: { totalProfit, roi, totalStake, wins, losses, pending, totalBets, winRate }
+      stats: { totalProfit, totalBets, winRate } 
     });
 
   } catch (e: any) {
-    console.error("Weekly summary error:", e);
-    await sendTelegram(`❌ <b>Napaka pri tedenskem poročilu</b>\n\n${e.message}`);
+    console.error("Critical Error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
