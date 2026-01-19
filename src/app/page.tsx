@@ -141,8 +141,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const isProfitChart = dataPoint.name === 'profit' || title === 'Profit';
     
     return (
-      <div className="bg-zinc-950/95 border border-zinc-800 p-3 rounded-xl shadow-2xl backdrop-blur-md min-w-[140px] z-50">
-        <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest mb-2 border-b border-zinc-800 pb-1">{title}</p>
+      <div className="glass-tooltip">
+        <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest mb-2 border-b border-white/10 pb-1">{title}</p>
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs text-zinc-300 font-medium">{isProfitChart ? "Profit:" : "Volume:"}</span>
           <span className={`text-sm font-mono font-black ${isProfitChart ? (value >= 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-white'}`}>
@@ -156,28 +156,46 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 function MetricCard({ title, value, subtitle, trend, icon, accentColor = "emerald", big = false }: any) {
-  const styles = {
-    emerald: { text: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-    amber: { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-    rose: { text: "text-rose-400", bg: "bg-rose-500/10", border: "border-rose-500/20" },
-    indigo: { text: "text-indigo-400", bg: "bg-indigo-500/10", border: "border-indigo-500/20" },
-    violet: { text: "text-violet-400", bg: "bg-violet-500/10", border: "border-violet-500/20" },
+  const glowColors: Record<string, string> = {
+    emerald: "rgba(16, 185, 129, 0.15)",
+    amber: "rgba(245, 158, 11, 0.15)",
+    rose: "rgba(244, 63, 94, 0.15)",
+    indigo: "rgba(99, 102, 241, 0.15)",
+    violet: "rgba(139, 92, 246, 0.15)",
   };
-  // @ts-ignore
-  const currentStyle = styles[accentColor] || styles.emerald;
+
+  const iconColors: Record<string, string> = {
+    emerald: "text-emerald-400",
+    amber: "text-amber-400",
+    rose: "text-rose-400",
+    indigo: "text-indigo-400",
+    violet: "text-violet-400",
+  };
 
   return (
-    <div className={`relative group overflow-hidden rounded-[2rem] bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 p-6 transition-all duration-300 hover:border-zinc-700/50 hover:shadow-xl hover:-translate-y-1`}>
-      <div className={`absolute top-0 right-0 w-32 h-32 ${currentStyle.bg} blur-[60px] rounded-full opacity-20 group-hover:opacity-30 transition-opacity pointer-events-none`} />
+    <div 
+      className="glass-card group p-6"
+      style={{ "--glow-color": glowColors[accentColor] || glowColors.emerald } as React.CSSProperties}
+    >
       <div className="relative z-10">
         <div className="flex items-center gap-3 mb-4">
-          <div className={`p-2 rounded-xl ${currentStyle.bg} border ${currentStyle.border} ${currentStyle.text}`}>{icon}</div>
-          <span className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 group-hover:text-zinc-300 transition-colors">{title}</span>
+          <div className={`p-2 rounded-xl bg-white/5 border border-white/10 ${iconColors[accentColor] || iconColors.emerald}`}>
+            {icon}
+          </div>
+          <span className="text-[10px] font-bold tracking-widest uppercase text-zinc-400 group-hover:text-zinc-200 transition-colors">
+            {title}
+          </span>
         </div>
         <div className="flex flex-col gap-1">
           <div className="flex items-baseline gap-2">
-             <span className={`font-mono font-bold tracking-tight text-white ${big ? "text-3xl lg:text-4xl" : "text-2xl"}`}>{value}</span>
-             {trend && trend !== "neutral" && (<div className={`flex items-center text-sm font-bold ${trend === "up" ? "text-emerald-400" : "text-rose-400"} bg-black/30 px-1.5 py-0.5 rounded`}>{trend === "up" ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}</div>)}
+            <span className={`font-mono font-bold tracking-tight text-white ${big ? "text-3xl lg:text-4xl" : "text-2xl"}`}>
+              {value}
+            </span>
+            {trend && trend !== "neutral" && (
+              <div className={`flex items-center text-sm font-bold ${trend === "up" ? "text-emerald-400" : "text-rose-400"} bg-black/30 px-1.5 py-0.5 rounded`}>
+                {trend === "up" ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+              </div>
+            )}
           </div>
           {subtitle && <p className="text-xs text-zinc-400 font-medium">{subtitle}</p>}
         </div>
@@ -187,20 +205,25 @@ function MetricCard({ title, value, subtitle, trend, icon, accentColor = "emeral
 }
 
 function MiniStatCard({ title, value, icon, colorClass }: any) {
-    return (
-      <div className="bg-zinc-900/40 backdrop-blur-sm rounded-2xl border border-zinc-800/50 p-4 flex items-center justify-between group hover:border-zinc-700/50 transition-all shadow-sm">
-         <div><p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">{title}</p><p className={`text-xl font-mono font-bold mt-1 ${colorClass}`}>{value}</p></div>
-         <div className={`w-10 h-10 rounded-xl bg-black/40 border border-zinc-800/50 flex items-center justify-center ${colorClass}`}>{icon}</div>
+  return (
+    <div className="glass-card group p-4 flex items-center justify-between">
+      <div>
+        <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400">{title}</p>
+        <p className={`text-xl font-mono font-bold mt-1 ${colorClass}`}>{value}</p>
       </div>
-    )
+      <div className={`w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center ${colorClass}`}>
+        {icon}
+      </div>
+    </div>
+  );
 }
 
 function DataTable({ title, data, icon }: any) {
   const maxProfit = Math.max(...(data || []).map((d:any) => Math.abs(d.profit)));
   return (
-    <div className="rounded-[2rem] bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden flex flex-col h-full shadow-lg">
-      <div className="px-6 py-5 border-b border-zinc-800/50 flex items-center gap-3 bg-black/20">
-        <div className="p-1.5 rounded-lg bg-zinc-900 text-zinc-400 border border-zinc-800/50">{icon}</div>
+    <div className="glass-card overflow-hidden flex flex-col h-full">
+      <div className="px-6 py-5 border-b border-white/5 flex items-center gap-3 bg-black/20">
+        <div className="p-1.5 rounded-lg bg-white/5 text-zinc-400 border border-white/10">{icon}</div>
         <h3 className="text-[10px] font-bold tracking-widest uppercase text-zinc-300">{title}</h3>
       </div>
       <div className="p-3 space-y-1 overflow-y-auto custom-scrollbar flex-1">
@@ -208,9 +231,11 @@ function DataTable({ title, data, icon }: any) {
           const barWidth = maxProfit > 0 ? (Math.abs(item.profit) / maxProfit) * 100 : 0;
           const isPositive = item.profit >= 0;
           return (
-            <div key={idx} className="relative flex items-center justify-between px-4 py-3 rounded-xl hover:bg-zinc-800/30 transition-all group overflow-hidden">
+            <div key={idx} className="relative flex items-center justify-between px-4 py-3 rounded-xl hover:bg-white/5 transition-all group overflow-hidden">
               <div className={`absolute left-0 bottom-0 top-0 opacity-10 transition-all duration-700 rounded-r-xl ${isPositive ? "bg-emerald-500" : "bg-rose-500"}`} style={{ width: `${barWidth}%` }} />
-              <div className="flex items-center gap-3 relative z-10"><span className="text-xs font-bold text-zinc-300 group-hover:text-white transition-colors tracking-wide">{item.label}</span></div>
+              <div className="flex items-center gap-3 relative z-10">
+                <span className="text-xs font-bold text-zinc-300 group-hover:text-white transition-colors tracking-wide">{item.label}</span>
+              </div>
               <span className={`relative z-10 text-xs font-mono font-bold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>{item.value}</span>
             </div>
           );
@@ -225,7 +250,7 @@ function DataTable({ title, data, icon }: any) {
 export default function HomePage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
-  const [loading, setLoading] = useState(true); // Start loading as true
+  const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -233,14 +258,12 @@ export default function HomePage() {
     const checkUserAndLoad = async () => {
       setLoading(true);
       
-      // 1. Preveri, če je uporabnik prijavljen
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.replace("/login");
         return;
       }
 
-      // 2. Preveri profil in status odobritve
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('is_approved')
@@ -248,12 +271,10 @@ export default function HomePage() {
         .single();
 
       if (profileError || !profile || !profile.is_approved) {
-        // Če ni profila ali ni odobren, ga vrzi na pending stran
         router.replace("/pending");
         return;
       }
 
-      // 3. Če je vse OK, naloži podatke za dashboard
       await loadRows();
       setLoading(false);
     };
@@ -331,14 +352,109 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30 font-sans">
+      {/* Background Effects */}
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
+      
+      {/* Decorative Blurs */}
+      <div className="fixed top-[-10%] left-[-5%] w-[400px] h-[400px] bg-emerald-500/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[150px] pointer-events-none" />
 
       <style jsx global>{`
+        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        /* Glass Card Base Style */
+        .glass-card {
+          position: relative;
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.08) 0%,
+            rgba(255, 255, 255, 0.02) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.25),
+            0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-radius: 20px;
+          transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+          overflow: hidden;
+        }
+
+        .glass-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.05),
+            transparent
+          );
+          transition: 0.6s;
+          pointer-events: none;
+        }
+
+        .glass-card:hover {
+          border-color: rgba(255, 255, 255, 0.15);
+          box-shadow: 
+            0 30px 60px rgba(0, 0, 0, 0.3),
+            0 0 40px var(--glow-color, rgba(16, 185, 129, 0.1)),
+            0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+          transform: translateY(-2px);
+        }
+
+        .glass-card:hover::before {
+          left: 100%;
+        }
+
+        /* Glass Tooltip */
+        .glass-tooltip {
+          background: linear-gradient(
+            135deg,
+            rgba(0, 0, 0, 0.9) 0%,
+            rgba(0, 0, 0, 0.8) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          padding: 12px 16px;
+          border-radius: 12px;
+          min-width: 140px;
+        }
+
+        /* Chart Container Glass */
+        .glass-chart {
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.06) 0%,
+            rgba(255, 255, 255, 0.02) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.2),
+            0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-radius: 24px;
+          transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .glass-chart:hover {
+          border-color: rgba(255, 255, 255, 0.12);
+          box-shadow: 
+            0 30px 60px rgba(0, 0, 0, 0.25),
+            0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+        }
       `}</style>
 
       <div className="relative max-w-[1800px] mx-auto px-6 md:px-10 pt-48 pb-12 z-10">
@@ -363,27 +479,50 @@ export default function HomePage() {
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6 items-stretch">
             
             <div className="xl:col-span-8 flex flex-col gap-6">
-                <div className="bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded-[2rem] p-8 shadow-xl">
+                <div className="glass-chart p-8">
                     <div className="flex items-center justify-between mb-6">
-                        <div><h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2"><Clock className="w-4 h-4 text-emerald-500"/> Dnevni Profit</h3><p className="text-[9px] text-zinc-600 uppercase tracking-widest mt-1">{currentMonthName}</p></div>
-                        <div className="bg-black/30 px-3 py-1 rounded-lg border border-zinc-800/50"><span className={`text-sm font-mono font-black ${stats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(stats.profit)}</span></div>
+                        <div>
+                          <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-emerald-500"/> Dnevni Profit
+                          </h3>
+                          <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-1">{currentMonthName}</p>
+                        </div>
+                        <div className="bg-white/5 px-3 py-1 rounded-lg border border-white/10">
+                          <span className={`text-sm font-mono font-black ${stats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(stats.profit)}</span>
+                        </div>
                     </div>
                     <div className="h-[250px] w-full">
-                        <ResponsiveContainer width="100%" height="100%"><AreaChart data={chartDaily}><defs><linearGradient id="colorProfitDaily" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.3} /><stop offset="95%" stopColor="#10b981" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} /><XAxis dataKey="dayLabel" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} minTickGap={30} /><YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} /><Tooltip content={<CustomTooltip />} cursor={{ stroke: '#52525b', strokeWidth: 1, strokeDasharray: '3 3' }} /><Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfitDaily)" activeDot={{ r: 6, strokeWidth: 0, fill: "#fff" }} /></AreaChart></ResponsiveContainer>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartDaily}>
+                            <defs>
+                              <linearGradient id="colorProfitDaily" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                            <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} minTickGap={30} />
+                            <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} />
+                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1, strokeDasharray: '3 3' }} />
+                            <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfitDaily)" activeDot={{ r: 6, strokeWidth: 0, fill: "#fff" }} />
+                          </AreaChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-                    <div className="bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded-[2rem] p-6 shadow-xl flex flex-col">
-                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2 mb-4"><CalendarDays className="w-4 h-4 text-indigo-500"/> Mesečni Profit</h3>
+                    <div className="glass-chart p-6 flex flex-col">
+                        <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                          <CalendarDays className="w-4 h-4 text-indigo-500"/> Mesečni Profit
+                        </h3>
                         <div className="flex-1 min-h-[180px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={chartMonthly}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                     <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} />
                                     <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} width={40} />
                                     <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                                    <ReferenceLine y={0} stroke="#52525b" />
+                                    <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
                                     <Bar dataKey="profit" radius={[4, 4, 4, 4]}>
                                         {chartMonthly.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#10b981" : "#f43f5e"} />
@@ -394,8 +533,10 @@ export default function HomePage() {
                         </div>
                     </div>
 
-                    <div className="bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded-[2rem] p-6 shadow-xl flex flex-col">
-                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2 mb-2"><PieIcon className="w-4 h-4 text-violet-500"/> Volume po športih</h3>
+                    <div className="glass-chart p-6 flex flex-col">
+                        <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                          <PieIcon className="w-4 h-4 text-violet-500"/> Volume po športih
+                        </h3>
                         <div className="flex flex-row items-center h-full">
                             <div className="flex flex-col gap-2 flex-1 pr-2 max-h-[180px] overflow-y-auto custom-scrollbar">
                                 {pieData.slice(0, 5).map((entry, index) => (
@@ -424,18 +565,20 @@ export default function HomePage() {
             </div>
 
             <div className="xl:col-span-4 flex flex-col h-full">
-                <div className="bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded-[2rem] flex flex-col h-full shadow-xl overflow-hidden">
-                    <div className="bg-black/20 p-6 border-b border-zinc-800/50">
+                <div className="glass-card flex flex-col h-full overflow-hidden">
+                    <div className="bg-black/20 p-6 border-b border-white/5">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2"><Wallet className="w-4 h-4 text-amber-500"/> Skupno Stanje</h3>
-                            <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 ${isProfit ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                              <Wallet className="w-4 h-4 text-amber-500"/> Skupno Stanje
+                            </h3>
+                            <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 ${isProfit ? 'text-emerald-500' : 'text-rose-500'}`}>
                                 {isProfit ? <ArrowUpRight className="w-3 h-3"/> : <ArrowDownRight className="w-3 h-3"/>}
                                 {eur(diffFromStart)}
                             </div>
                         </div>
                         <div className="flex items-baseline gap-2">
                             <span className={`text-3xl font-mono font-black tracking-tight ${skupnaBanka >= CAPITAL_TOTAL ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(skupnaBanka)}</span>
-                            <span className="text-[10px] text-zinc-600 font-bold uppercase">/ {eur(CAPITAL_TOTAL)} Start</span>
+                            <span className="text-[10px] text-zinc-500 font-bold uppercase">/ {eur(CAPITAL_TOTAL)} Start</span>
                         </div>
                     </div>
 
@@ -444,9 +587,9 @@ export default function HomePage() {
                             const isPositive = book.profit >= 0;
                             const initials = book.name.substring(0, 1); 
                             return (
-                                <div key={book.name} className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/30 border border-transparent hover:border-zinc-700/50 hover:bg-zinc-900/60 transition-all group">
+                                <div key={book.name} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-transparent hover:border-white/10 hover:bg-white/10 transition-all group">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400 border border-zinc-700 group-hover:text-white group-hover:border-zinc-500 transition-colors">
+                                        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-xs font-bold text-zinc-400 border border-white/10 group-hover:text-white group-hover:border-white/20 transition-colors">
                                             {initials}
                                         </div>
                                         <div className="flex flex-col">
@@ -460,7 +603,7 @@ export default function HomePage() {
                                     </div>
                                     <div className="flex flex-col items-end gap-1">
                                         <span className={`text-sm font-mono font-bold ${isPositive ? 'text-white' : 'text-rose-200'}`}>{eur(book.balance)}</span>
-                                        <div className="w-16 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                                        <div className="w-16 h-1 bg-white/10 rounded-full overflow-hidden">
                                             <div 
                                                 className={`h-full rounded-full ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} opacity-60`} 
                                                 style={{ width: `${Math.min((book.balance / (book.start * 1.5 || 100)) * 100, 100)}%` }}
@@ -482,9 +625,9 @@ export default function HomePage() {
           <DataTable title="Po času (Profit)" data={timingData} icon={<Clock className="w-4 h-4 text-amber-400" />} />
         </section>
 
-        <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
-          <p className="hover:text-zinc-400 transition-colors">© 2026 DDTips Analytics.</p>
-          <p className="font-mono bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/50">Last sync: {mounted ? new Date().toLocaleTimeString() : "--:--:--"}</p>
+        <footer className="mt-12 pt-8 border-t border-white/5 text-center flex flex-col md:flex-row justify-between items-center text-zinc-500 text-xs gap-2">
+          <p className="hover:text-zinc-300 transition-colors">© 2026 DDTips Analytics.</p>
+          <p className="font-mono bg-white/5 px-3 py-1 rounded-full border border-white/10">Last sync: {mounted ? new Date().toLocaleTimeString() : "--:--:--"}</p>
         </footer>
       </div>
     </main>
