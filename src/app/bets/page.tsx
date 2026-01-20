@@ -171,6 +171,11 @@ function sendTelegramNotification(bet: BetRow, allBets: BetRow[]) {
   const statusEmoji = bet.cas_stave === "LIVE" ? "🔴" : "⏰";
   const statusText = bet.cas_stave === "LIVE" ? "Live" : "Prematch";
   
+  // Določi mode (BET ali TRADING)
+  const betMode: Mode = (bet.mode as Mode) || (hasBack(bet) && hasLay(bet) ? "TRADING" : "BET");
+  const modeEmoji = betMode === "TRADING" ? "🔄" : "🎰";
+  const modeText = betMode === "TRADING" ? "Trading" : "Betting";
+  
   let msg = "";
 
   if (bet.wl === "OPEN") {
@@ -182,8 +187,10 @@ ${sportEmoji} <b>${bet.sport}</b>
 🎯 <b>${bet.tip}</b>
 
 ${statusEmoji} Status: <b>${statusText}</b>
+${modeEmoji} Tip: <b>${modeText}</b>
 📊 Kvota: <b>${kvota}</b>
-💶 Vplačilo: <b>${vplacilo}€</b>
+💶 Vplačilo: <b>${vplacilo}€</b>${betMode === "TRADING" ? `
+🔻 Lay: <b>${bet.lay_kvota}</b> │ 💸 <b>${bet.vplacilo2}€</b>` : ""}
 ━━━━━━━━━━━━━━━
 🏦 ${bet.stavnica} │ 👤 ${bet.tipster}`;
 
@@ -196,14 +203,19 @@ ${statusEmoji} Status: <b>${statusText}</b>
     const profitEmoji = profit >= 0 ? "🟢" : "🔴";
     const dailyEmoji = dailyProfit >= 0 ? "📈" : "📉";
     
-    msg = `✅🎉 <b>ZMAGA!</b> 🎉✅
+    // Rezultat stave (BACK WIN ali LAY WIN pri tradingu)
+    const resultText = bet.wl === "BACK WIN" ? " (Back Win)" : bet.wl === "LAY WIN" ? " (Lay Win)" : "";
+    
+    msg = `✅🎉 <b>ZMAGA!</b>${resultText} 🎉✅
 
 ${sportEmoji} <b>${bet.sport}</b>
 ━━━━━━━━━━━━━━━
 🆚 ${bet.dogodek}
 🎯 <b>${bet.tip}</b>
 
-📊 Kvota: <b>${kvota}</b> │ 💶 <b>${vplacilo}€</b>
+${modeEmoji} Tip: <b>${modeText}</b>
+📊 Back: <b>${bet.kvota1 > 0 ? bet.kvota1 : "-"}</b> │ 💶 <b>${bet.vplacilo1 > 0 ? bet.vplacilo1 + "€" : "-"}</b>${betMode === "TRADING" ? `
+🔻 Lay: <b>${bet.lay_kvota}</b> │ 💸 <b>${bet.vplacilo2}€</b>` : ""}
 🏦 ${bet.stavnica} │ 👤 ${bet.tipster}
 ━━━━━━━━━━━━━━━
 💰 Profit: ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>
@@ -225,7 +237,9 @@ ${sportEmoji} <b>${bet.sport}</b>
 🆚 ${bet.dogodek}
 🎯 <b>${bet.tip}</b>
 
-📊 Kvota: <b>${kvota}</b> │ 💶 <b>${vplacilo}€</b>
+${modeEmoji} Tip: <b>${modeText}</b>
+📊 Back: <b>${bet.kvota1 > 0 ? bet.kvota1 : "-"}</b> │ 💶 <b>${bet.vplacilo1 > 0 ? bet.vplacilo1 + "€" : "-"}</b>${betMode === "TRADING" ? `
+🔻 Lay: <b>${bet.lay_kvota}</b> │ 💸 <b>${bet.vplacilo2}€</b>` : ""}
 🏦 ${bet.stavnica} │ 👤 ${bet.tipster}
 ━━━━━━━━━━━━━━━
 💸 Izguba: ${profitEmoji} <b>${profitSign}${eurCompact(profit)}</b>
