@@ -168,7 +168,8 @@ function sendTelegramNotification(bet: BetRow, allBets: BetRow[]) {
   const month = today.getMonth() + 1;
   
   // Emoji za Live/Prematch status
-  const statusEmoji = bet.cas_stave === "Live" ? "🔴" : "⏰";
+  const statusEmoji = bet.cas_stave === "LIVE" ? "🔴" : "⏰";
+  const statusText = bet.cas_stave === "LIVE" ? "Live" : "Prematch";
   
   let msg = "";
 
@@ -180,7 +181,7 @@ ${sportEmoji} <b>${bet.sport}</b>
 🆚 ${bet.dogodek}
 🎯 <b>${bet.tip}</b>
 
-${statusEmoji} Status: <b>${bet.cas_stave}</b>
+${statusEmoji} Status: <b>${statusText}</b>
 📊 Kvota: <b>${kvota}</b>
 💶 Vplačilo: <b>${vplacilo}€</b>
 ━━━━━━━━━━━━━━━
