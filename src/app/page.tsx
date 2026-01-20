@@ -16,7 +16,8 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  ReferenceLine,
+  LabelList,
+  Legend,
 } from "recharts";
 import {
   TrendingUp,
@@ -33,6 +34,7 @@ import {
   Trophy,
   CalendarDays,
   Users,
+  Sparkles,
 } from "lucide-react";
 
 // --- TIPOVI IN KONSTANTE ---
@@ -51,7 +53,7 @@ const BOOK_START: Record<string, number> = {
 
 const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"];
 const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"];
-const PIE_COLORS = ["#10b981", "#6366f1", "#f59e0b", "#0ea5e9", "#ec4899", "#8b5cf6", "#64748b"];
+const PIE_COLORS = ["#22d3ee", "#a78bfa", "#fbbf24", "#34d399", "#f472b6", "#60a5fa", "#94a3b8"];
 
 // --- POMOŽNE FUNKCIJE ---
 function normBook(x: string) { return (x || "").toUpperCase().replace(/\s+/g, "").replace(/-/g, ""); }
@@ -141,11 +143,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const isProfitChart = dataPoint.name === 'profit' || title === 'Profit';
     
     return (
-      <div className="glass-tooltip">
-        <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest mb-2 border-b border-white/10 pb-1">{title}</p>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-zinc-300 font-medium">{isProfitChart ? "Profit:" : "Volume:"}</span>
-          <span className={`text-sm font-mono font-black ${isProfitChart ? (value >= 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-white'}`}>
+      <div className="tooltip-glass">
+        <p className="tooltip-label">{title}</p>
+        <div className="tooltip-row">
+          <span className="tooltip-key">{isProfitChart ? "Profit:" : "Volume:"}</span>
+          <span className={`tooltip-value ${isProfitChart ? (value >= 0 ? 'positive' : 'negative') : ''}`}>
             {isProfitChart && value > 0 ? "+" : ""}{eurDec(value)}
           </span>
         </div>
@@ -155,64 +157,43 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-function MetricCard({ title, value, subtitle, trend, icon, accentColor = "emerald", big = false }: any) {
-  const glowColors: Record<string, string> = {
-    emerald: "rgba(16, 185, 129, 0.15)",
-    amber: "rgba(245, 158, 11, 0.15)",
-    rose: "rgba(244, 63, 94, 0.15)",
-    indigo: "rgba(99, 102, 241, 0.15)",
-    violet: "rgba(139, 92, 246, 0.15)",
+function MetricCard({ title, value, subtitle, trend, icon, variant = "default" }: any) {
+  const variants: Record<string, { border: string; glow: string; text: string }> = {
+    default: { border: "border-zinc-800/50", glow: "", text: "text-zinc-100" },
+    success: { border: "border-cyan-500/20", glow: "glow-cyan", text: "text-cyan-400" },
+    danger: { border: "border-rose-500/20", glow: "glow-rose", text: "text-rose-400" },
+    warning: { border: "border-amber-500/20", glow: "glow-amber", text: "text-amber-400" },
+    info: { border: "border-violet-500/20", glow: "glow-violet", text: "text-violet-400" },
   };
-
-  const iconColors: Record<string, string> = {
-    emerald: "text-emerald-400",
-    amber: "text-amber-400",
-    rose: "text-rose-400",
-    indigo: "text-indigo-400",
-    violet: "text-violet-400",
-  };
+  
+  const v = variants[variant] || variants.default;
 
   return (
-    <div 
-      className="glass-card group p-6"
-      style={{ "--glow-color": glowColors[accentColor] || glowColors.emerald } as React.CSSProperties}
-    >
-      <div className="relative z-10">
-        <div className="flex items-center gap-3 mb-4">
-          <div className={`p-2 rounded-xl bg-white/5 border border-white/10 ${iconColors[accentColor] || iconColors.emerald}`}>
-            {icon}
-          </div>
-          <span className="text-[10px] font-bold tracking-widest uppercase text-zinc-400 group-hover:text-zinc-200 transition-colors">
-            {title}
-          </span>
-        </div>
-        <div className="flex flex-col gap-1">
-          <div className="flex items-baseline gap-2">
-            <span className={`font-mono font-bold tracking-tight text-white ${big ? "text-3xl lg:text-4xl" : "text-2xl"}`}>
-              {value}
-            </span>
-            {trend && trend !== "neutral" && (
-              <div className={`flex items-center text-sm font-bold ${trend === "up" ? "text-emerald-400" : "text-rose-400"} bg-black/30 px-1.5 py-0.5 rounded`}>
-                {trend === "up" ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-              </div>
-            )}
-          </div>
-          {subtitle && <p className="text-xs text-zinc-400 font-medium">{subtitle}</p>}
-        </div>
+    <div className={`metric-card ${v.border} ${v.glow}`}>
+      <div className="metric-header">
+        <div className={`metric-icon ${v.text}`}>{icon}</div>
+        <span className="metric-title">{title}</span>
       </div>
+      <div className="metric-body">
+        <span className={`metric-value ${v.text}`}>{value}</span>
+        {trend && trend !== "neutral" && (
+          <div className={`metric-trend ${trend === "up" ? "trend-up" : "trend-down"}`}>
+            {trend === "up" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+          </div>
+        )}
+      </div>
+      {subtitle && <p className="metric-subtitle">{subtitle}</p>}
     </div>
   );
 }
 
-function MiniStatCard({ title, value, icon, colorClass }: any) {
+function StatBadge({ label, value, icon, colorClass }: any) {
   return (
-    <div className="glass-card group p-4 flex items-center justify-between">
-      <div>
-        <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400">{title}</p>
-        <p className={`text-xl font-mono font-bold mt-1 ${colorClass}`}>{value}</p>
-      </div>
-      <div className={`w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center ${colorClass}`}>
-        {icon}
+    <div className="stat-badge">
+      <div className={`stat-badge-icon ${colorClass}`}>{icon}</div>
+      <div className="stat-badge-content">
+        <span className="stat-badge-label">{label}</span>
+        <span className={`stat-badge-value ${colorClass}`}>{value}</span>
       </div>
     </div>
   );
@@ -220,23 +201,30 @@ function MiniStatCard({ title, value, icon, colorClass }: any) {
 
 function DataTable({ title, data, icon }: any) {
   const maxProfit = Math.max(...(data || []).map((d:any) => Math.abs(d.profit)));
+  
   return (
-    <div className="glass-card overflow-hidden flex flex-col h-full">
-      <div className="px-6 py-5 border-b border-white/5 flex items-center gap-3 bg-black/20">
-        <div className="p-1.5 rounded-lg bg-white/5 text-zinc-400 border border-white/10">{icon}</div>
-        <h3 className="text-[10px] font-bold tracking-widest uppercase text-zinc-300">{title}</h3>
+    <div className="data-table">
+      <div className="data-table-header">
+        <div className="data-table-icon">{icon}</div>
+        <h3 className="data-table-title">{title}</h3>
       </div>
-      <div className="p-3 space-y-1 overflow-y-auto custom-scrollbar flex-1">
+      <div className="data-table-body">
         {data.map((item:any, idx:number) => {
           const barWidth = maxProfit > 0 ? (Math.abs(item.profit) / maxProfit) * 100 : 0;
           const isPositive = item.profit >= 0;
           return (
-            <div key={idx} className="relative flex items-center justify-between px-4 py-3 rounded-xl hover:bg-white/5 transition-all group overflow-hidden">
-              <div className={`absolute left-0 bottom-0 top-0 opacity-10 transition-all duration-700 rounded-r-xl ${isPositive ? "bg-emerald-500" : "bg-rose-500"}`} style={{ width: `${barWidth}%` }} />
-              <div className="flex items-center gap-3 relative z-10">
-                <span className="text-xs font-bold text-zinc-300 group-hover:text-white transition-colors tracking-wide">{item.label}</span>
+            <div key={idx} className="data-table-row">
+              <div 
+                className={`data-table-bar ${isPositive ? "bar-positive" : "bar-negative"}`} 
+                style={{ width: `${barWidth}%` }} 
+              />
+              
+              <div className="row-content">
+                  <span className="data-table-label">{item.label}</span>
+                  <span className={`data-table-value ${isPositive ? "text-cyan-400" : "text-rose-400"}`}>
+                    {item.value}
+                  </span>
               </div>
-              <span className={`relative z-10 text-xs font-mono font-bold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>{item.value}</span>
             </div>
           );
         })}
@@ -252,18 +240,32 @@ export default function HomePage() {
   const [rows, setRows] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  
+  // Stanje za citat
+  const [quote, setQuote] = useState({ text: "Uspeh je v podrobnostih.", author: "Neznan" });
 
   useEffect(() => {
     setMounted(true);
+    
+    const fetchQuote = async () => {
+      try {
+        const res = await fetch("https://zenquotes.io/api/random");
+        const data = await res.json();
+        if (data && data[0]) {
+          setQuote({ text: data[0].q, author: data[0].a });
+        }
+      } catch (err) {
+        console.error("Napaka pri pridobivanju citata:", err);
+      }
+    };
+
     const checkUserAndLoad = async () => {
       setLoading(true);
-      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.replace("/login");
         return;
       }
-
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('is_approved')
@@ -274,11 +276,11 @@ export default function HomePage() {
         router.replace("/pending");
         return;
       }
-
       await loadRows();
       setLoading(false);
     };
 
+    fetchQuote();
     checkUserAndLoad();
   }, [router]);
 
@@ -343,291 +345,548 @@ export default function HomePage() {
   const diffFromStart = skupnaBanka - CAPITAL_TOTAL;
   const isProfit = diffFromStart >= 0;
 
+  const maxBalance = Math.max(...stats.balanceByBook.map(b => b.balance), 1);
+
   if (loading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-black gap-4 text-center p-6">
-      <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-      <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest animate-pulse">Checking Access & Loading Stats...</p>
+    <div className="loading-screen">
+      <div className="loading-spinner" />
+      <p className="loading-text">Nalaganje podatkov...</p>
     </div>
   );
 
   return (
-    <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30 font-sans">
-      {/* Background Effects */}
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
-      <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
-      
-      {/* Decorative Blurs */}
-      <div className="fixed top-[-10%] left-[-5%] w-[400px] h-[400px] bg-emerald-500/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="fixed bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[150px] pointer-events-none" />
-
+    <main className="dashboard">
       <style jsx global>{`
-        /* Custom Scrollbar */
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-
-        /* Glass Card Base Style */
-        .glass-card {
-          position: relative;
-          background: linear-gradient(
-            135deg,
-            rgba(255, 255, 255, 0.08) 0%,
-            rgba(255, 255, 255, 0.02) 100%
-          );
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          box-shadow: 
-            0 25px 50px rgba(0, 0, 0, 0.25),
-            0 0 0 1px rgba(255, 255, 255, 0.05) inset;
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
-          border-radius: 20px;
-          transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-          overflow: hidden;
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+        
+        :root {
+          --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+          --font-mono: 'DM Mono', 'SF Mono', monospace;
+          --bg-primary: #0a0a0b;
+          --bg-card: rgba(255, 255, 255, 0.02);
+          --bg-card-hover: rgba(255, 255, 255, 0.04);
+          --border-subtle: rgba(255, 255, 255, 0.06);
+          --border-medium: rgba(255, 255, 255, 0.1);
+          --text-primary: #fafafa;
+          --text-secondary: #a1a1aa;
+          --text-muted: #52525b;
+          --cyan: #22d3ee;
+          --rose: #fb7185;
+          --amber: #fbbf24;
+          --violet: #a78bfa;
+          --emerald: #34d399;
         }
-
-        .glass-card::before {
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+          font-family: var(--font-display);
+          background: var(--bg-primary);
+          color: var(--text-primary);
+          -webkit-font-smoothing: antialiased;
+        }
+        
+        .dashboard {
+          min-height: 100vh;
+          background: var(--bg-primary);
+          position: relative;
+          overflow-x: hidden;
+        }
+        
+        .dashboard::before {
           content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(255, 255, 255, 0.05),
-            transparent
-          );
-          transition: 0.6s;
+          position: fixed;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: 
+            radial-gradient(ellipse at 20% 20%, rgba(34, 211, 238, 0.03) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 80%, rgba(167, 139, 250, 0.03) 0%, transparent 50%);
           pointer-events: none;
         }
 
-        .glass-card:hover {
-          border-color: rgba(255, 255, 255, 0.15);
-          box-shadow: 
-            0 30px 60px rgba(0, 0, 0, 0.3),
-            0 0 40px var(--glow-color, rgba(16, 185, 129, 0.1)),
-            0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+        .dashboard-content {
+          position: relative;
+          z-index: 1;
+          max-width: 1600px;
+          margin: 0 auto;
+          padding: 170px 24px 40px 24px;
+        }
+
+        @media (min-width: 768px) {
+          .dashboard-content { padding: 180px 40px 60px 40px; }
+        }
+
+        /* --- ANIMIRAN CITAT (MARQUEE) --- */
+        @keyframes marquee {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }
+
+        .quote-header {
+          margin-bottom: 32px;
+          padding: 16px 0; /* Odstranjen stranski padding za rob-do-roba efekt */
+          background: rgba(255, 255, 255, 0.015);
+          border-top: 1px solid var(--border-subtle);
+          border-bottom: 1px solid var(--border-subtle);
+          position: relative;
+          width: 100%;
+          overflow: hidden; /* Ključno za animacijo */
+        }
+
+        .quote-marquee-wrapper {
+          display: flex;
+          align-items: center;
+          white-space: nowrap; /* Prepreči lomljenje teksta */
+          animation: marquee 25s linear infinite; /* Prilagodi hitrost (25s) po želji */
+          padding-left: 24px;
+        }
+
+        .quote-header:hover .quote-marquee-wrapper {
+           /* animation-play-state: paused; Če želiš, da se ustavi ob preletu z miško */
+        }
+
+        .quote-tag {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          color: var(--cyan);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-right: 6px;
+          flex-shrink: 0;
+        }
+
+        .quote-text {
+          font-size: 15px;
+          font-weight: 400;
+          color: var(--text-primary);
+          font-style: italic;
+          opacity: 0.95;
+          margin: 0;
+          display: inline;
+          flex-shrink: 0;
+        }
+
+        .quote-author {
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text-muted);
+          margin-left: 6px;
+          flex-shrink: 0;
+        }
+        
+        /* Metric Cards */
+        .metrics-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+        
+        @media (min-width: 768px) {
+          .metrics-grid {
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+          }
+        }
+        
+        .metric-card {
+          background: var(--bg-card);
+          border: 1px solid var(--border-subtle);
+          border-radius: 14px;
+          padding: 16px;
+          transition: all 0.25s ease;
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .metric-card:hover {
+          background: var(--bg-card-hover);
+          border-color: var(--border-medium);
           transform: translateY(-2px);
         }
-
-        .glass-card:hover::before {
-          left: 100%;
+        
+        .metric-card.glow-cyan::before {
+          content: '';
+          position: absolute; top: 0; left: 0; right: 0; height: 1px;
+          background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+          opacity: 0.5;
+        }
+        
+        .metric-card.glow-rose::before {
+          content: '';
+          position: absolute; top: 0; left: 0; right: 0; height: 1px;
+          background: linear-gradient(90deg, transparent, var(--rose), transparent);
+          opacity: 0.5;
         }
 
-        /* Glass Tooltip */
-        .glass-tooltip {
-          background: linear-gradient(
-            135deg,
-            rgba(0, 0, 0, 0.9) 0%,
-            rgba(0, 0, 0, 0.8) 100%
-          );
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          padding: 12px 16px;
-          border-radius: 12px;
-          min-width: 140px;
+        .metric-card.glow-amber::before {
+          content: '';
+          position: absolute; top: 0; left: 0; right: 0; height: 1px;
+          background: linear-gradient(90deg, transparent, var(--amber), transparent);
+          opacity: 0.5;
+        }
+        
+        .metric-card.glow-violet::before {
+          content: '';
+          position: absolute; top: 0; left: 0; right: 0; height: 1px;
+          background: linear-gradient(90deg, transparent, var(--violet), transparent);
+          opacity: 0.5;
+        }
+        
+        .metric-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+        
+        .metric-icon svg { width: 14px; height: 14px; opacity: 0.7; }
+        
+        .metric-title {
+          font-size: 10px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text-muted);
+        }
+        
+        .metric-body { display: flex; align-items: center; gap: 8px; }
+        
+        .metric-value {
+          font-family: var(--font-mono);
+          font-size: 22px;
+          font-weight: 500;
+          letter-spacing: -0.02em;
+        }
+        
+        @media (min-width: 768px) { .metric-value { font-size: 26px; } }
+        
+        .metric-trend {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 20px;
+          height: 20px;
+          border-radius: 5px;
+        }
+        
+        .metric-trend.trend-up { background: rgba(34, 211, 238, 0.15); color: var(--cyan); }
+        .metric-trend.trend-down { background: rgba(251, 113, 133, 0.15); color: var(--rose); }
+        
+        .metric-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+        
+        .stats-row {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+          margin-bottom: 24px;
+        }
+        
+        @media (min-width: 768px) { .stats-row { grid-template-columns: repeat(4, 1fr); gap: 12px; } }
+        
+        .stat-badge {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: var(--bg-card);
+          border: 1px solid var(--border-subtle);
+          border-radius: 10px;
+          padding: 12px 14px;
+        }
+        
+        .stat-badge-content { display: flex; flex-direction: column; gap: 2px; }
+        .stat-badge-label { font-size: 9px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
+        .stat-badge-value { font-family: var(--font-mono); font-size: 15px; font-weight: 500; }
+        
+        .main-grid { display: grid; gap: 16px; margin-bottom: 24px; }
+        @media (min-width: 1200px) { .main-grid { grid-template-columns: 1fr 340px; gap: 20px; } }
+        
+        .chart-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 20px; }
+        .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .chart-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+        .chart-value { font-family: var(--font-mono); font-size: 14px; font-weight: 500; padding: 5px 10px; background: rgba(255, 255, 255, 0.03); border-radius: 6px; }
+        .chart-container { height: 220px; width: 100%; }
+
+        /* Wallet */
+        .wallet-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; overflow: hidden; height: 100%; display: flex; flex-direction: column; }
+        .wallet-header { padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); background: rgba(0, 0, 0, 0.2); }
+        .wallet-amount { font-family: var(--font-mono); font-size: 26px; font-weight: 500; }
+        
+        .wallet-list { padding: 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; overflow-y: auto; }
+        
+        .wallet-item { 
+          display: flex; 
+          align-items: center; 
+          position: relative; 
+          padding: 8px 12px;
+          border-radius: 8px;
+          overflow: hidden;
+          background: rgba(255,255,255,0.01);
+          min-height: 42px;
         }
 
-        /* Chart Container Glass */
-        .glass-chart {
-          background: linear-gradient(
-            135deg,
-            rgba(255, 255, 255, 0.06) 0%,
-            rgba(255, 255, 255, 0.02) 100%
-          );
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 
-            0 25px 50px rgba(0, 0, 0, 0.2),
-            0 0 0 1px rgba(255, 255, 255, 0.03) inset;
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
-          border-radius: 24px;
-          transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        .wallet-bar {
+          position: absolute; 
+          left: 0; 
+          top: 0; 
+          bottom: 0; 
+          opacity: 0.15;
+          z-index: 0;
+          transition: width 0.5s ease;
+        }
+        
+        .wallet-content-row {
+          display: flex; 
+          justify-content: space-between; 
+          width: 100%; 
+          z-index: 1;
+          align-items: center;
+          font-size: 11px; 
+          font-weight: 500; 
+          color: var(--text-secondary);
         }
 
-        .glass-chart:hover {
-          border-color: rgba(255, 255, 255, 0.12);
-          box-shadow: 
-            0 30px 60px rgba(0, 0, 0, 0.25),
-            0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+        .bg-cyan { background: var(--cyan); border-right: 1px solid var(--cyan); }
+        .bg-rose { background: var(--rose); border-right: 1px solid var(--rose); }
+
+        /* Data Tables */
+        .tables-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+        @media (min-width: 768px) { .tables-grid { grid-template-columns: repeat(3, 1fr); } }
+
+        .data-table { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px; }
+        .data-table-header { padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; gap: 8px; }
+        .data-table-body { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+        
+        .data-table-row { 
+          display: flex; 
+          align-items: center; 
+          position: relative; 
+          padding: 8px 12px;
+          border-radius: 8px;
+          overflow: hidden;
+          background: rgba(255,255,255,0.01);
         }
+        
+        .data-table-bar { 
+          position: absolute; 
+          left: 0; 
+          top: 0; 
+          bottom: 0; 
+          opacity: 0.15; 
+          z-index: 0;
+          transition: width 0.5s ease;
+        }
+        .bar-positive { background: var(--cyan); border-right: 1px solid var(--cyan); }
+        .bar-negative { background: var(--rose); border-right: 1px solid var(--rose); }
+
+        .row-content {
+          display: flex; 
+          justify-content: space-between; 
+          width: 100%; 
+          z-index: 1;
+          align-items: center;
+        }
+
+        .data-table-label { font-size: 11px; font-weight: 500; color: var(--text-secondary); }
+        .data-table-value { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+
+        .tooltip-glass { background: rgba(10, 10, 11, 0.95); border: 1px solid var(--border-medium); border-radius: 8px; padding: 10px 14px; }
+        .tooltip-value.positive { color: var(--cyan); }
+        .tooltip-value.negative { color: var(--rose); }
+
+        .loading-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-primary); gap: 16px; }
+        .loading-spinner { width: 32px; height: 32px; border: 2px solid var(--border-subtle); border-top-color: var(--cyan); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .text-cyan-400 { color: var(--cyan); }
+        .text-rose-400 { color: var(--rose); }
       `}</style>
 
-      <div className="relative max-w-[1800px] mx-auto px-6 md:px-10 pt-48 pb-12 z-10">
+      <div className="dashboard-content">
         
-        {/* KPI SEKCIJA */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <MetricCard title="Začetni kapital" value={eur(CAPITAL_TOTAL)} icon={<DollarSign className="w-5 h-5" />} accentColor="indigo" big />
-          <MetricCard title="Trenutno stanje" value={eur(stats.bankroll)} trend={stats.bankroll >= CAPITAL_TOTAL ? "up" : "down"} icon={<Wallet className="w-5 h-5" />} accentColor={stats.bankroll >= CAPITAL_TOTAL ? "emerald" : "rose"} big />
-          <MetricCard title="Celoten profit" value={eur(stats.profit)} trend={stats.profit >= 0 ? "up" : "down"} icon={<TrendingUp className="w-5 h-5" />} accentColor={stats.profit >= 0 ? "emerald" : "rose"} big />
-          <MetricCard title="Donos" value={`${stats.donosNaKapital.toFixed(2)}%`} trend={stats.donosNaKapital >= 0 ? "up" : "down"} icon={<BarChart3 className="w-5 h-5" />} accentColor="amber" big />
+        {/* AVTOMATSKI MOTIVACIJSKI CITAT - ANIMIRAN VODORAVNO */}
+        <header className="quote-header">
+          <div className="quote-marquee-wrapper">
+            <div className="quote-tag">
+              <Sparkles className="w-3 h-3" /> Misel dneva :
+            </div>
+            <p className="quote-text">
+              "{quote.text}"
+            </p>
+            <div className="quote-author">
+              - {quote.author}
+            </div>
+          </div>
+        </header>
+
+        {/* KPI Kartice */}
+        <section className="metrics-grid">
+          <MetricCard 
+            title="Začetni kapital" 
+            value={eur(CAPITAL_TOTAL)} 
+            icon={<DollarSign />} 
+            variant="info"
+          />
+          <MetricCard 
+            title="Trenutno stanje" 
+            value={eur(stats.bankroll)} 
+            trend={stats.bankroll >= CAPITAL_TOTAL ? "up" : "down"} 
+            icon={<Wallet />} 
+            variant={stats.bankroll >= CAPITAL_TOTAL ? "success" : "danger"}
+          />
+          <MetricCard 
+            title="Celoten profit" 
+            value={eur(stats.profit)} 
+            trend={stats.profit >= 0 ? "up" : "down"} 
+            icon={<TrendingUp />} 
+            variant={stats.profit >= 0 ? "success" : "danger"}
+          />
+          <MetricCard 
+            title="Donos" 
+            value={`${stats.donosNaKapital.toFixed(1)}%`} 
+            trend={stats.donosNaKapital >= 0 ? "up" : "down"} 
+            icon={<BarChart3 />} 
+            variant="warning"
+          />
         </section>
 
-        {/* SEKUNDARNI KPI */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-            <MiniStatCard title="Stave" value={stats.n} icon={<Hash className="w-5 h-5"/>} colorClass="text-white"/>
-            <MiniStatCard title="Zmage" value={stats.wins} icon={<Trophy className="w-5 h-5"/>} colorClass="text-emerald-400"/>
-            <MiniStatCard title="Porazi" value={stats.losses} icon={<ArrowDownRight className="w-5 h-5"/>} colorClass="text-rose-400"/>
-            <MiniStatCard title="Win Rate" value={`${stats.winRate.toFixed(1)}%`} icon={<Zap className="w-5 h-5"/>} colorClass="text-violet-400"/>
+        {/* Stat Badges */}
+        <section className="stats-row">
+          <StatBadge label="Stave" value={stats.n} icon={<Hash />} colorClass="text-zinc-100" />
+          <StatBadge label="Zmage" value={stats.wins} icon={<Trophy />} colorClass="text-cyan-400" />
+          <StatBadge label="Porazi" value={stats.losses} icon={<ArrowDownRight />} colorClass="text-rose-400" />
+          <StatBadge label="Win Rate" value={`${stats.winRate.toFixed(1)}%`} icon={<Zap />} colorClass="text-violet-400" />
         </section>
 
-        {/* GRAFI IN DENARNICA */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6 items-stretch">
+        {/* Glavni Grid */}
+        <section className="main-grid">
+          <div className="charts-column" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="chart-card">
+              <div className="chart-header">
+                <h3 className="chart-title"><Clock /> Dnevni Profit</h3>
+                <span className={`chart-value ${stats.profit >= 0 ? "text-cyan-400" : "text-rose-400"}`}>{eur(stats.profit)}</span>
+              </div>
+              <div className="chart-container">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartDaily}>
+                    <defs>
+                      <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                    <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={9} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#52525b" fontSize={9} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} width={45} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="profit" stroke="#22d3ee" strokeWidth={2} fill="url(#colorProfit)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+              <div className="chart-card">
+                <h3 className="chart-title" style={{ marginBottom: '16px' }}><CalendarDays /> Mesečni Profit</h3>
+                <div style={{ height: '160px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartMonthly}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                      <XAxis dataKey="monthName" stroke="#52525b" fontSize={9} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#52525b" fontSize={9} tickLine={false} axisLine={false} width={40} />
+                      <Bar dataKey="profit">
+                        <LabelList 
+                          dataKey="profit" 
+                          position="top" 
+                          style={{ fill: '#a1a1aa', fontSize: '10px', fontWeight: 500 }} 
+                          formatter={(val: number) => eur(val)} 
+                        />
+                        {chartMonthly.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#22d3ee" : "#fb7185"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <h3 className="chart-title" style={{ marginBottom: '16px' }}><PieIcon /> Porazdelitev</h3>
+                <div style={{ height: '160px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      {/* SPREMENJENO: Povečan notranji in zunanji radij za večji krog in luknjo */}
+                      <Pie data={pieData} innerRadius={55} outerRadius={75} paddingAngle={4} dataKey="value" stroke="none">
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      {/* SPREMENJENO: Še večja legenda */}
+                      <Legend 
+                        layout="vertical" 
+                        verticalAlign="middle" 
+                        align="right"
+                        iconSize={16}
+                        wrapperStyle={{ fontSize: '14px', color: '#a1a1aa' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="wallet-card">
+            <div className="wallet-header">
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Skupna banka</div>
+              <div className="wallet-amount" style={{ color: isProfit ? 'var(--cyan)' : 'var(--rose)' }}>{eur(skupnaBanka)}</div>
+            </div>
             
-            <div className="xl:col-span-8 flex flex-col gap-6">
-                <div className="glass-chart p-8">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                          <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-emerald-500"/> Dnevni Profit
-                          </h3>
-                          <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-1">{currentMonthName}</p>
+            <div className="wallet-list">
+              {stats.balanceByBook.map((book) => {
+                 const width = (book.balance / maxBalance) * 100;
+                 const isProfit = book.balance >= book.start;
+                 return (
+                   <div key={book.name} className="wallet-item">
+                     {/* Background Bar */}
+                     <div 
+                        className={`wallet-bar ${isProfit ? 'bg-cyan' : 'bg-rose'}`} 
+                        style={{ width: `${width}%` }} 
+                     />
+                     
+                     <div className="wallet-content-row">
+                        <span style={{ fontWeight: 500 }}>{book.name}</span>
+                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: '#fafafa' }}>
+                             {eur(book.balance)}
+                           </span>
+                           <span style={{ fontSize: '10px', color: isProfit ? 'var(--cyan)' : 'var(--rose)' }}>
+                             {isProfit ? '+' : ''}{eur(book.profit)}
+                           </span>
                         </div>
-                        <div className="bg-white/5 px-3 py-1 rounded-lg border border-white/10">
-                          <span className={`text-sm font-mono font-black ${stats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(stats.profit)}</span>
-                        </div>
-                    </div>
-                    <div className="h-[250px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chartDaily}>
-                            <defs>
-                              <linearGradient id="colorProfitDaily" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                            <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} minTickGap={30} />
-                            <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} dx={-10} />
-                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1, strokeDasharray: '3 3' }} />
-                            <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfitDaily)" activeDot={{ r: 6, strokeWidth: 0, fill: "#fff" }} />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-                    <div className="glass-chart p-6 flex flex-col">
-                        <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-4">
-                          <CalendarDays className="w-4 h-4 text-indigo-500"/> Mesečni Profit
-                        </h3>
-                        <div className="flex-1 min-h-[180px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartMonthly}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                    <XAxis dataKey="monthName" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} dy={10} />
-                                    <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} width={40} />
-                                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                                    <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
-                                    <Bar dataKey="profit" radius={[4, 4, 4, 4]}>
-                                        {chartMonthly.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#10b981" : "#f43f5e"} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                    <div className="glass-chart p-6 flex flex-col">
-                        <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-2">
-                          <PieIcon className="w-4 h-4 text-violet-500"/> Volume po športih
-                        </h3>
-                        <div className="flex flex-row items-center h-full">
-                            <div className="flex flex-col gap-2 flex-1 pr-2 max-h-[180px] overflow-y-auto custom-scrollbar">
-                                {pieData.slice(0, 5).map((entry, index) => (
-                                    <div key={entry.name} className="flex items-center justify-between group">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
-                                            <span className="text-[10px] font-bold text-zinc-400 group-hover:text-white transition-colors">{entry.name}</span>
-                                        </div>
-                                        <span className="text-[10px] font-mono text-zinc-500">{entry.percent.toFixed(0)}%</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="w-[140px] h-[140px] relative shrink-0">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie data={pieData} innerRadius={40} outerRadius={60} paddingAngle={5} dataKey="value" stroke="none">
-                                            {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />))}
-                                        </Pie>
-                                        <Tooltip content={<CustomTooltip />} />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                     </div>
+                   </div>
+                 );
+              })}
             </div>
-
-            <div className="xl:col-span-4 flex flex-col h-full">
-                <div className="glass-card flex flex-col h-full overflow-hidden">
-                    <div className="bg-black/20 p-6 border-b border-white/5">
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                              <Wallet className="w-4 h-4 text-amber-500"/> Skupno Stanje
-                            </h3>
-                            <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 ${isProfit ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                {isProfit ? <ArrowUpRight className="w-3 h-3"/> : <ArrowDownRight className="w-3 h-3"/>}
-                                {eur(diffFromStart)}
-                            </div>
-                        </div>
-                        <div className="flex items-baseline gap-2">
-                            <span className={`text-3xl font-mono font-black tracking-tight ${skupnaBanka >= CAPITAL_TOTAL ? 'text-emerald-400' : 'text-rose-400'}`}>{eur(skupnaBanka)}</span>
-                            <span className="text-[10px] text-zinc-500 font-bold uppercase">/ {eur(CAPITAL_TOTAL)} Start</span>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 flex flex-col justify-between p-4 gap-2">
-                        {stats.balanceByBook.map((book) => {
-                            const isPositive = book.profit >= 0;
-                            const initials = book.name.substring(0, 1); 
-                            return (
-                                <div key={book.name} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-transparent hover:border-white/10 hover:bg-white/10 transition-all group">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-xs font-bold text-zinc-400 border border-white/10 group-hover:text-white group-hover:border-white/20 transition-colors">
-                                            {initials}
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-xs font-bold text-zinc-300 group-hover:text-white transition-colors">{book.name}</span>
-                                            <div className="flex items-center gap-1">
-                                                <span className={`text-[14px] font-mono ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                    {isPositive ? "+" : ""}{eur(book.profit)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-1">
-                                        <span className={`text-sm font-mono font-bold ${isPositive ? 'text-white' : 'text-rose-200'}`}>{eur(book.balance)}</span>
-                                        <div className="w-16 h-1 bg-white/10 rounded-full overflow-hidden">
-                                            <div 
-                                                className={`h-full rounded-full ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} opacity-60`} 
-                                                style={{ width: `${Math.min((book.balance / (book.start * 1.5 || 100)) * 100, 100)}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {/* TABELE PO ŠPORTIH IN TIPSTERJIH */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <DataTable title="Po športih" data={sportData} icon={<Activity className="w-4 h-4 text-emerald-400" />} />
-          <DataTable title="Po tipsterjih" data={tipsterData} icon={<Users className="w-4 h-4 text-indigo-400" />} />
-          <DataTable title="Po času (Profit)" data={timingData} icon={<Clock className="w-4 h-4 text-amber-400" />} />
+          </div>
         </section>
 
-        <footer className="mt-12 pt-8 border-t border-white/5 text-center flex flex-col md:flex-row justify-between items-center text-zinc-500 text-xs gap-2">
-          <p className="hover:text-zinc-300 transition-colors">© 2026 DDTips Analytics.</p>
-          <p className="font-mono bg-white/5 px-3 py-1 rounded-full border border-white/10">Last sync: {mounted ? new Date().toLocaleTimeString() : "--:--:--"}</p>
+        <section className="tables-grid">
+          <DataTable title="Po športih" data={sportData} icon={<Activity className="text-cyan-400" />} />
+          <DataTable title="Po tipsterjih" data={tipsterData} icon={<Users className="text-violet-400" />} />
+          <DataTable title="Po času" data={timingData} icon={<Clock className="text-amber-400" />} />
+        </section>
+
+        <footer style={{ marginTop: '32px', padding: '20px 0', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}>
+          <span>© 2026 DDTips Analytics</span>
+          <span style={{ fontFamily: "var(--font-mono)" }}>API Integrated Quote System</span>
         </footer>
       </div>
     </main>
