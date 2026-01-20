@@ -205,48 +205,92 @@ function CompactStatCard({ label, value, subValue, icon: Icon, color = "text-whi
   );
 }
 
-// RAZDELITEV KARTICA (Betting vs Trading) - Z GLASS EFEKTOM
-function SplitCard({ bettingStats, tradingStats }: { bettingStats: any, tradingStats: any }) {
-  const total = Math.abs(bettingStats.profit) + Math.abs(tradingStats.profit);
-  const betPerc = total === 0 ? 50 : (Math.abs(bettingStats.profit) / total) * 100;
+// RAZDELITEV KARTICA (Betting vs Trading + Prematch vs Live) - Z GLASS EFEKTOM
+function SplitCard({ bettingStats, tradingStats, prematchStats, liveStats }: { bettingStats: any, tradingStats: any, prematchStats: any, liveStats: any }) {
+  const modeTotal = Math.abs(bettingStats.profit) + Math.abs(tradingStats.profit);
+  const betPerc = modeTotal === 0 ? 50 : (Math.abs(bettingStats.profit) / modeTotal) * 100;
   const tradePerc = 100 - betPerc;
+
+  const timeTotal = Math.abs(prematchStats.profit) + Math.abs(liveStats.profit);
+  const prematchPerc = timeTotal === 0 ? 50 : (Math.abs(prematchStats.profit) / timeTotal) * 100;
+  const livePerc = 100 - prematchPerc;
 
   return (
     <div className="glass-card p-6 h-full flex flex-col" style={{ "--glow-color": "rgba(139, 92, 246, 0.1)" } as React.CSSProperties}>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
           <ArrowRightLeft className="w-4 h-4 text-violet-500" /> Struktura Profita
         </h3>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center gap-6">
-        {/* Betting Row */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-bold text-sky-500 uppercase tracking-widest flex items-center gap-2"><Target className="w-3 h-3"/> Betting</span>
-            <span className={`font-mono font-bold ${bettingStats.profit >=0 ? "text-white" : "text-rose-400"}`}>{eur(bettingStats.profit)}</span>
+      <div className="flex-1 flex flex-col justify-center gap-4">
+        {/* SEKCIJA: Betting vs Trading */}
+        <div className="pb-4 border-b border-white/5">
+          <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.2em] mb-3">Po Načinu</p>
+          
+          {/* Betting Row */}
+          <div className="mb-3">
+            <div className="flex justify-between items-center mb-1.5">
+              <span className="text-[10px] font-bold text-sky-500 uppercase tracking-widest flex items-center gap-1.5"><Target className="w-3 h-3"/> Betting</span>
+              <span className={`font-mono text-sm font-bold ${bettingStats.profit >=0 ? "text-white" : "text-rose-400"}`}>{eur(bettingStats.profit)}</span>
+            </div>
+            <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden">
+              <div className="h-full bg-sky-500/50 rounded-full transition-all duration-500" style={{ width: `${betPerc}%` }} />
+            </div>
+            <div className="flex justify-between mt-1 text-[9px] text-zinc-600 font-mono">
+              <span>ROI: {bettingStats.roi.toFixed(1)}%</span>
+              <span>{bettingStats.n} Stav</span>
+            </div>
           </div>
-          <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden">
-            <div className="h-full bg-sky-500/50 rounded-full transition-all duration-500" style={{ width: `${betPerc}%` }} />
-          </div>
-          <div className="flex justify-between mt-1 text-[10px] text-zinc-600 font-mono">
-            <span>ROI: {bettingStats.roi.toFixed(1)}%</span>
-            <span>{bettingStats.n} Stav</span>
+
+          {/* Trading Row */}
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <span className="text-[10px] font-bold text-violet-500 uppercase tracking-widest flex items-center gap-1.5"><Activity className="w-3 h-3"/> Trading</span>
+              <span className={`font-mono text-sm font-bold ${tradingStats.profit >=0 ? "text-white" : "text-rose-400"}`}>{eur(tradingStats.profit)}</span>
+            </div>
+            <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden">
+              <div className="h-full bg-violet-500/50 rounded-full transition-all duration-500" style={{ width: `${tradePerc}%` }} />
+            </div>
+            <div className="flex justify-between mt-1 text-[9px] text-zinc-600 font-mono">
+              <span>ROI: {tradingStats.roi.toFixed(1)}%</span>
+              <span>{tradingStats.n} Stav</span>
+            </div>
           </div>
         </div>
 
-        {/* Trading Row */}
+        {/* SEKCIJA: Prematch vs Live */}
         <div>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-bold text-violet-500 uppercase tracking-widest flex items-center gap-2"><Activity className="w-3 h-3"/> Trading</span>
-            <span className={`font-mono font-bold ${tradingStats.profit >=0 ? "text-white" : "text-rose-400"}`}>{eur(tradingStats.profit)}</span>
+          <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.2em] mb-3">Po Času</p>
+          
+          {/* Prematch Row */}
+          <div className="mb-3">
+            <div className="flex justify-between items-center mb-1.5">
+              <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest flex items-center gap-1.5"><Clock className="w-3 h-3"/> Prematch</span>
+              <span className={`font-mono text-sm font-bold ${prematchStats.profit >=0 ? "text-white" : "text-rose-400"}`}>{eur(prematchStats.profit)}</span>
+            </div>
+            <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden">
+              <div className="h-full bg-amber-500/50 rounded-full transition-all duration-500" style={{ width: `${prematchPerc}%` }} />
+            </div>
+            <div className="flex justify-between mt-1 text-[9px] text-zinc-600 font-mono">
+              <span>ROI: {prematchStats.roi.toFixed(1)}%</span>
+              <span>{prematchStats.n} Stav</span>
+            </div>
           </div>
-          <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden">
-            <div className="h-full bg-violet-500/50 rounded-full transition-all duration-500" style={{ width: `${tradePerc}%` }} />
-          </div>
-          <div className="flex justify-between mt-1 text-[10px] text-zinc-600 font-mono">
-            <span>ROI: {tradingStats.roi.toFixed(1)}%</span>
-            <span>{tradingStats.n} Stav</span>
+
+          {/* Live Row */}
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest flex items-center gap-1.5"><Layers className="w-3 h-3"/> Live</span>
+              <span className={`font-mono text-sm font-bold ${liveStats.profit >=0 ? "text-white" : "text-rose-400"}`}>{eur(liveStats.profit)}</span>
+            </div>
+            <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden">
+              <div className="h-full bg-rose-500/50 rounded-full transition-all duration-500" style={{ width: `${livePerc}%` }} />
+            </div>
+            <div className="flex justify-between mt-1 text-[9px] text-zinc-600 font-mono">
+              <span>ROI: {liveStats.roi.toFixed(1)}%</span>
+              <span>{liveStats.n} Stav</span>
+            </div>
           </div>
         </div>
       </div>
@@ -455,10 +499,14 @@ export default function StatsPage() {
 
   const bettingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "BET"), [filteredRows]);
   const tradingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "TRADING"), [filteredRows]);
+  const prematchRows = useMemo(() => filteredRows.filter(r => r.cas_stave === "PREMATCH"), [filteredRows]);
+  const liveRows = useMemo(() => filteredRows.filter(r => r.cas_stave === "LIVE"), [filteredRows]);
 
   const totalStats = useMemo(() => buildStats(rows, filteredRows, isFilteredByDate), [rows, filteredRows, isFilteredByDate]);
   const bettingStats = useMemo(() => buildStats(rows, bettingRows, isFilteredByDate), [rows, bettingRows, isFilteredByDate]);
   const tradingStats = useMemo(() => buildStats(rows, tradingRows, isFilteredByDate), [rows, tradingRows, isFilteredByDate]);
+  const prematchStats = useMemo(() => buildStats(rows, prematchRows, isFilteredByDate), [rows, prematchRows, isFilteredByDate]);
+  const liveStats = useMemo(() => buildStats(rows, liveRows, isFilteredByDate), [rows, liveRows, isFilteredByDate]);
 
   const tipsterBreakdown = useMemo(() => getBreakdown(filteredRows, 'tipster'), [filteredRows]);
   const sportBreakdown = useMemo(() => getBreakdown(filteredRows, 'sport'), [filteredRows]);
@@ -760,9 +808,9 @@ export default function StatsPage() {
                 </div>
             </div>
 
-            {/* SIDEBAR: Betting vs Trading */}
+            {/* SIDEBAR: Betting vs Trading + Prematch vs Live */}
             <div className="lg:col-span-1">
-                <SplitCard bettingStats={bettingStats} tradingStats={tradingStats} />
+                <SplitCard bettingStats={bettingStats} tradingStats={tradingStats} prematchStats={prematchStats} liveStats={liveStats} />
             </div>
         </section>
 
