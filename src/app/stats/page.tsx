@@ -170,8 +170,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const value = payload[0].value;
     const isPositive = value >= 0;
     return (
-      <div className="bg-[#09090b]/90 border border-zinc-800 p-3 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] backdrop-blur-md min-w-[120px]">
-        <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest mb-2 border-b border-white/5 pb-1">{label}</p>
+      <div className="glass-tooltip p-3 min-w-[120px]">
+        <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest mb-2 border-b border-white/10 pb-1">{label}</p>
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs text-zinc-300 font-medium">Profit:</span>
           <span className={`text-sm font-mono font-black ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>{value > 0 ? "+" : ""}{eurDec(value)}</span>
@@ -182,10 +182,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-// KOMPAKTNA KARTICA (KPI)
+// KOMPAKTNA KARTICA (KPI) - Z GLASS EFEKTOM
 function CompactStatCard({ label, value, subValue, icon: Icon, color = "text-white" }: any) {
+  const glowColor = color.includes("emerald") ? "rgba(16, 185, 129, 0.15)" : color.includes("rose") ? "rgba(244, 63, 94, 0.15)" : "rgba(255, 255, 255, 0.05)";
+  
   return (
-    <div className="bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm rounded-2xl p-4 flex items-center justify-between hover:bg-zinc-900/60 transition-all group">
+    <div 
+      className="glass-card p-4 flex items-center justify-between group"
+      style={{ "--glow-color": glowColor } as React.CSSProperties}
+    >
       <div>
         <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">{label}</p>
         <div className="flex items-baseline gap-2">
@@ -193,21 +198,21 @@ function CompactStatCard({ label, value, subValue, icon: Icon, color = "text-whi
           {subValue && <span className="text-xs font-bold text-zinc-600">{subValue}</span>}
         </div>
       </div>
-      <div className="w-10 h-10 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center text-zinc-500 group-hover:text-white transition-colors">
+      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-zinc-500 group-hover:text-white transition-colors">
         <Icon className="w-5 h-5" />
       </div>
     </div>
   );
 }
 
-// RAZDELITEV KARTICA (Betting vs Trading)
+// RAZDELITEV KARTICA (Betting vs Trading) - Z GLASS EFEKTOM
 function SplitCard({ bettingStats, tradingStats }: { bettingStats: any, tradingStats: any }) {
   const total = Math.abs(bettingStats.profit) + Math.abs(tradingStats.profit);
   const betPerc = total === 0 ? 50 : (Math.abs(bettingStats.profit) / total) * 100;
   const tradePerc = 100 - betPerc;
 
   return (
-    <div className="bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm rounded-2xl p-6 h-full flex flex-col">
+    <div className="glass-card p-6 h-full flex flex-col" style={{ "--glow-color": "rgba(139, 92, 246, 0.1)" } as React.CSSProperties}>
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
           <ArrowRightLeft className="w-4 h-4 text-violet-500" /> Struktura Profita
@@ -222,7 +227,7 @@ function SplitCard({ bettingStats, tradingStats }: { bettingStats: any, tradingS
             <span className={`font-mono font-bold ${bettingStats.profit >=0 ? "text-white" : "text-rose-400"}`}>{eur(bettingStats.profit)}</span>
           </div>
           <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden">
-            <div className="h-full bg-sky-500/50 rounded-full" style={{ width: `${betPerc}%` }} />
+            <div className="h-full bg-sky-500/50 rounded-full transition-all duration-500" style={{ width: `${betPerc}%` }} />
           </div>
           <div className="flex justify-between mt-1 text-[10px] text-zinc-600 font-mono">
             <span>ROI: {bettingStats.roi.toFixed(1)}%</span>
@@ -237,7 +242,7 @@ function SplitCard({ bettingStats, tradingStats }: { bettingStats: any, tradingS
             <span className={`font-mono font-bold ${tradingStats.profit >=0 ? "text-white" : "text-rose-400"}`}>{eur(tradingStats.profit)}</span>
           </div>
           <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden">
-            <div className="h-full bg-violet-500/50 rounded-full" style={{ width: `${tradePerc}%` }} />
+            <div className="h-full bg-violet-500/50 rounded-full transition-all duration-500" style={{ width: `${tradePerc}%` }} />
           </div>
           <div className="flex justify-between mt-1 text-[10px] text-zinc-600 font-mono">
             <span>ROI: {tradingStats.roi.toFixed(1)}%</span>
@@ -249,16 +254,15 @@ function SplitCard({ bettingStats, tradingStats }: { bettingStats: any, tradingS
   );
 }
 
-// --- IZBOLJŠAN INPUT FIELD ZA DATUM (Klikni kjerkoli + bela ikona) ---
+// --- INPUT FIELD Z GLASS STILOM ---
 function InputField({ label, value, onChange, type = "text", icon, placeholder }: any) {
     const inputRef = useRef<HTMLInputElement>(null);
 
     const handleContainerClick = () => {
         if (type === 'date' && inputRef.current) {
             try {
-                inputRef.current.showPicker(); // Odpre native koledar takoj
+                inputRef.current.showPicker();
             } catch (e) {
-                // Fallback za starejše brskalnike
                 inputRef.current.focus();
             }
         }
@@ -276,9 +280,8 @@ function InputField({ label, value, onChange, type = "text", icon, placeholder }
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className={`w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all placeholder:text-zinc-700 text-center font-medium shadow-sm cursor-pointer ${type === 'date' ? '[color-scheme:dark]' : ''}`}
+            className={`glass-input w-full px-3 py-2.5 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-zinc-700 text-center font-medium cursor-pointer ${type === 'date' ? '[color-scheme:dark]' : ''}`}
             />
-            {/* CSS Tweak za ikono koledarja */}
             <style jsx>{`
                 input[type="date"]::-webkit-calendar-picker-indicator {
                     cursor: pointer;
@@ -304,7 +307,7 @@ function InputField({ label, value, onChange, type = "text", icon, placeholder }
           <select
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full px-3 py-2.5 appearance-none bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer text-center font-medium shadow-sm"
+            className="glass-input w-full px-3 py-2.5 appearance-none rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer text-center font-medium"
           >
             {options.map((opt: string) => <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>)}
           </select>
@@ -343,7 +346,7 @@ function InputField({ label, value, onChange, type = "text", icon, placeholder }
         </label>
         <button 
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs flex items-center justify-between hover:border-emerald-500/50 transition-all shadow-sm"
+          className="glass-input w-full px-3 py-2.5 rounded-lg text-white text-xs flex items-center justify-between hover:border-emerald-500/50 transition-all"
         >
           <span className="truncate font-medium">
             {selected.length === 0 ? "Vsi" : selected.length === 1 ? selected[0] : `${selected.length} izbrano`}
@@ -352,14 +355,14 @@ function InputField({ label, value, onChange, type = "text", icon, placeholder }
         </button>
   
         {isOpen && (
-          <div className="absolute top-full left-0 w-full mt-2 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl z-[100] max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
+          <div className="absolute top-full left-0 w-full mt-2 glass-dropdown rounded-xl shadow-2xl z-[100] max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
              {options.map(opt => {
                const isSelected = selected.includes(opt);
                return (
                  <div 
                    key={opt} 
                    onClick={() => toggleOption(opt)}
-                   className={`px-3 py-2.5 text-xs flex items-center justify-between cursor-pointer hover:bg-zinc-800/50 transition-colors border-l-2 ${isSelected ? "border-emerald-500 bg-emerald-500/5 text-emerald-400 font-bold" : "border-transparent text-zinc-400"}`}
+                   className={`px-3 py-2.5 text-xs flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors border-l-2 ${isSelected ? "border-emerald-500 bg-emerald-500/5 text-emerald-400 font-bold" : "border-transparent text-zinc-400"}`}
                  >
                    <span>{opt}</span>
                    {isSelected && <Check className="w-3.5 h-3.5" />}
@@ -376,7 +379,7 @@ function InputField({ label, value, onChange, type = "text", icon, placeholder }
 export default function StatsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
-  const [loading, setLoading] = useState(true); // ZAČNEMO S TRUE ZARADI VARNOSTI
+  const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // States for filters
@@ -389,33 +392,28 @@ export default function StatsPage() {
   const [minKvota, setMinKvota] = useState("");
   const [maxKvota, setMaxKvota] = useState("");
 
-  // --- 🔒 VARNOSTNO PREVERJANJE DOSTOPA ---
   useEffect(() => {
     const checkAccess = async () => {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       
-      // 1. Če ni prijavljen, ga vrzi na login
       if (!user) {
         router.replace("/login");
         return;
       }
 
-      // 2. Preveri profil in status odobritve
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('is_approved')
         .eq('id', user.id)
         .single();
 
-      // Če ni profila ali ni odobren (izjema za tvoj admin email)
       const isDejan = user.email === "skolnik.dejan40@gmail.com";
       if (!isDejan && (profileError || !profile || !profile.is_approved)) {
         router.replace("/pending");
         return;
       }
 
-      // Če je vse OK, naloži vrstice
       await loadRows();
     };
 
@@ -470,7 +468,6 @@ export default function StatsPage() {
   const sportTotals = useMemo(() => sportBreakdown.reduce((acc, curr) => ({ bet: acc.bet + curr.bettingProfit, trade: acc.trade + curr.tradingProfit, total: acc.total + curr.totalProfit }), { bet: 0, trade: 0, total: 0 }), [sportBreakdown]);
   const casTotals = useMemo(() => casBreakdown.reduce((acc, curr) => ({ bet: acc.bet + curr.bettingProfit, trade: acc.trade + curr.tradingProfit, total: acc.total + curr.totalProfit }), { bet: 0, trade: 0, total: 0 }), [casBreakdown]);
 
-  // --- 🔒 UI PRI PREVERJANJU DOSTOPA ---
   if (loading && rows.length === 0) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-black gap-4 text-center p-6">
       <Loader2 className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
@@ -480,14 +477,177 @@ export default function StatsPage() {
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30 font-sans">
+      {/* Background Effects */}
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
       
+      {/* Decorative Blurs */}
+      <div className="fixed top-[-10%] left-[-5%] w-[400px] h-[400px] bg-emerald-500/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[150px] pointer-events-none" />
+      
       <style jsx global>{`
+        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #52525b; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        /* Glass Card Base Style */
+        .glass-card {
+          position: relative;
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.08) 0%,
+            rgba(255, 255, 255, 0.02) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.25),
+            0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-radius: 20px;
+          transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+          overflow: hidden;
+        }
+
+        .glass-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.05),
+            transparent
+          );
+          transition: 0.6s;
+          pointer-events: none;
+        }
+
+        .glass-card:hover {
+          border-color: rgba(255, 255, 255, 0.15);
+          box-shadow: 
+            0 30px 60px rgba(0, 0, 0, 0.3),
+            0 0 40px var(--glow-color, rgba(16, 185, 129, 0.1)),
+            0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+          transform: translateY(-2px);
+        }
+
+        .glass-card:hover::before {
+          left: 100%;
+        }
+
+        /* Glass Input */
+        .glass-input {
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.05) 0%,
+            rgba(255, 255, 255, 0.02) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
+
+        .glass-input:focus {
+          border-color: rgba(16, 185, 129, 0.5);
+          box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+        }
+
+        /* Glass Dropdown */
+        .glass-dropdown {
+          background: linear-gradient(
+            135deg,
+            rgba(9, 9, 11, 0.95) 0%,
+            rgba(9, 9, 11, 0.9) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+        }
+
+        /* Glass Tooltip */
+        .glass-tooltip {
+          background: linear-gradient(
+            135deg,
+            rgba(0, 0, 0, 0.9) 0%,
+            rgba(0, 0, 0, 0.8) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border-radius: 12px;
+        }
+
+        /* Glass Chart */
+        .glass-chart {
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.06) 0%,
+            rgba(255, 255, 255, 0.02) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.2),
+            0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-radius: 24px;
+        }
+
+        /* Glass Table */
+        .glass-table {
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.06) 0%,
+            rgba(255, 255, 255, 0.02) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.2),
+            0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-radius: 24px;
+        }
+
+        /* Glass Form */
+        .glass-form {
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.04) 0%,
+            rgba(255, 255, 255, 0.01) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+        }
+
+        /* Glass Button */
+        .glass-button {
+          background: linear-gradient(
+            135deg,
+            rgba(16, 185, 129, 0.9) 0%,
+            rgba(16, 185, 129, 0.7) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          box-shadow: 
+            0 15px 35px rgba(16, 185, 129, 0.3),
+            0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+          transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .glass-button:hover {
+          transform: translateY(-2px);
+          box-shadow: 
+            0 20px 40px rgba(16, 185, 129, 0.4),
+            0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+        }
       `}</style>
 
       <div className="relative max-w-[1800px] mx-auto px-6 md:px-10 pb-12 z-10">
@@ -500,11 +660,22 @@ export default function StatsPage() {
            </div>
            
            <div className="flex gap-3">
-            <button onClick={() => setFiltersOpen(!filtersOpen)} className={`flex items-center gap-2 px-6 py-3 rounded-2xl border transition-all cursor-pointer shadow-lg active:scale-95 backdrop-blur-md ${filtersOpen ? 'bg-zinc-800 text-white border-zinc-700 font-bold' : 'bg-emerald-500 text-black border-emerald-400 hover:bg-emerald-400 font-black'}`}>
-              <Filter className="w-4 h-4" /><span className="text-xs uppercase tracking-wider">{filtersOpen ? "Zapri Filtre" : "Filtri"}</span>
+            <button 
+              onClick={() => setFiltersOpen(!filtersOpen)} 
+              className={`flex items-center gap-2 px-6 py-3 rounded-2xl border transition-all cursor-pointer shadow-lg active:scale-95 backdrop-blur-md ${
+                filtersOpen 
+                  ? 'glass-card text-white font-bold' 
+                  : 'glass-button text-black font-black'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              <span className="text-xs uppercase tracking-wider">{filtersOpen ? "Zapri Filtre" : "Filtri"}</span>
               {hasActiveFilters && !filtersOpen && <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>}
             </button>
-            <button onClick={handleRefresh} className="p-3 bg-zinc-900/50 text-zinc-400 border border-zinc-800 rounded-2xl hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30 transition-all cursor-pointer shadow-lg active:scale-95 backdrop-blur-md">
+            <button 
+              onClick={handleRefresh} 
+              className="glass-card p-3 text-zinc-400 hover:text-emerald-400 transition-all cursor-pointer active:scale-95"
+            >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-emerald-500" : ""}`} />
             </button>
           </div>
@@ -512,8 +683,8 @@ export default function StatsPage() {
 
         {/* FILTERS PANEL */}
         <div className={`transition-all duration-500 ease-in-out relative z-50 ${filtersOpen ? 'opacity-100 max-h-[600px] mb-12 translate-y-0' : 'max-h-0 opacity-0 mb-0 -translate-y-4 overflow-hidden pointer-events-none'}`}>
-          <div className="rounded-3xl border border-zinc-800/60 bg-gradient-to-b from-zinc-900 to-black p-1 shadow-2xl">
-            <div className="rounded-[20px] bg-zinc-900/50 p-8 backdrop-blur-md">
+          <div className="glass-card p-1">
+            <div className="glass-form rounded-[18px] p-8">
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-5 mb-8">
                 <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
                 <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
@@ -526,13 +697,13 @@ export default function StatsPage() {
                 </div>
                 <div className="flex justify-end gap-4 pt-6 border-t border-white/5">
                 <button onClick={handleClearFilters} className="px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-white transition-colors cursor-pointer">Počisti vse</button>
-                <button onClick={() => setFiltersOpen(false)} className="px-8 py-2.5 bg-emerald-500 text-black text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-400 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">Uporabi</button>
+                <button onClick={() => setFiltersOpen(false)} className="glass-button px-8 py-2.5 text-black text-xs font-black uppercase tracking-widest rounded-xl cursor-pointer active:scale-95">Uporabi</button>
                 </div>
             </div>
           </div>
         </div>
 
-        {/* --- NOVI LAYOUT: COMPACT KPI GRID --- */}
+        {/* KPI GRID */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <CompactStatCard 
                 label="Total Profit" 
@@ -560,13 +731,15 @@ export default function StatsPage() {
             />
         </section>
 
-        {/* --- NOVI LAYOUT: GLAVNI GRAF + SIDEBAR --- */}
+        {/* GLAVNI GRAF + SIDEBAR */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
             
-            {/* GLAVNI GRAF (Zavzame 2/3) */}
-            <div className="lg:col-span-2 rounded-[2rem] bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm p-6 shadow-lg flex flex-col">
+            {/* GLAVNI GRAF */}
+            <div className="lg:col-span-2 glass-chart p-6 flex flex-col">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-500" /> Tekoči Profit</h3>
+                    <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-emerald-500" /> Tekoči Profit
+                    </h3>
                 </div>
                 <div className="flex-1 min-h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
@@ -577,39 +750,54 @@ export default function StatsPage() {
                             <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                             </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                         <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} dy={10} />
                         <YAxis stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${val > 1000 ? val/1000 + 'k' : val}`} dx={-10} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#52525b', strokeWidth: 1, strokeDasharray: '3 3' }} />
+                        <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1, strokeDasharray: '3 3' }} />
                         <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
             </div>
 
-            {/* SIDEBAR: Betting vs Trading (Zavzame 1/3) */}
+            {/* SIDEBAR: Betting vs Trading */}
             <div className="lg:col-span-1">
                 <SplitCard bettingStats={bettingStats} tradingStats={tradingStats} />
             </div>
         </section>
 
-        {/* --- SEKUNDARNI GRAFI: Tipsterji + Mesečni --- */}
+        {/* SEKUNDARNI GRAFI */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
              {/* TIPSTER BREAKDOWN */}
-             <div className="rounded-[2rem] bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm p-6 flex flex-col shadow-lg h-[400px]">
-                <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4"><div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-400"><Users className="w-4 h-4" /></div><h3 className="text-xs font-bold uppercase tracking-[0.15em] text-zinc-300">Tipster Profit</h3></div>
+             <div className="glass-chart p-6 flex flex-col h-[400px]">
+                <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4">
+                  <div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-400 border border-indigo-500/20">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-zinc-300">Tipster Profit</h3>
+                </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                    <div className="grid grid-cols-3 text-[9px] font-bold text-zinc-500 uppercase px-3 mb-2 sticky top-0 bg-[#0c0c0e] z-10 py-2 rounded-lg border-b border-zinc-800"><span>Ime</span><span className="text-right">Št. Stav</span><span className="text-right text-white">Profit</span></div>
+                    <div className="grid grid-cols-3 text-[9px] font-bold text-zinc-500 uppercase px-3 mb-2 sticky top-0 bg-black/50 backdrop-blur-sm z-10 py-2 rounded-lg border-b border-white/5">
+                      <span>Ime</span>
+                      <span className="text-right">Št. Stav</span>
+                      <span className="text-right text-white">Profit</span>
+                    </div>
                     {tipsterBreakdown.map(t => (
-                        <div key={t.name} className="grid grid-cols-3 text-xs px-3 py-2.5 hover:bg-white/5 rounded-lg transition-all border border-transparent hover:border-white/5 group"><span className="font-bold text-zinc-300">{t.name}</span><span className="text-right text-zinc-500 font-mono">{t.count}</span><span className={`text-right font-mono font-bold ${t.totalProfit>=0?"text-emerald-400":"text-rose-400"}`}>{eurDec(t.totalProfit)}</span></div>
+                        <div key={t.name} className="grid grid-cols-3 text-xs px-3 py-2.5 hover:bg-white/5 rounded-lg transition-all border border-transparent hover:border-white/5 group">
+                          <span className="font-bold text-zinc-300">{t.name}</span>
+                          <span className="text-right text-zinc-500 font-mono">{t.count}</span>
+                          <span className={`text-right font-mono font-bold ${t.totalProfit>=0?"text-emerald-400":"text-rose-400"}`}>{eurDec(t.totalProfit)}</span>
+                        </div>
                     ))}
                 </div>
             </div>
 
             {/* MESEČNI GRAF */}
-            <div className="rounded-[2rem] bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm p-6 shadow-lg h-[400px] flex flex-col">
+            <div className="glass-chart p-6 h-[400px] flex flex-col">
                 <div className="flex items-center gap-3 mb-6">
-                    <div className="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-400"><Layers className="w-4 h-4" /></div>
+                    <div className="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-400 border border-emerald-500/20">
+                      <Layers className="w-4 h-4" />
+                    </div>
                     <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-zinc-300">Mesečni Pregled</h3>
                 </div>
                 <div className="flex-1 w-full">
@@ -626,35 +814,35 @@ export default function StatsPage() {
              </div>
         </section>
 
-        {/* --- TABELA --- */}
-        <section className="rounded-[2rem] bg-zinc-900/40 border border-zinc-800/60 backdrop-blur-sm overflow-hidden shadow-2xl">
-          <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
+        {/* TABELA */}
+        <section className="glass-table overflow-hidden">
+          <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Activity className="w-4 h-4 text-zinc-400" />
               <h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Zadnje Aktivnosti</h2>
             </div>
-            <div className="text-[10px] font-bold text-zinc-500 bg-zinc-900/80 border border-zinc-800 px-3 py-1.5 rounded-lg">Zadnjih 20 stav</div>
+            <div className="text-[10px] font-bold text-zinc-500 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg">Zadnjih 20 stav</div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-separate border-spacing-0">
               <thead>
-                <tr className="bg-[#0c0c0e] border-b border-zinc-800/50">
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Datum</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Mode</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Status</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50 w-[200px]">Dogodek</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Stavnica</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Tipster</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Kvota</th>
-                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-zinc-800/50">Profit</th>
+                <tr className="bg-black/50 backdrop-blur-sm">
+                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-white/5">Datum</th>
+                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-white/5">Mode</th>
+                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-white/5">Status</th>
+                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-white/5 w-[200px]">Dogodek</th>
+                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-white/5">Stavnica</th>
+                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-white/5">Tipster</th>
+                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-white/5">Kvota</th>
+                  <th className="p-4 text-center text-zinc-500 uppercase tracking-wider text-[10px] font-bold border-b border-white/5">Profit</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/30">
+              <tbody className="divide-y divide-white/5">
                 {totalStats.settled.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center">
                       <div className="flex flex-col items-center justify-center opacity-40">
-                        <div className="w-12 h-12 bg-zinc-800/50 rounded-full flex items-center justify-center mb-3 border border-zinc-700/50">
+                        <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mb-3 border border-white/10">
                           <Inbox className="w-6 h-6 text-zinc-500" />
                         </div>
                         <p className="text-zinc-500 text-xs uppercase tracking-wider">Ni podatkov za prikaz</p>
@@ -675,15 +863,15 @@ export default function StatsPage() {
                   else if (hasLay(row) && !hasBack(row)) displayKvota = row.lay_kvota;
 
                   return (
-                    <tr key={row.id} className="hover:bg-zinc-800/40 transition-colors group">
-                      <td className="p-4 text-zinc-400 text-center font-mono border-b border-zinc-800/30">{new Date(row.datum).toLocaleDateString("sl-SI")}</td>
-                      <td className="p-4 text-center border-b border-zinc-800/30"><span className={`px-2 py-0.5 rounded text-xs font-bold border tracking-wider ${getMode(row) === 'TRADING' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>{getMode(row)}</span></td>
-                      <td className="p-4 text-center border-b border-zinc-800/30">{statusBadge}</td>
-                      <td className="p-4 text-zinc-300 text-center font-medium group-hover:text-white transition-colors border-b border-zinc-800/30">{row.dogodek || "-"}</td>
-                      <td className="p-4 text-center text-zinc-500 uppercase text-[9px] font-bold tracking-wider border-b border-zinc-800/30">{row.stavnica}</td>
-                      <td className="p-4 text-center border-b border-zinc-800/30"><span className="px-2 py-1 rounded bg-zinc-900 text-zinc-400 border border-zinc-800 text-[10px] font-bold">{row.tipster}</span></td>
-                      <td className="p-4 text-center text-zinc-300 font-mono font-bold border-b border-zinc-800/30">{displayKvota > 0 ? displayKvota.toFixed(2) : "-"}</td>
-                      <td className={`p-4 text-center font-mono font-black text-sm border-b border-zinc-800/30 ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurDec(calcProfit(row))}</td>
+                    <tr key={row.id} className="hover:bg-white/5 transition-colors group">
+                      <td className="p-4 text-zinc-400 text-center font-mono border-b border-white/5">{new Date(row.datum).toLocaleDateString("sl-SI")}</td>
+                      <td className="p-4 text-center border-b border-white/5"><span className={`px-2 py-0.5 rounded text-xs font-bold border tracking-wider ${getMode(row) === 'TRADING' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>{getMode(row)}</span></td>
+                      <td className="p-4 text-center border-b border-white/5">{statusBadge}</td>
+                      <td className="p-4 text-zinc-300 text-center font-medium group-hover:text-white transition-colors border-b border-white/5">{row.dogodek || "-"}</td>
+                      <td className="p-4 text-center text-zinc-500 uppercase text-[9px] font-bold tracking-wider border-b border-white/5">{row.stavnica}</td>
+                      <td className="p-4 text-center border-b border-white/5"><span className="px-2 py-1 rounded bg-white/5 text-zinc-400 border border-white/10 text-[10px] font-bold">{row.tipster}</span></td>
+                      <td className="p-4 text-center text-zinc-300 font-mono font-bold border-b border-white/5">{displayKvota > 0 ? displayKvota.toFixed(2) : "-"}</td>
+                      <td className={`p-4 text-center font-mono font-black text-sm border-b border-white/5 ${calcProfit(row) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurDec(calcProfit(row))}</td>
                     </tr>
                   );
                 }))}
@@ -692,9 +880,9 @@ export default function StatsPage() {
           </div>
         </section>
 
-        <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
-          <p>© 2026 DDTips Analytics. Vse pravice pridržane.</p>
-          <p className="font-mono">Realtime Stats</p>
+        <footer className="mt-12 pt-8 border-t border-white/5 text-center flex flex-col md:flex-row justify-between items-center text-zinc-500 text-xs gap-2">
+          <p className="hover:text-zinc-300 transition-colors">© 2026 DDTips Analytics.</p>
+          <p className="font-mono bg-white/5 px-3 py-1 rounded-full border border-white/10">Realtime Stats</p>
         </footer>
       </div>
     </main>

@@ -167,11 +167,9 @@ function sendTelegramNotification(bet: BetRow, allBets: BetRow[]) {
   const day = today.getDate();
   const month = today.getMonth() + 1;
   
-  // Emoji za Live/Prematch status
   const statusEmoji = bet.cas_stave === "LIVE" ? "🔴" : "⏰";
   const statusText = bet.cas_stave === "LIVE" ? "Live" : "Prematch";
   
-  // Določi mode (BET ali TRADING)
   const betMode: Mode = (bet.mode as Mode) || (hasBack(bet) && hasLay(bet) ? "TRADING" : "BET");
   const modeEmoji = betMode === "TRADING" ? "🔄" : "🎰";
   const modeText = betMode === "TRADING" ? "Trading" : "Betting";
@@ -203,7 +201,6 @@ ${modeEmoji} Tip: <b>${modeText}</b>
     const profitEmoji = profit >= 0 ? "🟢" : "🔴";
     const dailyEmoji = dailyProfit >= 0 ? "📈" : "📉";
     
-    // Rezultat stave (BACK WIN ali LAY WIN pri tradingu)
     const resultText = bet.wl === "BACK WIN" ? " (Back Win)" : bet.wl === "LAY WIN" ? " (Lay Win)" : "";
     
     msg = `✅🎉 <b>ZMAGA!</b>${resultText} 🎉✅
@@ -280,16 +277,16 @@ function MonthSelect({ value, onChange, options }: { value: string; onChange: (v
 
   return (
     <div className="relative w-full">
-      <button onClick={() => setIsOpen(!isOpen)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-bold transition-all duration-200 capitalize ${isOpen ? "bg-zinc-900 border-emerald-500/50 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)]" : "bg-zinc-950/50 border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-700 hover:text-white"}`}>
+      <button onClick={() => setIsOpen(!isOpen)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-bold transition-all duration-200 capitalize glass-input ${isOpen ? "border-emerald-500/50 text-white" : "border-white/10 text-zinc-300 hover:border-white/20 hover:text-white"}`}>
         <span>{getLabel(value)}</span>
         <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isOpen ? "rotate-180 text-emerald-500" : ""}`} />
       </button>
       {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute top-full left-0 right-0 mt-2 z-50 glass-dropdown rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
           <div className="max-h-[240px] overflow-y-auto custom-scrollbar py-1">
             {options.map((month) => (
-              <button key={month} onClick={() => { onChange(month); setIsOpen(false); }} className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors capitalize border-l-2 ${month === value ? "bg-emerald-500/10 text-emerald-400 border-emerald-500" : "text-zinc-400 hover:bg-zinc-900 hover:text-white border-transparent"}`}>{getLabel(month)}</button>
+              <button key={month} onClick={() => { onChange(month); setIsOpen(false); }} className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors capitalize border-l-2 ${month === value ? "bg-emerald-500/10 text-emerald-400 border-emerald-500" : "text-zinc-400 hover:bg-white/5 hover:text-white border-transparent"}`}>{getLabel(month)}</button>
             ))}
           </div>
         </div>
@@ -302,7 +299,7 @@ function InputField({ label, value, onChange, placeholder, type = "text", icon, 
   return (
     <div className="space-y-1.5 group">
       <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">{icon}{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} inputMode={inputMode} pattern={pattern} step={step} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm placeholder-zinc-700 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all duration-200" />
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} inputMode={inputMode} pattern={pattern} step={step} className="glass-input w-full px-3 py-2.5 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-all duration-200" />
     </div>
   );
 }
@@ -312,7 +309,7 @@ function SelectField({ label, value, onChange, options, icon }: any) {
     <div className="space-y-1.5 group">
       <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">{icon}{label}</label>
       <div className="relative">
-        <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm appearance-none focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all duration-200 cursor-pointer pr-8">
+        <select value={value} onChange={(e) => onChange(e.target.value)} className="glass-input w-full px-3 py-2.5 rounded-lg text-white text-sm appearance-none focus:outline-none focus:border-emerald-500/50 transition-all duration-200 cursor-pointer pr-8">
           {options.map((opt: string) => <option key={opt} value={opt} className="bg-zinc-900 text-white">{opt}</option>)}
         </select>
         <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500"><ChevronDown className="w-4 h-4" /></div>
@@ -339,7 +336,7 @@ function TooltipCell({ text, className = "" }: { text: string; className?: strin
     <div className="relative" onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)}>
       <span className={`block truncate cursor-default ${className}`}>{text}</span>
       {showTooltip && text.length > 12 && (
-        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl whitespace-nowrap">
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 glass-tooltip whitespace-nowrap">
           <span className="text-sm text-white">{text}</span>
           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800"></div>
         </div>
@@ -553,54 +550,242 @@ export default function BetsPage() {
 
   return (
     <main className="min-h-screen bg-black text-white antialiased selection:bg-emerald-500/30">
+      {/* Background Effects */}
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black pointer-events-none" />
       <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-900/10 to-transparent pointer-events-none" />
+      
+      {/* Decorative Blurs */}
+      <div className="fixed top-[-10%] left-[-5%] w-[400px] h-[400px] bg-emerald-500/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[150px] pointer-events-none" />
 
       <style jsx global>{`
+        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        /* Glass Card Base Style */
+        .glass-card {
+          position: relative;
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.08) 0%,
+            rgba(255, 255, 255, 0.02) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.25),
+            0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-radius: 20px;
+          transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+          overflow: hidden;
+        }
+
+        .glass-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.05),
+            transparent
+          );
+          transition: 0.6s;
+          pointer-events: none;
+        }
+
+        .glass-card:hover {
+          border-color: rgba(255, 255, 255, 0.15);
+          box-shadow: 
+            0 30px 60px rgba(0, 0, 0, 0.3),
+            0 0 40px var(--glow-color, rgba(16, 185, 129, 0.1)),
+            0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+          transform: translateY(-2px);
+        }
+
+        .glass-card:hover::before {
+          left: 100%;
+        }
+
+        /* Glass Input */
+        .glass-input {
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.05) 0%,
+            rgba(255, 255, 255, 0.02) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
+
+        .glass-input:focus {
+          border-color: rgba(16, 185, 129, 0.5);
+          box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+        }
+
+        /* Glass Dropdown */
+        .glass-dropdown {
+          background: linear-gradient(
+            135deg,
+            rgba(9, 9, 11, 0.95) 0%,
+            rgba(9, 9, 11, 0.9) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+        }
+
+        /* Glass Tooltip */
+        .glass-tooltip {
+          background: linear-gradient(
+            135deg,
+            rgba(0, 0, 0, 0.9) 0%,
+            rgba(0, 0, 0, 0.8) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border-radius: 12px;
+        }
+
+        /* Glass Table */
+        .glass-table {
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.06) 0%,
+            rgba(255, 255, 255, 0.02) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.2),
+            0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-radius: 24px;
+        }
+
+        /* Glass Modal */
+        .glass-modal {
+          background: linear-gradient(
+            135deg,
+            rgba(9, 9, 11, 0.98) 0%,
+            rgba(9, 9, 11, 0.95) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.5),
+            0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+        }
+
+        /* Glass Form */
+        .glass-form {
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.04) 0%,
+            rgba(255, 255, 255, 0.01) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+        }
+
+        /* Glass Button */
+        .glass-button {
+          background: linear-gradient(
+            135deg,
+            rgba(16, 185, 129, 0.9) 0%,
+            rgba(16, 185, 129, 0.7) 100%
+          );
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          box-shadow: 
+            0 15px 35px rgba(16, 185, 129, 0.3),
+            0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+          transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .glass-button:hover {
+          transform: translateY(-2px);
+          box-shadow: 
+            0 20px 40px rgba(16, 185, 129, 0.4),
+            0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+        }
       `}</style>
 
       <div className="relative max-w-[1800px] mx-auto px-4 md:px-6 pt-48 pb-12">
+        {/* Stats Cards Section */}
         <section className="mb-8 flex flex-col md:flex-row items-stretch gap-4 justify-between">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
-            <div className="col-span-2 md:col-span-1 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-3 flex items-center gap-3 group relative z-50">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-400 group-focus-within:text-emerald-500 transition-colors"><Filter className="w-5 h-5" /></div>
+            {/* Month Filter Card */}
+            <div className="col-span-2 md:col-span-1 glass-card p-3 flex items-center gap-3 group relative z-50">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 border border-white/10 text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
+                <Filter className="w-5 h-5" />
+              </div>
               <div className="flex-1 relative">
                 <label className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 block mb-0.5">Mesec</label>
                 <MonthSelect value={selectedMonth} onChange={setSelectedMonth} options={availableMonths} />
               </div>
             </div>
-            <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 backdrop-blur-sm p-3 flex flex-col justify-center text-center">
-              <span className="text-[9px] font-bold tracking-widest uppercase text-emerald-400/80 mb-1">Profit</span>
+            
+            {/* Profit Card */}
+            <div className="glass-card p-3 flex flex-col justify-center text-center" style={{ "--glow-color": monthlyStats.profit >= 0 ? "rgba(16, 185, 129, 0.15)" : "rgba(244, 63, 94, 0.15)" } as React.CSSProperties}>
+              <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-400 mb-1">Profit</span>
               <span className={`text-xl font-mono font-black ${monthlyStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eur(monthlyStats.profit)}</span>
             </div>
-            <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm p-3 flex flex-col justify-center text-center">
+            
+            {/* W/L Card */}
+            <div className="glass-card p-3 flex flex-col justify-center text-center">
               <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-500 mb-1">W / L</span>
-              <span className="text-xl font-bold text-white"><span className="text-emerald-400">{monthlyStats.wins}</span><span className="text-zinc-600 mx-1">/</span><span className="text-rose-400">{monthlyStats.losses}</span></span>
+              <span className="text-xl font-bold text-white">
+                <span className="text-emerald-400">{monthlyStats.wins}</span>
+                <span className="text-zinc-600 mx-1">/</span>
+                <span className="text-rose-400">{monthlyStats.losses}</span>
+              </span>
             </div>
-            <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-amber-500/20 backdrop-blur-sm p-3 flex flex-col justify-center text-center">
-              <span className="text-[9px] font-bold tracking-widest uppercase text-amber-400/80 mb-1">Odprte</span>
+            
+            {/* Open Bets Card */}
+            <div className="glass-card p-3 flex flex-col justify-center text-center" style={{ "--glow-color": "rgba(245, 158, 11, 0.15)" } as React.CSSProperties}>
+              <span className="text-[9px] font-bold tracking-widest uppercase text-zinc-400 mb-1">Odprte</span>
               <span className="text-xl font-bold text-amber-400">{monthlyStats.openCount}</span>
             </div>
           </div>
+          
+          {/* Add New Bet Button */}
           <div className="flex items-center">
-            <button onClick={() => setShowAddForm(!showAddForm)} className={`h-full md:h-auto w-full md:w-auto px-6 py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all shadow-lg active:scale-95 ${showAddForm ? 'bg-zinc-800 text-zinc-300 border border-zinc-700' : 'bg-emerald-500 text-black hover:bg-emerald-400 shadow-emerald-500/20'}`}>
+            <button 
+              onClick={() => setShowAddForm(!showAddForm)} 
+              className={`h-full md:h-auto w-full md:w-auto px-6 py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all shadow-lg active:scale-95 ${
+                showAddForm 
+                  ? 'glass-card text-zinc-300' 
+                  : 'glass-button text-black'
+              }`}
+            >
               {showAddForm ? <Minus className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
               <span className="uppercase tracking-wider text-xs">{showAddForm ? "Zapri" : "Nova Stava"}</span>
             </button>
           </div>
         </section>
 
-        {msg && <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center">{msg}</div>}
+        {msg && <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm text-center backdrop-blur-sm">{msg}</div>}
 
+        {/* Add Form */}
         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${showAddForm ? 'max-h-[800px] opacity-100 mb-10' : 'max-h-0 opacity-0 mb-0'}`}>
-          <div className="rounded-3xl border border-zinc-800/60 bg-gradient-to-b from-zinc-900 to-black p-1 shadow-2xl">
-            <div className="rounded-[20px] bg-zinc-900/50 p-6 backdrop-blur-md">
-              <div className="flex items-center gap-2 mb-6 pb-4 border-b border-zinc-800/50">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20"><Plus className="w-4 h-4 text-emerald-500" /></div>
+          <div className="glass-card p-1">
+            <div className="glass-form rounded-[18px] p-6">
+              <div className="flex items-center gap-2 mb-6 pb-4 border-b border-white/5">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                  <Plus className="w-4 h-4 text-emerald-500" />
+                </div>
                 <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Vnos Stave</h2>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
@@ -609,8 +794,8 @@ export default function BetsPage() {
                   <SelectField label="Status" value={wl} onChange={(v: any) => setWl(v)} options={["OPEN", "WIN", "LOSS", "VOID", "BACK WIN", "LAY WIN"]} icon={<Trophy className="w-3 h-3" />} />
                   {mode === "TRADING" && (
                     <div className="flex gap-1">
-                      <button onClick={() => setWl("BACK WIN")} className={`flex-1 py-1 rounded border text-[9px] font-black transition-all ${wl === "BACK WIN" ? "bg-emerald-500 text-black border-emerald-400" : "bg-zinc-950 text-zinc-500 border-zinc-800"}`}>BACK WIN</button>
-                      <button onClick={() => setWl("LAY WIN")} className={`flex-1 py-1 rounded border text-[9px] font-black transition-all ${wl === "LAY WIN" ? "bg-pink-500 text-black border-pink-400" : "bg-zinc-950 text-zinc-500 border-zinc-800"}`}>LAY WIN</button>
+                      <button onClick={() => setWl("BACK WIN")} className={`flex-1 py-1 rounded border text-[9px] font-black transition-all ${wl === "BACK WIN" ? "bg-emerald-500 text-black border-emerald-400" : "glass-input text-zinc-500"}`}>BACK WIN</button>
+                      <button onClick={() => setWl("LAY WIN")} className={`flex-1 py-1 rounded border text-[9px] font-black transition-all ${wl === "LAY WIN" ? "bg-pink-500 text-black border-pink-400" : "glass-input text-zinc-500"}`}>LAY WIN</button>
                     </div>
                   )}
                 </div>
@@ -630,7 +815,7 @@ export default function BetsPage() {
                 <div className="hidden md:block" />
               </div>
               {(mode === "TRADING" || (mode === "BET" && betSide === "BACK")) && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 p-4 rounded-xl bg-zinc-950/30 border border-zinc-800/30">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 p-4 rounded-xl glass-form">
                   <InputField label="Back Kvota" value={kvota1} onChange={setKvota1} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                   <InputField label="Back Vplačilo" value={vplacilo1} onChange={setVplacilo1} placeholder="100" icon={<DollarSign className="w-3 h-3 text-emerald-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                   {mode === "TRADING" ? (
@@ -642,7 +827,7 @@ export default function BetsPage() {
                 </div>
               )}
               {mode === "BET" && betSide === "LAY" && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 p-4 rounded-xl bg-zinc-950/30 border border-zinc-800/30">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 p-4 rounded-xl glass-form">
                   <InputField label="Lay Kvota" value={layKvota} onChange={setLayKvota} placeholder="2.00" icon={<TrendingUp className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                   <InputField label="Lay Liability" value={vplacilo2} onChange={setVplacilo2} placeholder="100" icon={<DollarSign className="w-3 h-3 text-rose-500" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
                   <div className="hidden md:block" /><div className="hidden md:block" />
@@ -652,7 +837,7 @@ export default function BetsPage() {
                 <SelectField label="Tipster" value={tipster} onChange={(v: any) => setTipster(v)} options={TIPSTERJI} icon={<Users className="w-3 h-3" />} />
                 <SelectField label="Stavnica" value={stavnica} onChange={(v: any) => setStavnica(v)} options={STAVNICE} icon={<Building2 className="w-3 h-3" />} />
                 <div className="hidden md:block" />
-                <button onClick={addBet} className="w-full h-[42px] flex items-center justify-center gap-2 bg-emerald-500 text-black text-sm font-bold rounded-lg hover:bg-emerald-400 transition-all duration-200 shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
+                <button onClick={addBet} className="glass-button w-full h-[42px] flex items-center justify-center gap-2 text-black text-sm font-bold rounded-lg active:scale-[0.98]">
                   <Plus className="w-4 h-4" /> Dodaj Stavo
                 </button>
               </div>
@@ -660,35 +845,38 @@ export default function BetsPage() {
           </div>
         </div>
 
-        <section className="rounded-3xl bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-sm overflow-hidden relative z-0 flex flex-col h-[calc(100vh-350px)] min-h-[500px]">
-          <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between shrink-0">
+        {/* Bets Table */}
+        <section className="glass-table overflow-hidden relative z-0 flex flex-col h-[calc(100vh-350px)] min-h-[500px]">
+          <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <Activity className="w-4 h-4 text-zinc-400" />
               <h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Seznam Stav</h2>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => loadBets()} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-emerald-500/20 text-zinc-400 hover:text-emerald-400 transition-colors" title="Ročno osveži podatke"><RefreshCw className="w-4 h-4" /></button>
-              <span className="text-[10px] font-bold text-zinc-500 bg-zinc-900/80 border border-zinc-800 px-2 py-1 rounded-md">{computed.withProfit.length}</span>
+              <button onClick={() => loadBets()} className="p-1.5 rounded-lg bg-white/5 hover:bg-emerald-500/20 text-zinc-400 hover:text-emerald-400 transition-colors border border-white/10" title="Ročno osveži podatke">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <span className="text-[10px] font-bold text-zinc-500 bg-white/5 border border-white/10 px-2 py-1 rounded-md">{computed.withProfit.length}</span>
             </div>
           </div>
 
           <div className="overflow-auto custom-scrollbar flex-1 relative">
             <table className="w-full text-sm border-separate border-spacing-0">
               <thead className="sticky top-0 z-20">
-                <tr className="bg-[#0c0c0e] border-b border-zinc-800/50">
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Datum</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Status</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Mode</th>
-                  <th className="text-center py-4 px-4 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50" style={{ minWidth: "180px" }}>Dogodek</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Back</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Vplač.</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Lay</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Liability</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Kom.</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Profit</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Tipster / Šport</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Stavnica</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-zinc-800/50">Akcija</th>
+                <tr className="bg-black/80 backdrop-blur-sm">
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Datum</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Status</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Mode</th>
+                  <th className="text-center py-4 px-4 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5" style={{ minWidth: "180px" }}>Dogodek</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Back</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Vplač.</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Lay</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Liability</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Kom.</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Profit</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Tipster / Šport</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Stavnica</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Akcija</th>
                 </tr>
               </thead>
               <tbody>
@@ -696,7 +884,7 @@ export default function BetsPage() {
                   <tr>
                     <td colSpan={13} className="py-24 text-center">
                       <div className="flex flex-col items-center justify-center opacity-40">
-                        <div className="w-16 h-16 bg-zinc-800/50 rounded-full flex items-center justify-center mb-4 border border-zinc-700/50">
+                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4 border border-white/10">
                           <Inbox className="w-8 h-8 text-zinc-500" />
                         </div>
                         <h3 className="text-zinc-300 font-bold text-lg mb-1">Ni podatkov za ta mesec</h3>
@@ -711,31 +899,31 @@ export default function BetsPage() {
                   computed.withProfit.map((r, idx) => {
                     const rowMode: Mode = (r.mode as Mode) || (hasBack(r) && hasLay(r) ? "TRADING" : "BET");
                     return (
-                      <tr key={r.id} className={`border-b border-zinc-800/30 hover:bg-zinc-800/40 transition-colors group ${idx % 2 === 0 ? "bg-zinc-900/20" : "bg-transparent"}`}>
-                        <td className="py-3 px-3 text-zinc-400 text-center whitespace-nowrap border-b border-zinc-800/30">{formatDateSlovenian(r.datum)}</td>
-                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><StatusBadge wl={r.wl} onClick={() => openStatusEdit(r)} /></td>
-                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className={`px-2 py-0.5 rounded text-xs font-bold border ${rowMode === "TRADING" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-sky-500/10 text-sky-400 border-sky-500/20"}`}>{rowMode}</span></td>
-                        <td className="py-3 px-4 text-center border-b border-zinc-800/30"><div className="space-y-0.5"><TooltipCell text={r.dogodek} className="text-white font-medium" /><TooltipCell text={r.tip} className="text-zinc-500 text-xs" /></div></td>
-                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-zinc-300 font-medium font-mono tracking-tight">{r.kvota1 > 0 ? r.kvota1.toFixed(2) : "-"}</span></td>
-                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-zinc-400 font-mono tracking-tight">{r.vplacilo1 > 0 ? eurCompact(r.vplacilo1) : "-"}</span></td>
-                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-rose-300 font-medium font-mono tracking-tight">{(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : "-"}</span></td>
-                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-zinc-400 font-mono tracking-tight">{(r.vplacilo2 ?? 0) > 0 ? eurCompact(r.vplacilo2 ?? 0) : "-"}</span></td>
-                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><span className="text-zinc-500 font-mono tracking-tight">{(r.komisija ?? 0) > 0 ? eurCompact(r.komisija ?? 0) : "-"}</span></td>
-                        <td className="py-3 px-3 text-center border-b border-zinc-800/30">
+                      <tr key={r.id} className={`border-b border-white/5 hover:bg-white/5 transition-colors group ${idx % 2 === 0 ? "bg-white/[0.02]" : "bg-transparent"}`}>
+                        <td className="py-3 px-3 text-zinc-400 text-center whitespace-nowrap border-b border-white/5">{formatDateSlovenian(r.datum)}</td>
+                        <td className="py-3 px-3 text-center border-b border-white/5"><StatusBadge wl={r.wl} onClick={() => openStatusEdit(r)} /></td>
+                        <td className="py-3 px-3 text-center border-b border-white/5"><span className={`px-2 py-0.5 rounded text-xs font-bold border ${rowMode === "TRADING" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-sky-500/10 text-sky-400 border-sky-500/20"}`}>{rowMode}</span></td>
+                        <td className="py-3 px-4 text-center border-b border-white/5"><div className="space-y-0.5"><TooltipCell text={r.dogodek} className="text-white font-medium" /><TooltipCell text={r.tip} className="text-zinc-500 text-xs" /></div></td>
+                        <td className="py-3 px-3 text-center border-b border-white/5"><span className="text-zinc-300 font-medium font-mono tracking-tight">{r.kvota1 > 0 ? r.kvota1.toFixed(2) : "-"}</span></td>
+                        <td className="py-3 px-3 text-center border-b border-white/5"><span className="text-zinc-400 font-mono tracking-tight">{r.vplacilo1 > 0 ? eurCompact(r.vplacilo1) : "-"}</span></td>
+                        <td className="py-3 px-3 text-center border-b border-white/5"><span className="text-rose-300 font-medium font-mono tracking-tight">{(r.lay_kvota ?? 0) > 0 ? (r.lay_kvota ?? 0).toFixed(2) : "-"}</span></td>
+                        <td className="py-3 px-3 text-center border-b border-white/5"><span className="text-zinc-400 font-mono tracking-tight">{(r.vplacilo2 ?? 0) > 0 ? eurCompact(r.vplacilo2 ?? 0) : "-"}</span></td>
+                        <td className="py-3 px-3 text-center border-b border-white/5"><span className="text-zinc-500 font-mono tracking-tight">{(r.komisija ?? 0) > 0 ? eurCompact(r.komisija ?? 0) : "-"}</span></td>
+                        <td className="py-3 px-3 text-center border-b border-white/5">
                           <div className={`inline-flex items-center justify-center px-2 py-1 rounded-md font-mono font-bold text-xs tracking-tight border min-w-[70px] ${
                             r.profit > 0 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_-4px_rgba(16,185,129,0.3)]" :
                             r.profit < 0 ? "bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-[0_0_10px_-4px_rgba(244,63,94,0.3)]" :
-                            "bg-zinc-800 border-zinc-700 text-zinc-400"
+                            "bg-white/5 border-white/10 text-zinc-400"
                           }`}>
                             {eurCompact(r.profit)}
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-center border-b border-zinc-800/30"><div className="flex flex-col items-center gap-1"><span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-300 rounded">{r.tipster}</span><span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">{r.sport}</span></div></td>
-                        <td className="py-3 px-3 text-zinc-400 text-center text-xs border-b border-zinc-800/30">{r.stavnica}</td>
-                        <td className="py-3 px-2 text-center border-b border-zinc-800/30">
+                        <td className="py-3 px-3 text-center border-b border-white/5"><div className="flex flex-col items-center gap-1"><span className="text-xs px-1.5 py-0.5 bg-white/5 text-zinc-300 rounded border border-white/10">{r.tipster}</span><span className="text-xs px-1.5 py-0.5 bg-white/5 text-zinc-400 rounded border border-white/10">{r.sport}</span></div></td>
+                        <td className="py-3 px-3 text-zinc-400 text-center text-xs border-b border-white/5">{r.stavnica}</td>
+                        <td className="py-3 px-2 text-center border-b border-white/5">
                           <div className="flex items-center justify-center gap-2">
-                            <button onClick={() => openFullEdit(r)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-blue-500/20 text-zinc-400 hover:text-blue-400 transition-colors"><Pencil className="w-4 h-4" /></button>
-                            <button onClick={() => openDeleteModal(r.id)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                            <button onClick={() => openFullEdit(r)} className="p-1.5 rounded-lg bg-white/5 hover:bg-blue-500/20 text-zinc-400 hover:text-blue-400 transition-colors border border-white/10"><Pencil className="w-4 h-4" /></button>
+                            <button onClick={() => openDeleteModal(r.id)} className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors border border-white/10"><Trash2 className="w-4 h-4" /></button>
                           </div>
                         </td>
                       </tr>
@@ -747,45 +935,47 @@ export default function BetsPage() {
           </div>
         </section>
 
-        <footer className="mt-12 pt-8 border-t border-zinc-900 text-center flex flex-col md:flex-row justify-between items-center text-zinc-600 text-xs gap-2">
-          <p>© 2026 DDTips Analytics. Vse pravice pridržane.</p>
-          <p className="font-mono">Last updated: {mounted ? new Date().toLocaleTimeString() : "--:--:--"}</p>
+        <footer className="mt-12 pt-8 border-t border-white/5 text-center flex flex-col md:flex-row justify-between items-center text-zinc-500 text-xs gap-2">
+          <p className="hover:text-zinc-300 transition-colors">© 2026 DDTips Analytics.</p>
+          <p className="font-mono bg-white/5 px-3 py-1 rounded-full border border-white/10">Last sync: {mounted ? new Date().toLocaleTimeString() : "--:--:--"}</p>
         </footer>
       </div>
 
+      {/* Status Edit Modal */}
       {statusEditOpen && (
         <div onClick={() => setStatusEditOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-          <div onClick={(e) => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+          <div onClick={(e) => e.stopPropagation()} className="glass-modal rounded-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-white">Spremeni status</h3>
-              <button onClick={() => setStatusEditOpen(false)} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-4 h-4 text-zinc-400" /></button>
+              <button onClick={() => setStatusEditOpen(false)} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><X className="w-4 h-4 text-zinc-400" /></button>
             </div>
             <div className="mb-8">
               <label className="block text-xs font-bold tracking-widest uppercase text-zinc-500 mb-4 text-center">Izberi nov status</label>
               <div className="grid grid-cols-2 gap-2 mb-4">
-                <button onClick={() => setStatusEditWl("BACK WIN")} className={`px-2 py-3 rounded-xl text-[10px] font-black border transition-all ${statusEditWl === "BACK WIN" ? "bg-emerald-500 text-black border-emerald-400" : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:bg-zinc-900"}`}>BACK WIN</button>
-                <button onClick={() => setStatusEditWl("LAY WIN")} className={`px-2 py-3 rounded-xl text-[10px] font-black border transition-all ${statusEditWl === "LAY WIN" ? "bg-pink-500 text-black border-pink-400" : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:bg-zinc-900"}`}>LAY WIN</button>
+                <button onClick={() => setStatusEditWl("BACK WIN")} className={`px-2 py-3 rounded-xl text-[10px] font-black border transition-all ${statusEditWl === "BACK WIN" ? "bg-emerald-500 text-black border-emerald-400" : "glass-input text-zinc-400 hover:bg-white/10"}`}>BACK WIN</button>
+                <button onClick={() => setStatusEditWl("LAY WIN")} className={`px-2 py-3 rounded-xl text-[10px] font-black border transition-all ${statusEditWl === "LAY WIN" ? "bg-pink-500 text-black border-pink-400" : "glass-input text-zinc-400 hover:bg-white/10"}`}>LAY WIN</button>
               </div>
               <div className="grid grid-cols-4 gap-2">
                 {(["OPEN", "WIN", "LOSS", "VOID"] as WL[]).map((status) => (
-                  <button key={status} onClick={() => setStatusEditWl(status)} className={`px-2 py-4 rounded-xl text-xs font-bold transition-all duration-300 border ${statusEditWl === status ? status === "WIN" ? "bg-emerald-500 text-white border-emerald-400 shadow-[0_0_15px_-3px_rgba(16,185,129,0.4)]" : status === "LOSS" ? "bg-rose-500 text-white border-rose-400 shadow-[0_0_15px_-3px_rgba(244,63,94,0.4)]" : status === "VOID" ? "bg-zinc-500 text-white border-zinc-400" : "bg-amber-500 text-white border-amber-400" : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:bg-zinc-900"}`}>{status}</button>
+                  <button key={status} onClick={() => setStatusEditWl(status)} className={`px-2 py-4 rounded-xl text-xs font-bold transition-all duration-300 border ${statusEditWl === status ? status === "WIN" ? "bg-emerald-500 text-white border-emerald-400 shadow-[0_0_15px_-3px_rgba(16,185,129,0.4)]" : status === "LOSS" ? "bg-rose-500 text-white border-rose-400 shadow-[0_0_15px_-3px_rgba(244,63,94,0.4)]" : status === "VOID" ? "bg-zinc-500 text-white border-zinc-400" : "bg-amber-500 text-white border-amber-400" : "glass-input text-zinc-400 hover:bg-white/10"}`}>{status}</button>
                 ))}
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setStatusEditOpen(false)} className="flex-1 px-6 py-3 bg-zinc-950 border border-zinc-800 text-zinc-300 font-bold rounded-xl hover:bg-zinc-900 transition-all duration-300">Prekliči</button>
+              <button onClick={() => setStatusEditOpen(false)} className="flex-1 px-6 py-3 glass-input text-zinc-300 font-bold rounded-xl hover:bg-white/10 transition-all duration-300">Prekliči</button>
               <button onClick={saveStatusEdit} className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition-all duration-300"><Check className="w-4 h-4" /> Potrdi</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Full Edit Modal */}
       {fullEditOpen && editingBet && (
         <div onClick={() => setFullEditOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-          <div onClick={(e) => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-4xl w-full shadow-2xl animate-in fade-in zoom-in duration-200 overflow-y-auto max-h-[90vh]">
-            <div className="flex items-center justify-between mb-6 border-b border-zinc-800 pb-4">
+          <div onClick={(e) => e.stopPropagation()} className="glass-modal rounded-2xl p-6 max-w-4xl w-full animate-in fade-in zoom-in duration-200 overflow-y-auto max-h-[90vh]">
+            <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2"><Pencil className="w-5 h-5 text-emerald-500"/> Uredi podrobnosti stave</h3>
-              <button onClick={() => setFullEditOpen(false)} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-4 h-4 text-zinc-400" /></button>
+              <button onClick={() => setFullEditOpen(false)} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><X className="w-4 h-4 text-zinc-400" /></button>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -798,7 +988,7 @@ export default function BetsPage() {
                 <InputField label="Dogodek" value={editingBet.dogodek} onChange={(v: string) => setEditingBet({...editingBet, dogodek: v})} />
                 <InputField label="Tip" value={editingBet.tip} onChange={(v: string) => setEditingBet({...editingBet, tip: v})} />
               </div>
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800">
+              <div className="p-4 rounded-xl glass-form">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <SelectField label="Tip vnosa" value={editingBet.mode || "BET"} onChange={(v: any) => setEditingBet({...editingBet, mode: v})} options={MODES} icon={<Activity className="w-3 h-3" />} />
                   <InputField label="Komisija" value={editKomisija} onChange={setEditKomisija} icon={<Percent className="w-3 h-3" />} inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" />
@@ -815,7 +1005,7 @@ export default function BetsPage() {
                 <SelectField label="Stavnica" value={editingBet.stavnica} onChange={(v: any) => setEditingBet({...editingBet, stavnica: v})} options={STAVNICE} icon={<Building2 className="w-3 h-3" />} />
               </div>
             </div>
-            <div className="flex gap-3 mt-8 pt-4 border-t border-zinc-800">
+            <div className="flex gap-3 mt-8 pt-4 border-t border-white/5">
               <button
                 onClick={() => openDeleteModal(editingBet.id)}
                 className="px-4 py-2.5 bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold rounded-xl hover:bg-rose-500/20 transition-all flex items-center gap-2"
@@ -824,18 +1014,19 @@ export default function BetsPage() {
                 <Trash2 className="w-4 h-4" /> Izbriši
               </button>
               <div className="flex gap-3 ml-auto">
-                <button onClick={() => setFullEditOpen(false)} className="px-6 py-2.5 bg-zinc-950 border border-zinc-800 text-zinc-300 font-bold rounded-xl hover:bg-zinc-900 transition-all">Prekliči</button>
-                <button onClick={saveFullEdit} className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"><Save className="w-4 h-4" /> Shrani</button>
+                <button onClick={() => setFullEditOpen(false)} className="px-6 py-2.5 glass-input text-zinc-300 font-bold rounded-xl hover:bg-white/10 transition-all">Prekliči</button>
+                <button onClick={saveFullEdit} className="px-6 py-2.5 glass-button text-black font-bold rounded-xl flex items-center gap-2"><Save className="w-4 h-4" /> Shrani</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onClick={() => setIsDeleteModalOpen(false)} />
-          <div className="relative w-full max-w-sm bg-[#09090b] border border-white/10 rounded-2xl shadow-[0_0_50px_-10px_rgba(0,0,0,0.7)] p-6 overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="relative w-full max-w-sm glass-modal rounded-2xl p-6 overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-rose-500 to-transparent opacity-50" />
             <div className="flex flex-col items-center text-center gap-4">
               <div className="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
@@ -846,7 +1037,7 @@ export default function BetsPage() {
                 <p className="text-sm text-zinc-400">Ali ste prepričani, da želite izbrisati to stavo? Tega dejanja ni mogoče razveljaviti.</p>
               </div>
               <div className="flex gap-3 w-full mt-2">
-                <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-2.5 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 text-xs font-bold uppercase tracking-wider hover:bg-zinc-800 hover:text-white transition-colors">Prekliči</button>
+                <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-2.5 rounded-xl glass-input text-zinc-400 text-xs font-bold uppercase tracking-wider hover:bg-white/10 hover:text-white transition-colors">Prekliči</button>
                 <button onClick={confirmDelete} disabled={deleting} className="flex-1 py-2.5 rounded-xl bg-rose-600/10 border border-rose-600/20 text-rose-500 text-xs font-bold uppercase tracking-wider hover:bg-rose-600 hover:text-white transition-all hover:shadow-[0_0_20px_-5px_rgba(225,29,72,0.4)] flex items-center justify-center gap-2">
                   {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                   {deleting ? "Brisanje..." : "Izbriši"}
