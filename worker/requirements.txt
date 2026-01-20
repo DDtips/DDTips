@@ -1,0 +1,4 @@
+understat
+aiohttp
+python-dotenv
+supabase
