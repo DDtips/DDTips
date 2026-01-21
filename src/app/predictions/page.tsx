@@ -662,159 +662,134 @@ function DutchingCalculator() {
 }
 
 function SurebetCalculator() {
-  const [outcomes, setOutcomes] = useState<number>(2);
-  const [odds1, setOdds1] = useState<string>("2.10");
-  const [odds2, setOdds2] = useState<string>("2.05");
-  const [odds3, setOdds3] = useState<string>("");
-  const [totalStake, setTotalStake] = useState<string>("100");
+  const [backOdds, setBackOdds] = useState<string>("2.30");
+  const [backStake, setBackStake] = useState<string>("100");
+  const [layOdds, setLayOdds] = useState<string>("2.35");
+  const [commission, setCommission] = useState<string>("5"); // Betfair komisija %
 
-  const o1 = parseFloat(odds1) || 0;
-  const o2 = parseFloat(odds2) || 0;
-  const o3 = parseFloat(odds3) || 0;
-  const total = parseFloat(totalStake) || 0;
+  const bOdds = parseFloat(backOdds) || 0;
+  const bStake = parseFloat(backStake) || 0;
+  const lOdds = parseFloat(layOdds) || 0;
+  const comm = (parseFloat(commission) || 0) / 100;
 
-  // Calculate arbitrage percentage
-  const oddsArr = outcomes === 2 ? [o1, o2] : [o1, o2, o3];
-  const validOdds = oddsArr.filter(o => o > 1);
+  // Lay stake formula za enak profit ne glede na izid
+  // Back wins: backStake * (backOdds - 1) - layLiability = profit
+  // Lay wins: layStake * (1 - comm) - backStake = profit
+  // Za enak profit: layStake = backStake * backOdds / (layOdds - comm)
   
-  const arbPercentage = validOdds.length === outcomes 
-    ? validOdds.reduce((sum, o) => sum + (1 / o), 0) * 100 
+  const layStake = lOdds > 1 
+    ? (bStake * bOdds) / (lOdds - comm) 
     : 0;
   
-  const isSurebet = arbPercentage > 0 && arbPercentage < 100;
-  const profit = isSurebet ? ((100 / arbPercentage) - 1) * 100 : 0;
+  const layLiability = layStake * (lOdds - 1);
 
-  // Calculate individual stakes
-  const stakes = validOdds.map(o => {
-    if (!isSurebet || arbPercentage === 0) return 0;
-    return (total * (1 / o)) / (arbPercentage / 100);
-  });
+  // Profit izračun
+  const profitIfBackWins = (bStake * (bOdds - 1)) - layLiability;
+  const profitIfLayWins = (layStake * (1 - comm)) - bStake;
 
-  // Calculate returns (same for all outcomes in a true surebet)
-  const returns = stakes.map((s, i) => s * validOdds[i]);
-  const guaranteedReturn = returns.length > 0 ? returns[0] : 0;
-  const netProfit = guaranteedReturn - total;
+  // Qualifying loss (za matched betting free bet promocije)
+  const qualifyingLoss = Math.min(profitIfBackWins, profitIfLayWins);
+  const isProfit = qualifyingLoss >= 0;
 
   return (
     <div className="space-y-3">
-      {/* Outcome selector */}
+      {/* Back stava */}
       <div>
-        <label className="text-xs text-zinc-500 block mb-2">Število izidov</label>
-        <div className="flex gap-2">
-          {[2, 3].map((n) => (
-            <button
-              key={n}
-              onClick={() => setOutcomes(n)}
-              className={`
-                flex-1 py-2 rounded-lg text-sm font-medium transition-colors
-                ${outcomes === n 
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
-                  : "bg-zinc-800/50 text-zinc-400 border border-zinc-700/50 hover:bg-zinc-800"
-                }
-              `}
-            >
-              {n}-way
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Odds inputs */}
-      <div>
-        <label className="text-xs text-zinc-500 block mb-2">Kvote</label>
-        <div className={`grid gap-2 ${outcomes === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+        <label className="text-xs text-zinc-500 block mb-2">BACK stava (stavnica)</label>
+        <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[10px] text-zinc-600 block mb-1">1</label>
+            <label className="text-[10px] text-zinc-600 block mb-1">Kvota</label>
             <input
               type="number"
               step="0.01"
-              value={odds1}
-              onChange={(e) => setOdds1(e.target.value)}
+              value={backOdds}
+              onChange={(e) => setBackOdds(e.target.value)}
               className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
             />
           </div>
-          {outcomes === 3 && (
-            <div>
-              <label className="text-[10px] text-zinc-600 block mb-1">X</label>
-              <input
-                type="number"
-                step="0.01"
-                value={odds3}
-                onChange={(e) => setOdds3(e.target.value)}
-                className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
-              />
-            </div>
-          )}
           <div>
-            <label className="text-[10px] text-zinc-600 block mb-1">2</label>
+            <label className="text-[10px] text-zinc-600 block mb-1">Vložek (€)</label>
             <input
               type="number"
-              step="0.01"
-              value={odds2}
-              onChange={(e) => setOdds2(e.target.value)}
+              value={backStake}
+              onChange={(e) => setBackStake(e.target.value)}
               className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
             />
           </div>
         </div>
       </div>
 
-      {/* Total stake */}
+      {/* Lay stava */}
       <div>
-        <label className="text-xs text-zinc-500 block mb-1">Skupni vložek (€)</label>
-        <input
-          type="number"
-          value={totalStake}
-          onChange={(e) => setTotalStake(e.target.value)}
-          className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
-        />
+        <label className="text-xs text-zinc-500 block mb-2">LAY stava (borza)</label>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-zinc-600 block mb-1">Kvota</label>
+            <input
+              type="number"
+              step="0.01"
+              value={layOdds}
+              onChange={(e) => setLayOdds(e.target.value)}
+              className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-zinc-600 block mb-1">Komisija (%)</label>
+            <input
+              type="number"
+              step="0.5"
+              value={commission}
+              onChange={(e) => setCommission(e.target.value)}
+              className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Results */}
+      {/* Rezultati */}
       <div className="pt-3 border-t border-zinc-800">
-        {/* Surebet indicator */}
-        <div className={`
-          p-3 rounded-lg mb-3 text-center
-          ${isSurebet 
-            ? "bg-emerald-500/10 border border-emerald-500/30" 
-            : "bg-red-500/10 border border-red-500/30"
-          }
-        `}>
-          <div className={`text-lg font-bold ${isSurebet ? "text-emerald-400" : "text-red-400"}`}>
-            {isSurebet ? "✓ SUREBET" : "✗ Ni surebeta"}
+        {/* Lay stake - GLAVNI REZULTAT */}
+        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 mb-3">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-emerald-400 font-medium">LAY vložek:</span>
+            <span className="text-xl font-bold text-emerald-400 font-mono">{fmt(layStake)}€</span>
           </div>
-          <div className="text-xs text-zinc-400 mt-1">
-            Arbitraža: {fmt(arbPercentage, 2)}%
-            {isSurebet && ` • Profit: ${fmt(profit, 2)}%`}
+          <div className="flex justify-between items-center mt-1">
+            <span className="text-xs text-zinc-500">Liability:</span>
+            <span className="text-sm text-amber-400 font-mono">{fmt(layLiability)}€</span>
           </div>
         </div>
 
-        {/* Stakes breakdown */}
-        {isSurebet && (
-          <div className="space-y-2">
-            <div className="text-xs text-zinc-500 uppercase mb-2">Razdelitev vložkov</div>
-            {stakes.map((s, i) => (
-              <div key={i} className="flex justify-between text-sm">
-                <span className="text-zinc-500">
-                  {outcomes === 2 
-                    ? (i === 0 ? "Stava 1:" : "Stava 2:") 
-                    : (i === 0 ? "Stava 1:" : i === 1 ? "Stava X:" : "Stava 2:")
-                  }
-                </span>
-                <span className="text-white font-mono">{fmt(s)}€</span>
-              </div>
-            ))}
-            <div className="pt-2 border-t border-zinc-800 space-y-1">
-              <div className="flex justify-between text-sm">
-                <span className="text-zinc-500">Zagotovljen donos:</span>
-                <span className="text-white font-mono">{fmt(guaranteedReturn)}€</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-zinc-500">Čisti profit:</span>
-                <span className="text-emerald-400 font-mono font-semibold">+{fmt(netProfit)}€</span>
-              </div>
-            </div>
+        {/* Profit scenariji */}
+        <div className="space-y-2">
+          <div className="text-xs text-zinc-500 uppercase mb-2">Profit po scenariju</div>
+          
+          <div className="flex justify-between items-center p-2 rounded-lg bg-zinc-800/30">
+            <span className="text-xs text-zinc-400">Če BACK zmaga:</span>
+            <span className={`font-mono text-sm ${profitIfBackWins >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              {profitIfBackWins >= 0 ? "+" : ""}{fmt(profitIfBackWins)}€
+            </span>
           </div>
-        )}
+          
+          <div className="flex justify-between items-center p-2 rounded-lg bg-zinc-800/30">
+            <span className="text-xs text-zinc-400">Če LAY zmaga:</span>
+            <span className={`font-mono text-sm ${profitIfLayWins >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              {profitIfLayWins >= 0 ? "+" : ""}{fmt(profitIfLayWins)}€
+            </span>
+          </div>
+
+          <div className={`
+            flex justify-between items-center p-2 rounded-lg mt-2
+            ${isProfit ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-rose-500/10 border border-rose-500/20"}
+          `}>
+            <span className="text-xs text-zinc-300 font-medium">
+              {isProfit ? "Garantiran profit:" : "Qualifying loss:"}
+            </span>
+            <span className={`font-mono text-sm font-bold ${isProfit ? "text-emerald-400" : "text-rose-400"}`}>
+              {qualifyingLoss >= 0 ? "+" : ""}{fmt(qualifyingLoss)}€
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
