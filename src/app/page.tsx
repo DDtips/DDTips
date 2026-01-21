@@ -418,34 +418,40 @@ export default function HomePage() {
           .dashboard-content { padding: 180px 40px 60px 40px; }
         }
 
-        /* --- ANIMIRAN CITAT (MARQUEE) --- */
-        @keyframes marquee {
-          0% { transform: translateX(100%); }
-          100% { transform: translateX(-100%); }
-        }
+/* --- ANIMIRAN CITAT (MARQUEE) --- */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
 
-        .quote-header {
-          margin-bottom: 32px;
-          padding: 16px 0; /* Odstranjen stranski padding za rob-do-roba efekt */
-          background: rgba(255, 255, 255, 0.015);
-          border-top: 1px solid var(--border-subtle);
-          border-bottom: 1px solid var(--border-subtle);
-          position: relative;
-          width: 100%;
-          overflow: hidden; /* Ključno za animacijo */
-        }
+.quote-header {
+  margin-bottom: 32px;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
 
-        .quote-marquee-wrapper {
-          display: flex;
-          align-items: center;
-          white-space: nowrap; /* Prepreči lomljenje teksta */
-          animation: marquee 25s linear infinite; /* Prilagodi hitrost (25s) po želji */
-          padding-left: 24px;
-        }
+.quote-marquee-wrapper {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  animation: marquee 20s linear infinite;
+  width: fit-content;
+}
 
-        .quote-header:hover .quote-marquee-wrapper {
-           /* animation-play-state: paused; Če želiš, da se ustavi ob preletu z miško */
-        }
+.quote-marquee-wrapper:hover {
+  animation-play-state: paused;
+}
+
+.quote-content {
+  display: flex;
+  align-items: center;
+  padding-right: 100px;
+}
 
         .quote-tag {
           font-size: 10px;
@@ -710,19 +716,32 @@ export default function HomePage() {
       <div className="dashboard-content">
         
         {/* AVTOMATSKI MOTIVACIJSKI CITAT - ANIMIRAN VODORAVNO */}
-        <header className="quote-header">
-          <div className="quote-marquee-wrapper">
-            <div className="quote-tag">
-              <Sparkles className="w-3 h-3" /> Misel dneva :
-            </div>
-            <p className="quote-text">
-              "{quote.text}"
-            </p>
-            <div className="quote-author">
-              - {quote.author}
-            </div>
-          </div>
-        </header>
+<header className="quote-header">
+  <div className="quote-marquee-wrapper">
+    <div className="quote-content">
+      <div className="quote-tag">
+        <Sparkles className="w-3 h-3" /> Misel dneva :
+      </div>
+      <p className="quote-text">
+        "{quote.text}"
+      </p>
+      <div className="quote-author">
+        — {quote.author}
+      </div>
+    </div>
+    <div className="quote-content">
+      <div className="quote-tag">
+        <Sparkles className="w-3 h-3" /> Misel dneva :
+      </div>
+      <p className="quote-text">
+        "{quote.text}"
+      </p>
+      <div className="quote-author">
+        — {quote.author}
+      </div>
+    </div>
+  </div>
+</header>
 
         {/* KPI Kartice */}
         <section className="metrics-grid">

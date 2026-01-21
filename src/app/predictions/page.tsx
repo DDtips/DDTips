@@ -661,17 +661,178 @@ function DutchingCalculator() {
   );
 }
 
+function SurebetCalculator() {
+  const [outcomes, setOutcomes] = useState<number>(2);
+  const [odds1, setOdds1] = useState<string>("2.10");
+  const [odds2, setOdds2] = useState<string>("2.05");
+  const [odds3, setOdds3] = useState<string>("");
+  const [totalStake, setTotalStake] = useState<string>("100");
+
+  const o1 = parseFloat(odds1) || 0;
+  const o2 = parseFloat(odds2) || 0;
+  const o3 = parseFloat(odds3) || 0;
+  const total = parseFloat(totalStake) || 0;
+
+  // Calculate arbitrage percentage
+  const oddsArr = outcomes === 2 ? [o1, o2] : [o1, o2, o3];
+  const validOdds = oddsArr.filter(o => o > 1);
+  
+  const arbPercentage = validOdds.length === outcomes 
+    ? validOdds.reduce((sum, o) => sum + (1 / o), 0) * 100 
+    : 0;
+  
+  const isSurebet = arbPercentage > 0 && arbPercentage < 100;
+  const profit = isSurebet ? ((100 / arbPercentage) - 1) * 100 : 0;
+
+  // Calculate individual stakes
+  const stakes = validOdds.map(o => {
+    if (!isSurebet || arbPercentage === 0) return 0;
+    return (total * (1 / o)) / (arbPercentage / 100);
+  });
+
+  // Calculate returns (same for all outcomes in a true surebet)
+  const returns = stakes.map((s, i) => s * validOdds[i]);
+  const guaranteedReturn = returns.length > 0 ? returns[0] : 0;
+  const netProfit = guaranteedReturn - total;
+
+  return (
+    <div className="space-y-3">
+      {/* Outcome selector */}
+      <div>
+        <label className="text-xs text-zinc-500 block mb-2">Število izidov</label>
+        <div className="flex gap-2">
+          {[2, 3].map((n) => (
+            <button
+              key={n}
+              onClick={() => setOutcomes(n)}
+              className={`
+                flex-1 py-2 rounded-lg text-sm font-medium transition-colors
+                ${outcomes === n 
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
+                  : "bg-zinc-800/50 text-zinc-400 border border-zinc-700/50 hover:bg-zinc-800"
+                }
+              `}
+            >
+              {n}-way
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Odds inputs */}
+      <div>
+        <label className="text-xs text-zinc-500 block mb-2">Kvote</label>
+        <div className={`grid gap-2 ${outcomes === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+          <div>
+            <label className="text-[10px] text-zinc-600 block mb-1">1</label>
+            <input
+              type="number"
+              step="0.01"
+              value={odds1}
+              onChange={(e) => setOdds1(e.target.value)}
+              className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+            />
+          </div>
+          {outcomes === 3 && (
+            <div>
+              <label className="text-[10px] text-zinc-600 block mb-1">X</label>
+              <input
+                type="number"
+                step="0.01"
+                value={odds3}
+                onChange={(e) => setOdds3(e.target.value)}
+                className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+              />
+            </div>
+          )}
+          <div>
+            <label className="text-[10px] text-zinc-600 block mb-1">2</label>
+            <input
+              type="number"
+              step="0.01"
+              value={odds2}
+              onChange={(e) => setOdds2(e.target.value)}
+              className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Total stake */}
+      <div>
+        <label className="text-xs text-zinc-500 block mb-1">Skupni vložek (€)</label>
+        <input
+          type="number"
+          value={totalStake}
+          onChange={(e) => setTotalStake(e.target.value)}
+          className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+        />
+      </div>
+
+      {/* Results */}
+      <div className="pt-3 border-t border-zinc-800">
+        {/* Surebet indicator */}
+        <div className={`
+          p-3 rounded-lg mb-3 text-center
+          ${isSurebet 
+            ? "bg-emerald-500/10 border border-emerald-500/30" 
+            : "bg-red-500/10 border border-red-500/30"
+          }
+        `}>
+          <div className={`text-lg font-bold ${isSurebet ? "text-emerald-400" : "text-red-400"}`}>
+            {isSurebet ? "✓ SUREBET" : "✗ Ni surebeta"}
+          </div>
+          <div className="text-xs text-zinc-400 mt-1">
+            Arbitraža: {fmt(arbPercentage, 2)}%
+            {isSurebet && ` • Profit: ${fmt(profit, 2)}%`}
+          </div>
+        </div>
+
+        {/* Stakes breakdown */}
+        {isSurebet && (
+          <div className="space-y-2">
+            <div className="text-xs text-zinc-500 uppercase mb-2">Razdelitev vložkov</div>
+            {stakes.map((s, i) => (
+              <div key={i} className="flex justify-between text-sm">
+                <span className="text-zinc-500">
+                  {outcomes === 2 
+                    ? (i === 0 ? "Stava 1:" : "Stava 2:") 
+                    : (i === 0 ? "Stava 1:" : i === 1 ? "Stava X:" : "Stava 2:")
+                  }
+                </span>
+                <span className="text-white font-mono">{fmt(s)}€</span>
+              </div>
+            ))}
+            <div className="pt-2 border-t border-zinc-800 space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-500">Zagotovljen donos:</span>
+                <span className="text-white font-mono">{fmt(guaranteedReturn)}€</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-500">Čisti profit:</span>
+                <span className="text-emerald-400 font-mono font-semibold">+{fmt(netProfit)}€</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CalculatorPanel() {
   const [activeCalc, setActiveCalc] = useState<string>("ai");
+  
 
-  const calculators = [
-    { id: "ai", name: "AI Odds", icon: "🤖" },
-    { id: "kelly", name: "Kelly", icon: "📊" },
-    { id: "lay", name: "Lay", icon: "🔄" },
-    { id: "odds", name: "Kvote", icon: "🔢" },
-    { id: "margin", name: "Marža", icon: "📉" },
-    { id: "dutch", name: "Dutch", icon: "🎯" },
-  ];
+const calculators = [
+  { id: "ai", name: "AI Odds", icon: "🤖" },
+  { id: "surebet", name: "Surebet", icon: "💰" },
+  { id: "kelly", name: "Kelly", icon: "📊" },
+  { id: "lay", name: "Lay", icon: "🔄" },
+  { id: "odds", name: "Kvote", icon: "🔢" },
+  { id: "margin", name: "Marža", icon: "📉" },
+  { id: "dutch", name: "Dutch", icon: "🎯" },
+];
 
   return (
     <div className="bg-zinc-900/50 rounded-2xl border border-zinc-800 overflow-hidden">
@@ -700,6 +861,7 @@ function CalculatorPanel() {
 
       <div className="p-4">
         {activeCalc === "ai" && <AIoddsCalculator />}
+        {activeCalc === "surebet" && <SurebetCalculator />}
         {activeCalc === "kelly" && <KellyCalculator />}
         {activeCalc === "lay" && <LayCalculator />}
         {activeCalc === "odds" && <OddsConverter />}
