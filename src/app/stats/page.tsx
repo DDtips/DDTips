@@ -362,59 +362,38 @@ function InputField({ label, value, onChange, type = "text", icon, placeholder }
   }
 
   function MultiSelectField({ label, options, selected, onChange, icon }: { label: string, options: string[], selected: string[], onChange: (val: string[]) => void, icon?: React.ReactNode }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-  
-    useEffect(() => {
-      function handleClickOutside(event: MouseEvent) {
-        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-          setIsOpen(false);
-        }
-      }
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-  
-    const toggleOption = (opt: string) => {
-      if (selected.includes(opt)) {
-        onChange(selected.filter(s => s !== opt));
-      } else {
-        onChange([...selected, opt]);
-      }
+    const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
+      onChange(selectedOptions);
     };
-  
+
     return (
-      <div className="space-y-1.5 relative pointer-events-auto group" ref={dropdownRef}>
+      <div className="space-y-1.5 pointer-events-auto group">
         <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
           {icon} {label}
         </label>
-        <button 
-          onClick={() => setIsOpen(!isOpen)}
-          className="glass-input w-full px-3 py-2.5 rounded-lg text-white text-xs flex items-center justify-between hover:border-emerald-500/50 transition-all"
-        >
-          <span className="truncate font-medium">
-            {selected.length === 0 ? "Vsi" : selected.length === 1 ? selected[0] : `${selected.length} izbrano`}
-          </span>
-          <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-        </button>
-  
-        {isOpen && (
-          <div className="absolute top-full left-0 w-full mt-2 glass-dropdown rounded-xl shadow-2xl z-[9999] max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
-             {options.map(opt => {
-               const isSelected = selected.includes(opt);
-               return (
-                 <div 
-                   key={opt} 
-                   onClick={() => toggleOption(opt)}
-                   className={`px-3 py-2.5 text-xs flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors border-l-2 ${isSelected ? "border-emerald-500 bg-emerald-500/5 text-emerald-400 font-bold" : "border-transparent text-zinc-400"}`}
-                 >
-                   <span>{opt}</span>
-                   {isSelected && <Check className="w-3.5 h-3.5" />}
-                 </div>
-               )
-             })}
+        <div className="relative">
+          <select
+            multiple
+            value={selected}
+            onChange={handleChange}
+            className="glass-input w-full px-3 py-2 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer font-medium min-h-[80px]"
+            size={4}
+          >
+            {options.map((opt: string) => (
+              <option 
+                key={opt} 
+                value={opt} 
+                className={`py-1.5 px-2 cursor-pointer ${selected.includes(opt) ? 'bg-emerald-500/30 text-emerald-400' : 'bg-zinc-900 text-zinc-300'}`}
+              >
+                {opt}
+              </option>
+            ))}
+          </select>
+          <div className="absolute bottom-1 right-2 text-[9px] text-zinc-600 pointer-events-none">
+            {selected.length === 0 ? "Vsi" : `${selected.length} izbrano`}
           </div>
-        )}
+        </div>
       </div>
     );
   }
@@ -429,7 +408,7 @@ export default function StatsPage() {
   // States for filters
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [selectedTipsters, setSelectedTipsters] = useState<string[]>([]);
-  const [stavnica, setStavnica] = useState("ALL");
+  const [selectedStavnice, setSelectedStavnice] = useState<string[]>([]);
   const [cas, setCas] = useState<"ALL" | Cas>("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -472,20 +451,20 @@ export default function StatsPage() {
   }
 
   const handleRefresh = async () => {
-    setSelectedSports([]); setSelectedTipsters([]); setStavnica("ALL"); setCas("ALL"); setFromDate(""); setToDate(""); setMinKvota(""); setMaxKvota(""); setFiltersOpen(false); await loadRows();
+    setSelectedSports([]); setSelectedTipsters([]); setSelectedStavnice([]); setCas("ALL"); setFromDate(""); setToDate(""); setMinKvota(""); setMaxKvota(""); setFiltersOpen(false); await loadRows();
   };
   const handleClearFilters = () => {
-    setSelectedSports([]); setSelectedTipsters([]); setStavnica("ALL"); setCas("ALL"); setFromDate(""); setToDate(""); setMinKvota(""); setMaxKvota("");
+    setSelectedSports([]); setSelectedTipsters([]); setSelectedStavnice([]); setCas("ALL"); setFromDate(""); setToDate(""); setMinKvota(""); setMaxKvota("");
   };
 
-  const hasActiveFilters = selectedSports.length > 0 || selectedTipsters.length > 0 || stavnica !== "ALL" || cas !== "ALL" || fromDate !== "" || toDate !== "" || minKvota !== "" || maxKvota !== "";
+  const hasActiveFilters = selectedSports.length > 0 || selectedTipsters.length > 0 || selectedStavnice.length > 0 || cas !== "ALL" || fromDate !== "" || toDate !== "" || minKvota !== "" || maxKvota !== "";
   const isFilteredByDate = fromDate !== "" || toDate !== "";
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
       if (selectedSports.length > 0 && !selectedSports.includes(r.sport)) return false;
       if (selectedTipsters.length > 0 && !selectedTipsters.includes(r.tipster)) return false;
-      if (stavnica !== "ALL" && r.stavnica !== stavnica) return false;
+      if (selectedStavnice.length > 0 && !selectedStavnice.includes(r.stavnica)) return false;
       if (cas !== "ALL" && r.cas_stave !== cas) return false;
       if (fromDate && r.datum < fromDate) return false;
       if (toDate && r.datum > toDate) return false;
@@ -495,7 +474,7 @@ export default function StatsPage() {
       }
       return true;
     });
-  }, [rows, selectedSports, selectedTipsters, stavnica, cas, fromDate, toDate, minKvota, maxKvota]);
+  }, [rows, selectedSports, selectedTipsters, selectedStavnice, cas, fromDate, toDate, minKvota, maxKvota]);
 
   const bettingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "BET"), [filteredRows]);
   const tradingRows = useMemo(() => filteredRows.filter(r => getMode(r) === "TRADING"), [filteredRows]);
@@ -738,7 +717,7 @@ export default function StatsPage() {
                 <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
                 <MultiSelectField label="Športi" options={SPORTI} selected={selectedSports} onChange={setSelectedSports} icon={<Activity className="w-3.5 h-3.5" />} />
                 <MultiSelectField label="Tipsterji" options={TIPSTERJI} selected={selectedTipsters} onChange={setSelectedTipsters} icon={<Users className="w-3.5 h-3.5" />} />
-                <SelectField label="Stavnica" value={stavnica} onChange={setStavnica} options={["ALL", ...STAVNICE]} icon={<Building2 className="w-3.5 h-3.5" />} />
+                <MultiSelectField label="Stavnice" options={STAVNICE} selected={selectedStavnice} onChange={setSelectedStavnice} icon={<Building2 className="w-3.5 h-3.5" />} />
                 <SelectField label="Čas" value={cas} onChange={setCas} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-3.5 h-3.5" />} />
                 <InputField label="Min Kvota" value={minKvota} onChange={setMinKvota} placeholder="1.00" icon={<Scale className="w-3.5 h-3.5" />} />
                 <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="10.00" icon={<Scale className="w-3.5 h-3.5" />} />
