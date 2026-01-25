@@ -399,7 +399,7 @@ function InputField({ label, value, onChange, type = "text", icon, placeholder }
         </button>
   
         {isOpen && (
-          <div className="absolute top-full left-0 w-full mt-2 glass-dropdown rounded-xl shadow-2xl z-[100] max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
+          <div className="absolute top-full left-0 w-full mt-2 glass-dropdown rounded-xl shadow-2xl z-[9999] max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
              {options.map(opt => {
                const isSelected = selected.includes(opt);
                return (
@@ -610,8 +610,8 @@ export default function StatsPage() {
         .glass-dropdown {
           background: linear-gradient(
             135deg,
-            rgba(9, 9, 11, 0.95) 0%,
-            rgba(9, 9, 11, 0.9) 100%
+            rgba(9, 9, 11, 0.98) 0%,
+            rgba(9, 9, 11, 0.95) 100%
           );
           border: 1px solid rgba(255, 255, 255, 0.1);
           backdrop-filter: blur(20px);
@@ -730,9 +730,9 @@ export default function StatsPage() {
         </div>
 
         {/* FILTERS PANEL */}
-        <div className={`transition-all duration-500 ease-in-out relative z-50 ${filtersOpen ? 'opacity-100 max-h-[600px] mb-12 translate-y-0' : 'max-h-0 opacity-0 mb-0 -translate-y-4 overflow-hidden pointer-events-none'}`}>
-          <div className="glass-card p-1">
-            <div className="glass-form rounded-[18px] p-8">
+        <div className={`transition-all duration-500 ease-in-out relative z-[9998] ${filtersOpen ? 'opacity-100 max-h-[600px] mb-12 translate-y-0' : 'max-h-0 opacity-0 mb-0 -translate-y-4 overflow-hidden pointer-events-none'}`}>
+          <div className="glass-card p-1 overflow-visible">
+            <div className="glass-form rounded-[18px] p-8 overflow-visible">
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-5 mb-8">
                 <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
                 <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
