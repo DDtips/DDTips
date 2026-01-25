@@ -362,37 +362,61 @@ function InputField({ label, value, onChange, type = "text", icon, placeholder }
   }
 
   function MultiSelectField({ label, options, selected, onChange, icon }: { label: string, options: string[], selected: string[], onChange: (val: string[]) => void, icon?: React.ReactNode }) {
-    const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
-      onChange(selectedOptions);
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      function handleClickOutside(event: MouseEvent) {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      }
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const toggleOption = (opt: string) => {
+      if (selected.includes(opt)) {
+        onChange(selected.filter(s => s !== opt));
+      } else {
+        onChange([...selected, opt]);
+      }
     };
 
+    const displayText = selected.length === 0 ? "Vsi" : selected.length === 1 ? selected[0] : `${selected.length} izbrano`;
+
     return (
-      <div className="space-y-1.5 pointer-events-auto group">
+      <div className="space-y-1.5 pointer-events-auto group relative" ref={dropdownRef}>
         <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
           {icon} {label}
         </label>
         <div className="relative">
-          <select
-            multiple
-            value={selected}
-            onChange={handleChange}
-            className="glass-input w-full px-3 py-2 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer font-medium min-h-[80px]"
-            size={4}
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="glass-input w-full px-3 py-2.5 appearance-none rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer text-center font-medium flex items-center justify-between"
           >
-            {options.map((opt: string) => (
-              <option 
-                key={opt} 
-                value={opt} 
-                className={`py-1.5 px-2 cursor-pointer ${selected.includes(opt) ? 'bg-emerald-500/30 text-emerald-400' : 'bg-zinc-900 text-zinc-300'}`}
-              >
-                {opt}
-              </option>
-            ))}
-          </select>
-          <div className="absolute bottom-1 right-2 text-[9px] text-zinc-600 pointer-events-none">
-            {selected.length === 0 ? "Vsi" : `${selected.length} izbrano`}
-          </div>
+            <span className="flex-1 text-center">{displayText}</span>
+            <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+          </button>
+          
+          {isOpen && (
+            <div className="absolute top-full left-0 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl z-[9999] max-h-[250px] overflow-y-auto custom-scrollbar">
+              {options.map((opt: string) => {
+                const isSelected = selected.includes(opt);
+                return (
+                  <div
+                    key={opt}
+                    onClick={() => toggleOption(opt)}
+                    className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between hover:bg-zinc-800 transition-colors ${isSelected ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-300'}`}
+                  >
+                    <span>{opt}</span>
+                    {isSelected && <Check className="w-3.5 h-3.5" />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -535,7 +559,6 @@ export default function StatsPage() {
           -webkit-backdrop-filter: blur(12px);
           border-radius: 20px;
           transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-          overflow: hidden;
         }
 
         .glass-card::before {
@@ -709,9 +732,9 @@ export default function StatsPage() {
         </div>
 
         {/* FILTERS PANEL */}
-        <div className={`transition-all duration-500 ease-in-out relative z-[9998] ${filtersOpen ? 'opacity-100 max-h-[600px] mb-12 translate-y-0' : 'max-h-0 opacity-0 mb-0 -translate-y-4 overflow-hidden pointer-events-none'}`}>
-          <div className="glass-card p-1 overflow-visible">
-            <div className="glass-form rounded-[18px] p-8 overflow-visible">
+        <div className={`transition-all duration-500 ease-in-out relative z-[9998] ${filtersOpen ? 'opacity-100 mb-12 translate-y-0 pb-[200px]' : 'max-h-0 opacity-0 mb-0 -translate-y-4 overflow-hidden pointer-events-none'}`}>
+          <div className="glass-card p-1">
+            <div className="glass-form rounded-[18px] p-8">
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-5 mb-8">
                 <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
                 <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-3.5 h-3.5" />} />
