@@ -727,7 +727,8 @@ export default function BetsPage() {
         <section className="mb-8 flex flex-col md:flex-row items-stretch gap-4 justify-between">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
             {/* Month Filter Card */}
-            <div className="col-span-2 md:col-span-1 glass-card p-3 flex items-center gap-3 group relative z-50">
+{/* Month Filter Card */}
+<div className="col-span-2 md:col-span-1 glass-card p-3 flex items-center gap-3 group relative z-50 !overflow-visible">
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 border border-white/10 text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
                 <Filter className="w-5 h-5" />
               </div>
