@@ -90,9 +90,14 @@ function calcRisk(b: Bet): number {
   return 0;
 }
 
-// --- DATE FUNCTIONS ---
+// --- DATE FUNCTIONS (POPRAVLJENO) ---
+
+// Popravek: Uporabimo lokalni čas namesto toISOString (UTC), da preprečimo zamik za 1 dan nazaj
 function formatDate(d: Date): string {
-  return d.toISOString().split("T")[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function formatDateDisplay(dateStr: string): string {
@@ -105,25 +110,34 @@ function formatDateShort(dateStr: string): string {
   return `${parseInt(day)}.${parseInt(month)}.`;
 }
 
-function getWeekNumber(d: Date): number {
-  const firstDayOfYear = new Date(d.getFullYear(), 0, 1);
-  const pastDaysOfYear = (d.getTime() - firstDayOfYear.getTime()) / 86400000;
-  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-}
+// Popravek: Funkcija, ki vrne točen ponedeljek in nedeljo za določen zamik (offset) v tednih
+function getWeekRangeForOffset(weekOffset: number): { start: string; end: string; weekNum: number } {
+  const now = new Date();
+  // Premaknemo se na ciljni teden
+  now.setDate(now.getDate() + (weekOffset * 7));
+  
+  const day = now.getDay(); // 0 = Nedelja, 1 = Ponedeljek, ...
+  
+  // Izračunamo razliko do prejšnjega ponedeljka
+  // Če je nedelja (0), moramo iti 6 dni nazaj. Če je ponedeljek (1), 0 dni nazaj.
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
+  
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
 
-function getWeekRange(year: number, week: number): { start: string; end: string } {
-  const firstDayOfYear = new Date(year, 0, 1);
-  const daysOffset = (week - 1) * 7;
-  const firstDayOfWeek = new Date(firstDayOfYear);
-  firstDayOfWeek.setDate(firstDayOfYear.getDate() + daysOffset - firstDayOfYear.getDay() + 1);
-  const lastDayOfWeek = new Date(firstDayOfWeek);
-  lastDayOfWeek.setDate(firstDayOfWeek.getDate() + 6);
-  return { start: formatDate(firstDayOfWeek), end: formatDate(lastDayOfWeek) };
+  // Izračun številke tedna (ISO)
+  const d = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate() + 3));
+  const weekNum = Math.ceil((((d.getTime() - new Date(Date.UTC(d.getFullYear(), 0, 4)).getTime()) / 86400000) + 3 + 1) / 7);
+
+  return { start: formatDate(monday), end: formatDate(sunday), weekNum };
 }
 
 function getMonthRange(year: number, month: number): { start: string; end: string } {
   const start = new Date(year, month, 1);
-  const end = new Date(year, month + 1, 0);
+  const end = new Date(year, month + 1, 0); // Zadnji dan v mesecu
   return { start: formatDate(start), end: formatDate(end) };
 }
 
@@ -746,7 +760,7 @@ export default function ReportsPage() {
     setOffsets(prev => ({ ...prev, [period]: newOffset }));
   }, []);
 
-  const periodData = useMemo(() => {
+const periodData = useMemo(() => {
     const today = new Date();
     let range: { start: string; end: string };
     let label: string;
@@ -759,21 +773,30 @@ export default function ReportsPage() {
         range = getDayRange(targetDate);
         const isToday = offsets.day === 0;
         const isYesterday = offsets.day === -1;
-        label = isToday ? "Danes" : isYesterday ? "Včeraj" : `${dayNames[targetDate.getDay()]}`;
+        label = isToday ? "Danes" : isYesterday ? "Včeraj" : `${dayNames[targetDate.getDay()]}`; // Uporabi formatiran datum če želiš
+        if (!isToday && !isYesterday) {
+             label = formatDateDisplay(range.start);
+        }
         dateRange = formatDateDisplay(range.start);
         break;
       }
       case "week": {
-        const targetDate = new Date(today);
-        targetDate.setDate(today.getDate() + (offsets.week * 7));
-        const weekNum = getWeekNumber(targetDate);
-        range = getWeekRange(targetDate.getFullYear(), weekNum);
-        label = `Teden ${weekNum}`;
-        dateRange = `${formatDateShort(range.start)} - ${formatDateDisplay(range.end)}`;
+        // Uporabimo novo funkcijo, ki pravilno računa Pon-Ned
+        const { start, end, weekNum } = getWeekRangeForOffset(offsets.week);
+        range = { start, end };
+        
+        // Če smo v trenutnem letu, prikaži teden, sicer dodaj leto
+        const startYear = parseInt(start.split('-')[0]);
+        label = `Teden ${weekNum}${startYear !== today.getFullYear() ? ` (${startYear})` : ''}`;
+        
+        dateRange = `${formatDateShort(start)} - ${formatDateDisplay(end)}`;
         break;
       }
       case "month": {
+        // Tukaj je pomembno, da pravilno upravljamo z leti in meseci
+        // currentMonth + offset (javascript samodejno popravi leta, če gremo čez 11 ali pod 0)
         const targetDate = new Date(today.getFullYear(), today.getMonth() + offsets.month, 1);
+        
         range = getMonthRange(targetDate.getFullYear(), targetDate.getMonth());
         label = `${monthNames[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
         dateRange = `${formatDateShort(range.start)} - ${formatDateDisplay(range.end)}`;
