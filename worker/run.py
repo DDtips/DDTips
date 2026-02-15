@@ -8,19 +8,19 @@ import aiohttp
 from understat import Understat
 from supabase import create_client
 
-
 # -------------------- ENV --------------------
+# Naloži .env datoteko iz iste mape, kjer je skripta
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY") # Podpora za oba imena
 FOOTBALL_DATA_API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
 
 ODDS_PROVIDER = (os.getenv("ODDS_PROVIDER") or "").strip().lower()
 ODDS_API_KEY = os.getenv("ODDS_API_KEY")
 
 if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-    raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in worker/.env")
+    raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env")
 
 sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -33,9 +33,37 @@ HOME_ADV = 1.10
 
 SHOTS_IMPORT_LIMIT = 120
 PREDICT_FINISHED_DEMO_N = 20
-
-# VALUE threshold v % (10% value) -> lažje za UI
 VALUE_PCT_THRESHOLD = 10.0
+
+# --- KONFIGURACIJA LIG ---
+# Povezava med imeni v Understat, Football-Data in TheOddsAPI
+LEAGUES_MAP = {
+    "EPL": {
+        "understat": "EPL",
+        "fd_code": "PL",
+        "odds_key": "soccer_epl"
+    },
+    "La_liga": {
+        "understat": "La_liga",
+        "fd_code": "PD",
+        "odds_key": "soccer_spain_la_liga"
+    },
+    "Bundesliga": {
+        "understat": "Bundesliga",
+        "fd_code": "BL1",
+        "odds_key": "soccer_germany_bundesliga"
+    },
+    "Serie_A": {
+        "understat": "Serie_A",
+        "fd_code": "SA",
+        "odds_key": "soccer_italy_serie_a"
+    },
+    "Ligue_1": {
+        "understat": "Ligue_1",
+        "fd_code": "FL1",
+        "odds_key": "soccer_france_ligue_1"
+    }
+}
 
 
 # -------------------- Helpers --------------------
@@ -69,11 +97,10 @@ def normalize_team_name(name: str) -> str:
     return (name or "").strip()
 
 
-# --- name normalization for matching across sources ---
 def norm_team(s: str) -> str:
     s = (s or "").lower().strip()
     # remove common suffixes
-    for suf in [" fc", " afc", " f.c.", " c.f.", " cf"]:
+    for suf in [" fc", " afc", " f.c.", " c.f.", " cf", " as", " ssc"]:
         if s.endswith(suf):
             s = s[: -len(suf)].strip()
     s = s.replace("&", "and")
@@ -105,11 +132,11 @@ def canonical_from_alias(source: str, source_name: str) -> str:
 
 
 def find_match_id(match_date: str, home: str, away: str):
-    """Find matches.id for a given date+teams. Tries exact, then normalized."""
+    """Find matches.id for a given date+teams."""
     if not match_date or not home or not away:
         return None
 
-    # 1) exact
+    # 1) exact match
     q = (
         sb.table("matches")
         .select("id")
@@ -123,7 +150,7 @@ def find_match_id(match_date: str, home: str, away: str):
     if q:
         return q[0]["id"]
 
-    # 2) normalized fallback on same date
+    # 2) normalized fallback
     rows = (
         sb.table("matches")
         .select("id, home_team, away_team")
@@ -149,14 +176,16 @@ async def retry(coro_fn, tries=3, base_sleep=1.0, name="call"):
             return await coro_fn()
         except Exception as e:
             last = e
+            # print(f"Retry {i+1}/{tries} for {name} failed: {e}")
             await asyncio.sleep(base_sleep * (2 ** i))
     raise last
 
 
 # -------------------- Understat fetch --------------------
-async def fetch_epl_matches_understat(season_year: int, session: aiohttp.ClientSession):
+async def fetch_understat_league_matches(league_name: str, season_year: int, session: aiohttp.ClientSession):
+    """Fetch matches for a specific league from Understat."""
     us = Understat(session)
-    return await us.get_league_results("EPL", season_year)
+    return await us.get_league_results(league_name, season_year)
 
 
 async def fetch_match_shots_understat(understat_match_id: str, session: aiohttp.ClientSession):
@@ -172,24 +201,30 @@ async def fd_get_json(url: str, session: aiohttp.ClientSession):
     async with session.get(url, headers=headers) as r:
         if r.status != 200:
             txt = await r.text()
+            # 429 = Too Many Requests
+            if r.status == 429:
+                print("⚠️ Football-Data API rate limit reached. Waiting 10s...")
+                await asyncio.sleep(10)
+                return await fd_get_json(url, session) # Rekurzivni retry
             raise RuntimeError(f"football-data.org {r.status}: {txt[:200]}")
         return await r.json()
 
 
-async def fetch_pl_fixtures(session: aiohttp.ClientSession, days_ahead: int = 30):
+async def fetch_fd_fixtures(league_code: str, session: aiohttp.ClientSession, days_ahead: int = 30):
     if not FOOTBALL_DATA_API_KEY:
         return []
     date_from = date.today().isoformat()
     date_to = (date.today() + timedelta(days=days_ahead)).isoformat()
-    url = f"https://api.football-data.org/v4/competitions/PL/matches?dateFrom={date_from}&dateTo={date_to}"
+    # URL sedaj sprejme kodo lige (npr. PL, PD, BL1...)
+    url = f"https://api.football-data.org/v4/competitions/{league_code}/matches?dateFrom={date_from}&dateTo={date_to}"
     j = await fd_get_json(url, session)
     return (j or {}).get("matches", []) or []
 
 
-async def fetch_pl_standings(session: aiohttp.ClientSession):
+async def fetch_fd_standings(league_code: str, session: aiohttp.ClientSession):
     if not FOOTBALL_DATA_API_KEY:
         return []
-    url = "https://api.football-data.org/v4/competitions/PL/standings"
+    url = f"https://api.football-data.org/v4/competitions/{league_code}/standings"
     j = await fd_get_json(url, session)
     standings = (j or {}).get("standings", [])
     for s in standings:
@@ -199,7 +234,7 @@ async def fetch_pl_standings(session: aiohttp.ClientSession):
 
 
 # -------------------- DB upserts --------------------
-def upsert_match_understat(season_year: int, m: dict):
+def upsert_match_understat(season_year: int, league_name: str, m: dict):
     understat_id = str(m.get("id"))
     dt_str = m.get("datetime")
     match_date = dt_str.split(" ")[0] if dt_str else None
@@ -225,12 +260,13 @@ def upsert_match_understat(season_year: int, m: dict):
         "away_goals": ag,
         "understat_match_id": understat_id,
         "status": status,
+        "league": league_name # Dodano: shranjujemo ime lige
     }
 
     sb.table("matches").upsert(payload, on_conflict="understat_match_id").execute()
 
 
-def upsert_fixture_fd(fd_match: dict):
+def upsert_fixture_fd(fd_match: dict, league_name: str):
     utc_date = fd_match.get("utcDate")
     if not utc_date:
         return
@@ -250,8 +286,10 @@ def upsert_fixture_fd(fd_match: dict):
         "home_team": home,
         "away_team": away,
         "status": "SCHEDULED",
+        "league": league_name
     }
 
+    # Preverimo če obstaja, da ne povozimo understat ID-ja
     existing = (
         sb.table("matches")
         .select("id")
@@ -395,13 +433,14 @@ def load_latest_standings_map():
         sb.table("standings")
         .select("team_name, position, points, played, goal_diff, as_of_date")
         .order("as_of_date", desc=True)
-        .limit(80)
+        .limit(200) # Povečan limit, ker imamo zdaj 5 lig
         .execute()
         .data
         or []
     )
     m = {}
     for r in rows:
+        # Če ekipa že obstaja v mapi, jo povozi samo če je datum novejši (zaradi orderja bo prvi že najnovejši)
         if r["team_name"] not in m:
             m[r["team_name"]] = r
     return m
@@ -420,24 +459,23 @@ def must_win_adjust(team: str, standings_map: dict) -> float:
 
 
 # -------------------- Odds (The Odds API) --------------------
-async def fetch_odds_totals_25(session: aiohttp.ClientSession):
+async def fetch_odds_totals_25(sport_key: str, session: aiohttp.ClientSession):
     """
-    The Odds API totals 2.5 for EPL.
-    Returns list rows for odds_snapshots with match_id if found.
+    Fetch odds for a specific sport key (league).
     """
     if ODDS_PROVIDER != "theoddsapi" or not ODDS_API_KEY:
         return []
 
-    sport_key = "soccer_epl"
     url = (
         f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/"
         f"?apiKey={ODDS_API_KEY}&regions=eu&markets=totals&oddsFormat=decimal"
     )
 
+    print(f"   Fetching odds for {sport_key}...")
     async with session.get(url) as r:
         if r.status != 200:
             txt = await r.text()
-            print("  odds http", r.status, txt[:200])
+            print(f"   Odds Error {r.status}: {txt[:100]}")
             return []
         data = await r.json()
 
@@ -493,7 +531,7 @@ async def fetch_odds_totals_25(session: aiohttp.ClientSession):
         if best_over and best_under:
             mid = find_match_id(md, home, away)
             out.append({
-                "match_id": mid,  # can be None if matching fails
+                "match_id": mid,
                 "match_date": md,
                 "home_team": home,
                 "away_team": away,
@@ -509,7 +547,6 @@ async def fetch_odds_totals_25(session: aiohttp.ClientSession):
 
 
 def store_odds_snapshot(row: dict):
-    # store even if match_id is None (useful for debugging), but predictions will use match_id
     sb.table("odds_snapshots").insert(row).execute()
 
 
@@ -552,7 +589,7 @@ def predict_match(match_row: dict, as_of: date, standings_map: dict):
     p_over = p_over_25(lam_total)
     p_under = 1.0 - p_over
 
-    # odds + value% (relative vs implied prob)
+    # odds + value%
     over_odds = None
     under_odds = None
     value_over_pct = None
@@ -574,7 +611,6 @@ def predict_match(match_row: dict, as_of: date, standings_map: dict):
             if ip > 0:
                 value_under_pct = ((p_under / ip) - 1.0) * 100.0
 
-        # decide value side
         best_val = max(value_over_pct if value_over_pct is not None else -999,
                        value_under_pct if value_under_pct is not None else -999)
         if best_val >= VALUE_PCT_THRESHOLD:
@@ -596,7 +632,6 @@ def predict_match(match_row: dict, as_of: date, standings_map: dict):
 
     report = "\n".join(report_lines)
 
-    # write prediction
     sb.table("predictions").delete().eq("match_id", match_row["id"]).execute()
     sb.table("predictions").insert({
         "match_id": match_row["id"],
@@ -607,7 +642,6 @@ def predict_match(match_row: dict, as_of: date, standings_map: dict):
         "report": report,
         "over_odds": over_odds,
         "under_odds": under_odds,
-        # te 2 koloni sta super za UI (če jih imaš)
         "edge_over": value_over_pct / 100.0 if value_over_pct is not None else None,
         "edge_under": value_under_pct / 100.0 if value_under_pct is not None else None,
         "value_side": value_side,
@@ -618,113 +652,136 @@ def predict_match(match_row: dict, as_of: date, standings_map: dict):
 async def main():
     today = date.today()
     seasons = [today.year - 1, today.year]
+    timeout = aiohttp.ClientTimeout(total=60) # Povečan timeout
 
-    timeout = aiohttp.ClientTimeout(total=40)
-
-    print("STEP 1: Understat matches upsert...")
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        for season in seasons:
-            try:
-                matches = await retry(lambda: fetch_epl_matches_understat(season, session), tries=3, base_sleep=1.0, name="understat_league")
-            except Exception as e:
-                print(f"  ERROR fetching Understat season {season}: {e}")
-                continue
-            for m in matches:
-                upsert_match_understat(season, m)
-    print("STEP 1 DONE.")
-
-    # fixtures + standings
-    if FOOTBALL_DATA_API_KEY:
-        print("STEP 1B: football-data fixtures + standings...")
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            try:
-                fixtures = await fetch_pl_fixtures(session, days_ahead=30)
-                for fx in fixtures:
-                    upsert_fixture_fd(fx)
-            except Exception as e:
-                print(f"  ERROR fixtures: {e}")
-
-            try:
-                table = await fetch_pl_standings(session)
-                as_of = today.isoformat()
-                season_int = today.year
-                rows = []
-                for r in table:
-                    tname = normalize_team_name((r.get("team") or {}).get("name") or "")
-                    tcanon = canonical_from_alias("football-data", tname)
-                    upsert_alias("football-data", tname, tcanon)
-                    rows.append({
-                        "season": season_int,
-                        "as_of_date": as_of,
-                        "team_name": tcanon,
-                        "position": r.get("position"),
-                        "points": r.get("points"),
-                        "played": r.get("playedGames"),
-                        "goal_diff": r.get("goalDifference"),
-                    })
-                if rows:
-                    for rr in rows:
-                        sb.table("standings").upsert(rr, on_conflict="season,as_of_date,team_name").execute()
-            except Exception as e:
-                print(f"  ERROR standings: {e}")
-        print("STEP 1B DONE.")
-    else:
-        print("STEP 1B SKIP: FOOTBALL_DATA_API_KEY not set.")
-
-    print(f"STEP 2: Import shots for last {SHOTS_IMPORT_LIMIT} finished matches...")
-    finished = (
-        sb.table("matches")
-        .select("id, understat_match_id, home_team, away_team, match_date")
-        .eq("status", "FINISHED")
-        .order("match_date", desc=True)
-        .limit(SHOTS_IMPORT_LIMIT)
-        .execute()
-        .data
-        or []
-    )
+    print("=== STARTING WORKER ===")
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
+        
+        # --- 1. UNDERSTAT HISTORY (za vse lige) ---
+        print("\nSTEP 1: Fetching Understat history for ALL leagues...")
+        for league_name, config in LEAGUES_MAP.items():
+            print(f" -> Processing league: {league_name}")
+            for season in seasons:
+                try:
+                    matches = await retry(lambda: fetch_understat_league_matches(config["understat"], season, session), tries=3, base_sleep=1.0, name=f"understat_{league_name}")
+                    if matches:
+                        print(f"    Fetched {len(matches)} matches for season {season}")
+                    for m in matches:
+                        upsert_match_understat(season, league_name, m)
+                except Exception as e:
+                    print(f"    ❌ ERROR fetching Understat {league_name} season {season}: {e}")
+                    continue
+        print("STEP 1 DONE.")
+
+        # --- 2. FIXTURES & STANDINGS (football-data.org) ---
+        if FOOTBALL_DATA_API_KEY:
+            print("\nSTEP 2: Fetching fixtures & standings from football-data.org...")
+            for league_name, config in LEAGUES_MAP.items():
+                fd_code = config["fd_code"]
+                print(f" -> Processing {league_name} (Code: {fd_code})")
+                
+                # Fixtures
+                try:
+                    fixtures = await fetch_fd_fixtures(fd_code, session, days_ahead=30)
+                    print(f"    Found {len(fixtures)} upcoming fixtures")
+                    for fx in fixtures:
+                        upsert_fixture_fd(fx, league_name)
+                except Exception as e:
+                    print(f"    ❌ ERROR fixtures for {league_name}: {e}")
+
+                # Standings
+                try:
+                    table = await fetch_fd_standings(fd_code, session)
+                    as_of = today.isoformat()
+                    season_int = today.year
+                    rows = []
+                    for r in table:
+                        tname = normalize_team_name((r.get("team") or {}).get("name") or "")
+                        tcanon = canonical_from_alias("football-data", tname)
+                        upsert_alias("football-data", tname, tcanon)
+                        rows.append({
+                            "season": season_int,
+                            "as_of_date": as_of,
+                            "team_name": tcanon,
+                            "position": r.get("position"),
+                            "points": r.get("points"),
+                            "played": r.get("playedGames"),
+                            "goal_diff": r.get("goalDifference"),
+                        })
+                    if rows:
+                        for rr in rows:
+                            sb.table("standings").upsert(rr, on_conflict="season,as_of_date,team_name").execute()
+                except Exception as e:
+                    print(f"    ❌ ERROR standings for {league_name}: {e}")
+            print("STEP 2 DONE.")
+        else:
+            print("STEP 2 SKIP: API key missing.")
+
+        # --- 3. SHOTS DATA (Understat) ---
+        print(f"\nSTEP 3: Import shots for last {SHOTS_IMPORT_LIMIT} finished matches...")
+        finished = (
+            sb.table("matches")
+            .select("id, understat_match_id, home_team, away_team, match_date")
+            .eq("status", "FINISHED")
+            .order("match_date", desc=True)
+            .limit(SHOTS_IMPORT_LIMIT)
+            .execute()
+            .data
+            or []
+        )
+
         for m in finished:
             db_match_id = m["id"]
+            # Preverimo, če že imamo shote
             existing = sb.table("shots").select("id").eq("match_id", db_match_id).limit(1).execute().data
             if existing:
                 continue
+            
             understat_id = m.get("understat_match_id")
             if not understat_id:
                 continue
+            
             try:
-                shots_json = await retry(lambda: fetch_match_shots_understat(understat_id, session), tries=3, base_sleep=1.0, name="understat_shots")
+                # Malo pavze da ne ubijemo API-ja
+                # await asyncio.sleep(0.2) 
+                shots_json = await retry(lambda: fetch_match_shots_understat(understat_id, session), tries=3, base_sleep=1.0, name="shots")
                 store_shots(db_match_id, shots_json, m["home_team"], m["away_team"])
             except Exception as e:
-                print(f"  ERROR shots id={understat_id}: {e}")
-    print("STEP 2 DONE.")
+                print(f"  ❌ ERROR shots id={understat_id}: {e}")
+        print("STEP 3 DONE.")
 
-    # odds snapshots
-    if ODDS_PROVIDER and ODDS_API_KEY:
-        print(f"STEP 2B: Odds snapshots via {ODDS_PROVIDER} ...")
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            try:
-                odds_rows = await retry(lambda: fetch_odds_totals_25(session), tries=3, base_sleep=1.0, name="odds_fetch")
-                linked = 0
-                for r in odds_rows:
-                    if r.get("match_id"):
-                        linked += 1
-                    store_odds_snapshot(r)
-                print(f"  stored odds rows: {len(odds_rows)} (linked to match_id: {linked})")
-            except Exception as e:
-                print(f"  ERROR odds: {e}")
-        print("STEP 2B DONE.")
-    else:
-        print("STEP 2B SKIP: ODDS_PROVIDER/ODDS_API_KEY not set.")
+        # --- 4. ODDS SNAPSHOTS ---
+        if ODDS_PROVIDER and ODDS_API_KEY:
+            print(f"\nSTEP 4: Fetching Odds ({ODDS_PROVIDER})...")
+            
+            for league_name, config in LEAGUES_MAP.items():
+                odds_key = config["odds_key"]
+                try:
+                    odds_rows = await retry(lambda: fetch_odds_totals_25(odds_key, session), tries=3, base_sleep=1.0, name=f"odds_{league_name}")
+                    
+                    linked_count = 0
+                    for r in odds_rows:
+                        if r.get("match_id"):
+                            linked_count += 1
+                        store_odds_snapshot(r)
+                    print(f"    {league_name}: Stored {len(odds_rows)} odds (Linked to matches: {linked_count})")
+                    
+                except Exception as e:
+                    print(f"    ❌ ERROR odds for {league_name}: {e}")
+            print("STEP 4 DONE.")
+        else:
+            print("STEP 4 SKIP: Odds API key missing.")
 
+    # --- 5. PREDICTIONS ---
     standings_map = load_latest_standings_map()
-
     date_from = today.isoformat()
     date_to = (today + timedelta(days=30)).isoformat()
 
+    # Najdi tekme za napoved (danes + 30 dni)
     upcoming = (
         sb.table("matches")
-        .select("id, match_date, home_team, away_team, status")
+        .select("id, match_date, home_team, away_team, status, league")
         .gte("match_date", date_from)
         .lte("match_date", date_to)
         .order("match_date", desc=False)
@@ -732,11 +789,14 @@ async def main():
         .data
         or []
     )
-
+    
+    # Če ni prihodnjih tekem, za demo vzemi zadnje končane
+    is_demo = False
     if not upcoming:
+        is_demo = True
         upcoming = (
             sb.table("matches")
-            .select("id, match_date, home_team, away_team, status")
+            .select("id, match_date, home_team, away_team, status, league")
             .eq("status", "FINISHED")
             .order("match_date", desc=True)
             .limit(PREDICT_FINISHED_DEMO_N)
@@ -744,26 +804,18 @@ async def main():
             .data
             or []
         )
-        print(f"STEP 3: Predicting {len(upcoming)} matches (DEMO last finished)...")
+        print(f"\nSTEP 5: Predicting {len(upcoming)} matches (DEMO MODE - last finished)...")
     else:
-        print(f"STEP 3: Predicting {len(upcoming)} matches (next 30 days)...")
+        print(f"\nSTEP 5: Predicting {len(upcoming)} upcoming matches...")
 
     for m in upcoming:
         try:
+            await asyncio.sleep(0.2)
             predict_match(m, today, standings_map)
         except Exception as e:
-            print(f"  ERROR predicting match_id={m.get('id')}: {e}")
+            print(f"  ❌ ERROR predicting match_id={m.get('id')}: {e}")
 
-    try:
-        matches_count = sb.table("matches").select("id", count="exact").execute().count
-        shots_count = sb.table("shots").select("id", count="exact").execute().count
-        pred_count = sb.table("predictions").select("id", count="exact").execute().count
-        print(f"COUNTS: matches={matches_count}, shots={shots_count}, predictions={pred_count}")
-    except Exception:
-        pass
-
-    print("OK.")
-
+    print("\n=== WORKER FINISHED SUCCESSFULLY ===")
 
 if __name__ == "__main__":
     asyncio.run(main())
