@@ -241,55 +241,25 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   
-useEffect(() => {
+  // Stanje za citat
+  const [quote, setQuote] = useState({ text: "Uspeh je v podrobnostih.", author: "Neznan" });
+
+  useEffect(() => {
     setMounted(true);
 
-    // 1. DEL: Pridobivanje citata preko tvojega novega API-ja
     const fetchQuote = async () => {
       try {
-        // TUKAJ JE SPREMEMBA: Klic na /api/quote namesto direktno na zenquotes
         const res = await fetch('/api/quote', { cache: 'no-store' });
-        
         if (!res.ok) throw new Error('Napaka API-ja');
         
         const data = await res.json();
-        
-        // Če dobimo podatke, jih nastavimo (ZenQuotes vrne 'q' in 'a')
         if (data && data.q) {
           setQuote({ text: data.q, author: data.a });
         }
       } catch (err) {
-        console.error("Napaka pri citatu, uporabljam privzetega:", err);
-        // Ne rabimo ničesar narediti, ker je privzet citat že nastavljen v useState
+        console.error("Uporabljam privzet citat.");
       }
     };
-
-    // 2. DEL: Preverjanje uporabnika in nalaganje stav (TO MORA OSTATI)
-    const checkUserAndLoad = async () => {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.replace("/login");
-        return;
-      }
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('is_approved')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError || !profile || !profile.is_approved) {
-        router.replace("/pending");
-        return;
-      }
-      await loadRows();
-      setLoading(false);
-    };
-
-    // Izvedemo obe funkciji
-    fetchQuote();
-    checkUserAndLoad();
-  }, [router]);
 
     const checkUserAndLoad = async () => {
       setLoading(true);
