@@ -16,11 +16,11 @@ export async function GET() {
     const originalQuote = data[0]; // { q: "text", a: "author" }
 
     // 2. Prevedi citat v slovenščino
-    // Prevajamo samo tekst (originalQuote.q), avtorja pustimo originalnega
     try {
-      const translation = await translate(originalQuote.q, { to: 'sl' });
+      // POPRAVEK: Dodali smo 'as any', da utišamo TypeScript napako
+      const translation = await translate(originalQuote.q, { to: 'sl' }) as any;
       
-      // Vrnemo preveden tekst
+      // Zdaj TypeScript ne bo težil, ker smo mu rekli, da je to 'any' (karkoli)
       return NextResponse.json({
         q: translation.text,
         a: originalQuote.a
