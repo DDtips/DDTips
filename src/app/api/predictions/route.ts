@@ -1,54 +1,87 @@
-// DATOTEKA: src/app/predictions/page.tsx
-"use client";
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
-import { useEffect, useState } from "react";
+export const dynamic = "force-dynamic";
 
-export default function PredictionsPage() {
-  const [predictions, setPredictions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+function getSupabaseServer() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  useEffect(() => {
-    // Kličemo naš novi API, ki smo ga ustvarili v koraku 1
-    fetch("/api/predictions?days=3")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.rows) {
-          setPredictions(data.rows);
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
-      });
-  }, []);
+  if (!url || !key) {
+    throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  }
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
-  if (loading) return <div className="p-10 text-white">Nalaganje napovedi...</div>;
+function num(v: string | null, fallback: number) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
 
-  return (
-    <div className="p-8 text-white">
-      <h1 className="text-2xl font-bold mb-4">Napovedi Tekem</h1>
-      
-      <div className="grid gap-4">
-        {predictions.map((p) => (
-          <div key={p.id} className="border border-zinc-700 p-4 rounded bg-zinc-900">
-            <div className="text-sm text-zinc-400">
-              {new Date(p.matches.match_date).toLocaleString()}
-            </div>
-            <div className="font-bold text-lg">
-              {p.matches.home_team} vs {p.matches.away_team}
-            </div>
-            <div className="mt-2 flex gap-4">
-               <span>Over 2.5: {p.p_over_25}%</span>
-               <span>Under 2.5: {p.p_under_25}%</span>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-      {predictions.length === 0 && (
-        <p>Ni prihajajočih tekem v bazi.</p>
-      )}
-    </div>
-  );
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const days = num(searchParams.get("days"), 30);
+    const limit = num(searchParams.get("limit"), 200);
+
+    // Nastavitev datumov (od zdaj - 2 uri, do X dni v prihodnost)
+    const from = new Date();
+    from.setHours(from.getHours() - 2); 
+    
+    const to = new Date();
+    to.setDate(to.getDate() + Math.max(1, Math.min(90, days)));
+    
+    const fromStr = from.toISOString();
+    const toStr = to.toISOString();
+
+    const sb = getSupabaseServer();
+
+    // Poizvedba z matches!inner (filtriranje datumov v bazi)
+    let query = sb
+      .from("predictions")
+      .select(
+        `
+        id,
+        match_id,
+        lambda_home,
+        lambda_away,
+        p_over_25,
+        p_under_25,
+        over_odds,
+        under_odds,
+        edge_over,
+        edge_under,
+        value_side,
+        report,
+        matches!inner (
+          match_date,
+          home_team,
+          away_team,
+          status
+        )
+      `
+      )
+      .gte("matches.match_date", fromStr)
+      .lte("matches.match_date", toStr)
+      .order("match_id", { ascending: false })
+      .limit(limit);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      rows: data || [],
+    });
+
+  } catch (err: any) {
+    console.error("Server error:", err);
+    return NextResponse.json(
+      { error: "Internal Server Error", message: err.message }, 
+      { status: 500 }
+    );
+  }
 }
