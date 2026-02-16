@@ -17,6 +17,25 @@ type PickRow = {
   lambda_total: number;
 };
 
+type SettledRow = PickRow & {
+  actual_side: "OVER" | "UNDER";
+  total_goals: number;
+  is_hit: boolean;
+  profit_units: number;
+};
+
+type StatsPayload = {
+  thresholdPct: number;
+  settledTotal: number;
+  wins: number;
+  losses: number;
+  hitRatePct: number;
+  avgEdgePct: number;
+  avgOdds: number;
+  profitUnits: number;
+  roiPct: number;
+};
+
 type ApiResponse = {
   meta: {
     from: string;
@@ -24,9 +43,13 @@ type ApiResponse = {
     days: number;
     minEdgePct: number;
     limit: number;
+    historyLimit: number;
     count: number;
+    scanned: number;
   };
+  stats: StatsPayload;
   rows: PickRow[];
+  settledRows: SettledRow[];
   error?: string;
 };
 
@@ -38,6 +61,12 @@ function fmt(n: number | null | undefined, digits = 2) {
 function pct(n: number | null | undefined, digits = 1) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   return `${Number(n).toFixed(digits)}%`;
+}
+
+function signed(n: number | null | undefined, digits = 2) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  const sign = n >= 0 ? "+" : "";
+  return `${sign}${Number(n).toFixed(digits)}`;
 }
 
 function formatDateSl(dateStr: string) {
@@ -59,10 +88,13 @@ export default function DDBot1Page() {
   const [days, setDays] = useState(3);
   const [minEdgePct, setMinEdgePct] = useState(10);
   const [limit, setLimit] = useState(12);
+  const [historyLimit] = useState(25);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [meta, setMeta] = useState<ApiResponse["meta"] | null>(null);
+  const [stats, setStats] = useState<StatsPayload | null>(null);
   const [rows, setRows] = useState<PickRow[]>([]);
+  const [settledRows, setSettledRows] = useState<SettledRow[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -74,6 +106,7 @@ export default function DDBot1Page() {
         qs.set("days", String(days));
         qs.set("minEdgePct", String(minEdgePct));
         qs.set("limit", String(limit));
+        qs.set("historyLimit", String(historyLimit));
 
         const response = await fetch(`/api/ddbot1?${qs.toString()}`, { cache: "no-store" });
         const json: ApiResponse = await response.json();
@@ -81,17 +114,23 @@ export default function DDBot1Page() {
 
         if (!response.ok || json.error) {
           setRows([]);
+          setSettledRows([]);
           setMeta(null);
+          setStats(null);
           setError(json.error || "Napaka pri nalaganju DDBot1 podatkov.");
         } else {
           setRows(json.rows || []);
+          setSettledRows(json.settledRows || []);
           setMeta(json.meta);
+          setStats(json.stats);
           setError(null);
         }
       } catch {
         if (!alive) return;
         setRows([]);
+        setSettledRows([]);
         setMeta(null);
+        setStats(null);
         setError("Napaka povezave do API.");
       } finally {
         if (alive) setLoading(false);
@@ -102,7 +141,7 @@ export default function DDBot1Page() {
     return () => {
       alive = false;
     };
-  }, [days, minEdgePct, limit]);
+  }, [days, minEdgePct, limit, historyLimit]);
 
   const totals = useMemo(() => {
     const over = rows.filter((r) => r.side === "OVER").length;
@@ -131,7 +170,7 @@ export default function DDBot1Page() {
                 DDBot1
               </h1>
               <p className="text-sm text-zinc-400 mt-2 max-w-2xl">
-                Over/Under 2.5 value signali na podlagi modelskih verjetnosti in market kvot.
+                Over/Under 2.5 value signali in avtomatska analiza rezultatov po koncu tekem.
               </p>
             </div>
             <div className="text-xs sm:text-sm text-zinc-400 rounded-xl border border-zinc-800 bg-black/35 px-4 py-3">
@@ -148,7 +187,7 @@ export default function DDBot1Page() {
 
           <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="rounded-xl border border-zinc-800 bg-black/25 px-4 py-3">
-              <div className="text-[11px] uppercase tracking-wider text-zinc-500">Picks</div>
+              <div className="text-[11px] uppercase tracking-wider text-zinc-500">Upcoming picks</div>
               <div className="text-2xl font-black mt-1">{loading ? "—" : rows.length}</div>
             </div>
             <div className="rounded-xl border border-zinc-800 bg-black/25 px-4 py-3">
@@ -195,11 +234,18 @@ export default function DDBot1Page() {
               Min edge %
               <input
                 type="number"
-                min={0}
+                min={10}
                 max={100}
                 step={0.5}
                 value={minEdgePct}
-                onChange={(e) => setMinEdgePct(Number(e.target.value))}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  if (!Number.isFinite(next)) {
+                    setMinEdgePct(10);
+                    return;
+                  }
+                  setMinEdgePct(Math.max(10, next));
+                }}
                 className="bg-zinc-800 rounded-lg px-3 py-2 text-sm text-white border border-zinc-700"
               />
             </label>
@@ -221,9 +267,169 @@ export default function DDBot1Page() {
           </div>
         </div>
 
+        <div className="mb-6 rounded-2xl border border-emerald-500/20 bg-zinc-950/55 overflow-hidden">
+          <div className="px-4 py-3 border-b border-zinc-800/70 bg-black/20 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-zinc-400">Performance</h2>
+            <div className="text-xs text-zinc-500">
+              Zakljucene tekme, value {"\u003e="} <span className="text-zinc-300">{stats ? fmt(stats.thresholdPct, 1) : "10.0"}%</span>
+            </div>
+          </div>
+
+          <div className="p-4 grid grid-cols-2 lg:grid-cols-6 gap-3">
+            <div className="rounded-xl border border-zinc-800 bg-black/25 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">Settled</div>
+              <div className="text-xl font-black mt-1">{loading ? "—" : stats?.settledTotal ?? 0}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/25 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">Wins</div>
+              <div className="text-xl font-black mt-1 text-emerald-400">{loading ? "—" : stats?.wins ?? 0}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/25 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">Losses</div>
+              <div className="text-xl font-black mt-1 text-rose-400">{loading ? "—" : stats?.losses ?? 0}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/25 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">Hit rate</div>
+              <div className="text-xl font-black mt-1 text-emerald-300">{loading ? "—" : pct(stats?.hitRatePct)}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/25 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">Profit (1u)</div>
+              <div
+                className={`text-xl font-black mt-1 ${
+                  (stats?.profitUnits ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+                }`}
+              >
+                {loading ? "—" : signed(stats?.profitUnits)}
+              </div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/25 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">ROI</div>
+              <div
+                className={`text-xl font-black mt-1 ${
+                  (stats?.roiPct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"
+                }`}
+              >
+                {loading ? "—" : `${signed(stats?.roiPct, 1)}%`}
+              </div>
+            </div>
+          </div>
+
+          {!loading && !error && settledRows.length > 0 && (
+            <>
+              <div className="hidden md:block border-t border-zinc-800/70 overflow-auto">
+                <table className="w-full min-w-[920px]">
+                  <thead>
+                    <tr className="text-xs uppercase tracking-wider text-zinc-500 bg-zinc-950/60">
+                      <th className="text-left p-3 pl-4">Tekma</th>
+                      <th className="text-center p-3">Datum</th>
+                      <th className="text-center p-3">Signal</th>
+                      <th className="text-center p-3">Rezultat</th>
+                      <th className="text-center p-3">Odds</th>
+                      <th className="text-center p-3">Edge</th>
+                      <th className="text-center p-3">Profit</th>
+                      <th className="text-center p-3 pr-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/60">
+                    {settledRows.map((row) => (
+                      <tr key={`settled-${row.match_id}-${row.home_team}-${row.away_team}`} className="hover:bg-zinc-800/20">
+                        <td className="p-3 pl-4">
+                          <div className="font-medium text-zinc-100">
+                            {row.home_team} <span className="text-zinc-500">vs</span> {row.away_team}
+                          </div>
+                          <div className="text-xs text-zinc-500 mt-0.5">{row.league || "—"}</div>
+                        </td>
+                        <td className="p-3 text-center text-zinc-300">{formatDateSl(row.match_date)}</td>
+                        <td className="p-3 text-center">
+                          <span
+                            className={`px-2 py-1 rounded-md text-xs font-semibold ${
+                              row.side === "OVER"
+                                ? "bg-emerald-500/15 text-emerald-400"
+                                : "bg-sky-500/15 text-sky-400"
+                            }`}
+                          >
+                            {row.side} 2.5
+                          </span>
+                        </td>
+                        <td className="p-3 text-center text-sm text-zinc-300">
+                          {row.actual_side} ({row.total_goals})
+                        </td>
+                        <td className="p-3 text-center font-mono text-zinc-200">{fmt(row.book_odds)}</td>
+                        <td className="p-3 text-center font-mono text-emerald-300">+{fmt(row.edge_pct, 1)}%</td>
+                        <td
+                          className={`p-3 text-center font-mono ${
+                            row.profit_units >= 0 ? "text-emerald-400" : "text-rose-400"
+                          }`}
+                        >
+                          {signed(row.profit_units)}
+                        </td>
+                        <td className="p-3 pr-4 text-center">
+                          <span
+                            className={`px-2 py-1 rounded-md text-xs font-bold ${
+                              row.is_hit
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                            }`}
+                          >
+                            {row.is_hit ? "HIT" : "MISS"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="md:hidden border-t border-zinc-800/70 divide-y divide-zinc-800/60">
+                {settledRows.map((row) => (
+                  <div key={`m-settled-${row.match_id}-${row.home_team}-${row.away_team}`} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-zinc-100">
+                          {row.home_team} <span className="text-zinc-500">vs</span> {row.away_team}
+                        </div>
+                        <div className="text-xs text-zinc-500 mt-1">
+                          {formatDateSl(row.match_date)} {row.league ? `• ${row.league}` : ""}
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2 py-1 rounded-md text-xs font-bold ${
+                          row.is_hit
+                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                            : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                        }`}
+                      >
+                        {row.is_hit ? "HIT" : "MISS"}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                      <div className="rounded-lg border border-zinc-800 bg-black/25 px-3 py-2">
+                        <div className="text-zinc-500 uppercase">Signal</div>
+                        <div className="mt-1 font-medium">{row.side} 2.5</div>
+                      </div>
+                      <div className="rounded-lg border border-zinc-800 bg-black/25 px-3 py-2">
+                        <div className="text-zinc-500 uppercase">Rezultat</div>
+                        <div className="mt-1">{row.actual_side} ({row.total_goals})</div>
+                      </div>
+                      <div
+                        className={`rounded-lg border border-zinc-800 bg-black/25 px-3 py-2 ${
+                          row.profit_units >= 0 ? "text-emerald-400" : "text-rose-400"
+                        }`}
+                      >
+                        <div className="text-zinc-500 uppercase">Profit</div>
+                        <div className="mt-1 font-mono">{signed(row.profit_units)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
         {!loading && !error && topPicks.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-500 mb-3">Top Picks</h2>
+            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-500 mb-3">Top Upcoming Picks</h2>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               {topPicks.map((pick, index) => (
                 <div
@@ -380,7 +586,7 @@ export default function DDBot1Page() {
         </div>
 
         <p className="mt-4 text-xs text-zinc-600 text-center">
-          DDBot1 je informativen model. Stave so tvegane in niso finančni nasvet.
+          DDBot1 je informativen model. Stave so tvegane in niso financni nasvet.
         </p>
       </div>
     </div>
