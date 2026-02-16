@@ -159,6 +159,7 @@ export default function Header() {
   const isPositive = todayStats.profit > 0;
   const isPositiveOrZero = todayStats.profit >= 0;
   const isOnDDBotPage = pathname === "/predictions";
+  const isOnDDBot1Page = pathname === "/ddbot1";
 
   return (
     <>
@@ -260,6 +261,25 @@ export default function Header() {
                       )}
                   </Link>
 
+                  {/* DDBot1 gumb */}
+                  <Link 
+                    href="/ddbot1" 
+                    className={`group relative flex items-center justify-center gap-2 w-10 h-10 md:w-auto md:h-auto md:px-5 md:py-2.5 rounded-xl border overflow-hidden transition-all duration-300 active:scale-95 ${
+                      isOnDDBot1Page
+                        ? "bg-emerald-500/20 border-emerald-500/40 shadow-[0_0_25px_-5px_rgba(16,185,129,0.4)]" 
+                        : "bg-black/40 border-white/5 hover:border-emerald-500/40 hover:shadow-[0_0_25px_-5px_rgba(16,185,129,0.3)]"
+                    }`}
+                  >
+                      <div className={`absolute inset-0 transition-colors duration-300 ${isOnDDBot1Page ? "bg-emerald-500/10" : "bg-emerald-500/0 group-hover:bg-emerald-500/5"}`} />
+                      <Bot className={`relative z-10 w-4 h-4 transition-colors duration-300 ${isOnDDBot1Page ? "text-emerald-400" : "text-zinc-400 group-hover:text-emerald-400"}`} />
+                      <span className={`relative z-10 text-[11px] font-black uppercase tracking-[0.1em] transition-colors duration-300 hidden md:block ${isOnDDBot1Page ? "text-emerald-400" : "text-zinc-500 group-hover:text-emerald-400"}`}>
+                          DDBot1
+                      </span>
+                      {isOnDDBot1Page && (
+                        <div className="absolute bottom-0 left-0 h-[2px] w-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
+                      )}
+                  </Link>
+
                   {/* Odjava gumb */}
                   <Link href="/login" className="group relative flex items-center justify-center gap-2.5 w-10 h-10 md:w-auto md:h-auto md:px-6 md:py-2.5 rounded-xl bg-black/40 border border-white/5 overflow-hidden transition-all duration-300 hover:border-rose-500/40 hover:shadow-[0_0_25px_-5px_rgba(244,63,94,0.3)] active:scale-95">
                       <div className="absolute inset-0 bg-rose-500/0 group-hover:bg-rose-500/5 transition-colors duration-300" />
@@ -306,6 +326,7 @@ export default function Header() {
            <MobileNavItem href="/" icon={Home} label="Domov" />
            <MobileNavItem href="/bets" icon={TrendingUp} label="Stave" />
            <MobileNavItem href="/predictions" icon={Bot} label="DD Bot" />
+           <MobileNavItem href="/ddbot1" icon={Bot} label="DDBot1" />
            <MobileNavItem href="/stats" icon={BarChart3} label="Statistika" />
            <MobileNavItem href="/porocila" icon={FileText} label="Poročila" />
         </div>
