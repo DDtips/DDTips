@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import {
   Crosshair, AlertTriangle, TrendingDown, TrendingUp, Zap, CalendarDays, 
-  Loader2, Radar, ShieldAlert, Skull, Trophy, Layers, Target, Clock, Coins
+  Loader2, Radar, ShieldAlert, Skull, Trophy, Layers, Target, Clock, Coins, X
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -16,11 +16,12 @@ type WL = "OPEN" | "WIN" | "LOSS" | "VOID" | "BACK WIN" | "LAY WIN";
 type Bet = {
   id: string; datum: string; wl: WL; kvota1: number; vplacilo1: number;
   lay_kvota: number; vplacilo2: number; komisija: number; sport: string;
-  tipster: string; cas_stave: string;
+  tipster: string; cas_stave: string; dogodek?: string; tip?: string; stavnica?: string;
 };
 
 // --- POMOŽNE FUNKCIJE ---
 function eur(n: number) { return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+function eurDec(n: number) { return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function hasLay(b: Bet) { return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0; }
 function hasBack(b: Bet) { return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0; }
 
@@ -68,6 +69,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                     ROI: {data.roi > 0 ? '+' : ''}{data.roi.toFixed(1)}%
                 </span>
             )}
+            <span className="text-[9px] text-violet-400 mt-1 uppercase tracking-widest animate-pulse">Klikni za podrobnosti</span>
         </div>
       </div>
     );
@@ -80,6 +82,9 @@ export default function EdgePage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // State za modal, ki prikaže stave ob kliku na graf
+  const [modalData, setModalData] = useState<{title: string, bets: Bet[]} | null>(null);
 
   useEffect(() => {
     const fetchBets = async () => {
@@ -116,23 +121,23 @@ export default function EdgePage() {
       else { currentWin = 0; currentLoss = 0; }
     });
 
-    // 3. Sweet Spot, Dnevi v tednu, Stake Brackets, Live/Prematch, Combos
+    // 3. Brackets in tabele, s praznimi nizi za shranjevanje stav
     const oddsBrackets = [
-      { name: '< 1.50', min: 0, max: 1.499, profit: 0, count: 0 },
-      { name: '1.50-1.99', min: 1.50, max: 1.999, profit: 0, count: 0 },
-      { name: '2.00-2.99', min: 2.00, max: 2.999, profit: 0, count: 0 },
-      { name: '3.00+', min: 3.00, max: 9999, profit: 0, count: 0 }
+      { name: '< 1.50', min: 0, max: 1.499, profit: 0, count: 0, bets: [] as Bet[] },
+      { name: '1.50-1.99', min: 1.50, max: 1.999, profit: 0, count: 0, bets: [] as Bet[] },
+      { name: '2.00-2.99', min: 2.00, max: 2.999, profit: 0, count: 0, bets: [] as Bet[] },
+      { name: '3.00+', min: 3.00, max: 9999, profit: 0, count: 0, bets: [] as Bet[] }
     ];
 
     const stakeBrackets = [
-        { name: '< 30€', min: 0, max: 29.99, profit: 0, risk: 0, count: 0, roi: 0 },
-        { name: '30-60€', min: 30, max: 59.99, profit: 0, risk: 0, count: 0, roi: 0 },
-        { name: '60-100€', min: 60, max: 99.99, profit: 0, risk: 0, count: 0, roi: 0 },
-        { name: '100€+', min: 100, max: 99999, profit: 0, risk: 0, count: 0, roi: 0 }
+        { name: '< 30€', min: 0, max: 29.99, profit: 0, risk: 0, count: 0, roi: 0, bets: [] as Bet[] },
+        { name: '30-60€', min: 30, max: 59.99, profit: 0, risk: 0, count: 0, roi: 0, bets: [] as Bet[] },
+        { name: '60-100€', min: 60, max: 99.99, profit: 0, risk: 0, count: 0, roi: 0, bets: [] as Bet[] },
+        { name: '100€+', min: 100, max: 99999, profit: 0, risk: 0, count: 0, roi: 0, bets: [] as Bet[] }
     ];
 
     const dayNames = ["Nedelja", "Ponedeljek", "Torek", "Sreda", "Četrtek", "Petek", "Sobota"];
-    const daysData = dayNames.map(day => ({ name: day, profit: 0, count: 0 }));
+    const daysData = dayNames.map(day => ({ name: day, profit: 0, count: 0, bets: [] as Bet[] }));
 
     let prematch = { profit: 0, risk: 0, count: 0, roi: 0 };
     let live = { profit: 0, risk: 0, count: 0, roi: 0 };
@@ -153,19 +158,19 @@ export default function EdgePage() {
       // Odds Sweet spot
       if (odds > 0) {
         const br = oddsBrackets.find(br => odds >= br.min && odds <= br.max);
-        if (br) { br.profit += p; br.count++; }
+        if (br) { br.profit += p; br.count++; br.bets.push(b); }
       }
 
       // Stake Brackets
       const stBr = stakeBrackets.find(br => r >= br.min && r <= br.max);
-      if (stBr) { stBr.profit += p; stBr.risk += r; stBr.count++; }
+      if (stBr) { stBr.profit += p; stBr.risk += r; stBr.count++; stBr.bets.push(b); }
 
       // Days
       if (b.datum) {
         const dateObj = new Date(b.datum);
         if (!isNaN(dateObj.getTime())) {
           const d = dateObj.getDay();
-          if (daysData[d]) { daysData[d].profit += p; daysData[d].count++; }
+          if (daysData[d]) { daysData[d].profit += p; daysData[d].count++; daysData[d].bets.push(b); }
         }
       }
 
@@ -195,9 +200,9 @@ export default function EdgePage() {
     stakeBrackets.forEach(b => b.roi = calcRoi(b.profit, b.risk));
 
     const combos = Array.from(comboMap.values()).map(c => ({...c, roi: calcRoi(c.profit, c.risk)}));
-    combos.sort((a, b) => b.profit - a.profit); // Po profitu, ne ROI, da se izognemo outlierjem (1 stava = 100%)
+    combos.sort((a, b) => b.profit - a.profit); 
     
-    // Valid combos (at least 3 bets to filter out luck)
+    // Valid combos
     const validCombos = combos.filter(c => c.count >= 3);
     const topCombos = validCombos.slice(0, 4);
     const toxicCombos = validCombos.slice(-4).reverse();
@@ -326,9 +331,12 @@ export default function EdgePage() {
 
             {/* Stake Size Edge */}
             <div className="bg-[#18181b]/50 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 shadow-2xl">
-                <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
-                    <Coins className="w-4 h-4 text-amber-400" /> Stake Size Edge (Vložki)
-                </h3>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
+                        <Coins className="w-4 h-4 text-amber-400" /> Stake Size Edge (Vložki)
+                    </h3>
+                    <span className="text-[9px] text-zinc-500 uppercase tracking-widest animate-pulse border border-white/10 px-2 py-1 rounded-md">Klikni stolpec</span>
+                </div>
                 <div className="h-[180px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={analytics.stakeBrackets} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
@@ -336,9 +344,14 @@ export default function EdgePage() {
                             <XAxis dataKey="name" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} dy={10} />
                             <YAxis stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} tickFormatter={v => `€${v}`} />
                             <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)', radius: 8 }} />
-                            <Bar dataKey="profit" radius={[8, 8, 0, 0]}>
+                            <Bar 
+                                dataKey="profit" 
+                                radius={[8, 8, 0, 0]} 
+                                cursor="pointer"
+                                onClick={(data) => setModalData({ title: `Velikost vložka: ${data.name}`, bets: data.bets })}
+                            >
                                 {analytics.stakeBrackets.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#f59e0b" : "#f43f5e"} />
+                                    <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#f59e0b" : "#f43f5e"} className="hover:opacity-80 transition-opacity" />
                                 ))}
                             </Bar>
                         </BarChart>
@@ -399,9 +412,12 @@ export default function EdgePage() {
         {/* ROW 5: CHARTS (ODDS & DAYS) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
             <div className="bg-[#18181b]/50 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 shadow-2xl">
-                <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
-                    <Crosshair className="w-4 h-4 text-violet-400" /> Odds Sweet Spot
-                </h3>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
+                        <Crosshair className="w-4 h-4 text-violet-400" /> Odds Sweet Spot
+                    </h3>
+                    <span className="text-[9px] text-zinc-500 uppercase tracking-widest animate-pulse border border-white/10 px-2 py-1 rounded-md">Klikni stolpec</span>
+                </div>
                 <div className="h-[250px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={analytics.oddsBrackets} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
@@ -409,9 +425,14 @@ export default function EdgePage() {
                             <XAxis dataKey="name" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} dy={10} />
                             <YAxis stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} tickFormatter={v => `€${v}`} />
                             <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)', radius: 8 }} />
-                            <Bar dataKey="profit" radius={[8, 8, 0, 0]}>
+                            <Bar 
+                                dataKey="profit" 
+                                radius={[8, 8, 0, 0]} 
+                                cursor="pointer"
+                                onClick={(data) => setModalData({ title: `Kvote: ${data.name}`, bets: data.bets })}
+                            >
                                 {analytics.oddsBrackets.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#8b5cf6" : "#f43f5e"} />
+                                    <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#8b5cf6" : "#f43f5e"} className="hover:opacity-80 transition-opacity" />
                                 ))}
                             </Bar>
                         </BarChart>
@@ -420,9 +441,12 @@ export default function EdgePage() {
             </div>
 
             <div className="bg-[#18181b]/50 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 shadow-2xl">
-                <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
-                    <CalendarDays className="w-4 h-4 text-cyan-400" /> Donosnost po dnevih
-                </h3>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
+                        <CalendarDays className="w-4 h-4 text-cyan-400" /> Donosnost po dnevih
+                    </h3>
+                    <span className="text-[9px] text-zinc-500 uppercase tracking-widest animate-pulse border border-white/10 px-2 py-1 rounded-md">Klikni stolpec</span>
+                </div>
                 <div className="h-[250px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={analytics.daysData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
@@ -430,9 +454,14 @@ export default function EdgePage() {
                             <XAxis dataKey="name" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} dy={10} />
                             <YAxis stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} tickFormatter={v => `€${v}`} />
                             <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)', radius: 8 }} />
-                            <Bar dataKey="profit" radius={[8, 8, 0, 0]}>
+                            <Bar 
+                                dataKey="profit" 
+                                radius={[8, 8, 0, 0]}
+                                cursor="pointer"
+                                onClick={(data) => setModalData({ title: `Dan: ${data.name}`, bets: data.bets })}
+                            >
                                 {analytics.daysData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#06b6d4" : "#f43f5e"} />
+                                    <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#06b6d4" : "#f43f5e"} className="hover:opacity-80 transition-opacity" />
                                 ))}
                             </Bar>
                         </BarChart>
@@ -455,6 +484,88 @@ export default function EdgePage() {
         </div>
 
       </div>
+
+      {/* MODAL ZA PRIKAZ STAV */}
+      {modalData && (
+        <div 
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" 
+            onClick={() => setModalData(null)}
+        >
+            <div 
+                className="bg-[#18181b] border border-white/10 rounded-3xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden" 
+                onClick={e => e.stopPropagation()} // Prepreči zapiranje ob kliku na vsebino
+            >
+                {/* Header */}
+                <div className="p-5 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
+                            <Layers className="w-4 h-4 text-violet-400" />
+                        </div>
+                        <h3 className="font-black text-white uppercase tracking-widest">{modalData.title}</h3>
+                    </div>
+                    <button 
+                        onClick={() => setModalData(null)} 
+                        className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* List of Bets */}
+                <div className="p-2 overflow-y-auto custom-scrollbar flex-1 bg-black/20">
+                    {modalData.bets.length === 0 ? (
+                        <div className="py-12 text-center text-zinc-500 uppercase tracking-widest text-xs font-bold">
+                            Ni zadetkov v tej kategoriji.
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-1.5 p-2">
+                            {modalData.bets.sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime()).map(bet => {
+                                const p = calcProfit(bet);
+                                const isWin = ["WIN", "BACK WIN", "LAY WIN"].includes(bet.wl);
+                                const isLoss = bet.wl === "LOSS";
+                                
+                                return (
+                                    <div key={bet.id} className="flex items-center gap-4 p-4 rounded-xl bg-[#18181b] border border-white/5 hover:border-white/10 transition-colors">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${isWin ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : isLoss ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                                                    {bet.wl}
+                                                </span>
+                                                <span className="text-[10px] text-zinc-500 font-bold uppercase">{bet.sport}</span>
+                                            </div>
+                                            <p className="text-sm font-bold text-white truncate">{bet.dogodek || bet.sport}</p>
+                                            <p className="text-xs text-zinc-400 truncate mt-0.5">{bet.tip || "-"}</p>
+                                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-zinc-500 font-medium">
+                                                <span>{new Date(bet.datum).toLocaleDateString('sl-SI')}</span>
+                                                <span>•</span>
+                                                <span className="text-violet-400 font-bold">{bet.tipster}</span>
+                                                {bet.stavnica && (
+                                                    <>
+                                                        <span>•</span>
+                                                        <span>{bet.stavnica}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="text-right shrink-0">
+                                            <p className={`font-mono text-lg font-black ${p >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                {p > 0 ? '+' : ''}{eurDec(p)}
+                                            </p>
+                                            <div className="flex flex-col items-end mt-1 gap-0.5">
+                                                <span className="text-[10px] text-zinc-400 font-mono">Kvota: <span className="text-white font-bold">{bet.kvota1 > 0 ? bet.kvota1.toFixed(2) : bet.lay_kvota?.toFixed(2)}</span></span>
+                                                <span className="text-[10px] text-zinc-400 font-mono">Vložek: <span className="text-white font-bold">€{calcRisk(bet).toFixed(2)}</span></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
     </main>
   );
 }

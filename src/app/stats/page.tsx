@@ -152,6 +152,17 @@ function CompactStatCard({ label, value, subValue, icon: Icon, color = "text-whi
 }
 
 function SplitCard({ bettingStats, tradingStats, prematchStats, liveStats }: any) {
+  
+  // Izračun pravih procentov za Betting vs Trading
+  const totalModeProfit = Math.abs(bettingStats.profit) + Math.abs(tradingStats.profit);
+  const betPerc = totalModeProfit === 0 ? 50 : (Math.abs(bettingStats.profit) / totalModeProfit) * 100;
+  const tradePerc = totalModeProfit === 0 ? 50 : (Math.abs(tradingStats.profit) / totalModeProfit) * 100;
+
+  // Izračun pravih procentov za Prematch vs Live
+  const totalTimeProfit = Math.abs(prematchStats.profit) + Math.abs(liveStats.profit);
+  const prePerc = totalTimeProfit === 0 ? 50 : (Math.abs(prematchStats.profit) / totalTimeProfit) * 100;
+  const livePerc = totalTimeProfit === 0 ? 50 : (Math.abs(liveStats.profit) / totalTimeProfit) * 100;
+
   const Row = ({ label, profit, n, perc, color, icon: Icon }: any) => (
     <div className="mb-5 last:mb-0 group">
       <div className="flex justify-between items-center mb-2">
@@ -175,13 +186,13 @@ function SplitCard({ bettingStats, tradingStats, prematchStats, liveStats }: any
       <div className="space-y-8 relative z-10">
         <div>
           <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-5 border-b border-white/5 pb-2">Po Načinu</p>
-          <Row label="Betting" profit={bettingStats.profit} n={bettingStats.n} perc={65} color="text-sky-400" icon={Target} />
-          <Row label="Trading" profit={tradingStats.profit} n={tradingStats.n} perc={35} color="text-violet-400" icon={Activity} />
+          <Row label="Betting" profit={bettingStats.profit} n={bettingStats.n} perc={betPerc} color="text-sky-400" icon={Target} />
+          <Row label="Trading" profit={tradingStats.profit} n={tradingStats.n} perc={tradePerc} color="text-violet-400" icon={Activity} />
         </div>
         <div>
           <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-5 border-b border-white/5 pb-2">Po Času</p>
-          <Row label="Prematch" profit={prematchStats.profit} n={prematchStats.n} perc={55} color="text-amber-400" icon={Clock} />
-          <Row label="Live" profit={liveStats.profit} n={liveStats.n} perc={45} color="text-rose-400" icon={Layers} />
+          <Row label="Prematch" profit={prematchStats.profit} n={prematchStats.n} perc={prePerc} color="text-amber-400" icon={Clock} />
+          <Row label="Live" profit={liveStats.profit} n={liveStats.n} perc={livePerc} color="text-rose-400" icon={Layers} />
         </div>
       </div>
     </div>
