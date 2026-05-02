@@ -83,7 +83,7 @@ export default function EdgePage() {
   const [rows, setRows] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // State za modal, ki prikaže stave ob kliku na graf
+  // State za modal
   const [modalData, setModalData] = useState<{title: string, bets: Bet[]} | null>(null);
 
   useEffect(() => {
@@ -103,7 +103,6 @@ export default function EdgePage() {
     const settled = validRows.filter(r => r.wl !== "OPEN" && r.wl !== "VOID");
     const openBets = validRows.filter(r => r.wl === "OPEN");
     
-    // 1. Trenutna izpostavljenost
     const exposure = openBets.reduce((acc, r) => acc + calcRisk(r), 0);
     const potentialProfit = openBets.reduce((acc, r) => {
         const risk = calcRisk(r);
@@ -111,7 +110,6 @@ export default function EdgePage() {
         return acc + (risk * (odds - 1));
     }, 0);
 
-    // 2. Streaks
     let currentWin = 0, maxWin = 0, currentLoss = 0, maxLoss = 0;
     settled.forEach(b => {
       const isWin = ["WIN", "BACK WIN", "LAY WIN"].includes(b.wl);
@@ -121,7 +119,6 @@ export default function EdgePage() {
       else { currentWin = 0; currentLoss = 0; }
     });
 
-    // 3. Brackets in tabele, s praznimi nizi za shranjevanje stav
     const oddsBrackets = [
       { name: '< 1.50', min: 0, max: 1.499, profit: 0, count: 0, bets: [] as Bet[] },
       { name: '1.50-1.99', min: 1.50, max: 1.999, profit: 0, count: 0, bets: [] as Bet[] },
@@ -151,21 +148,17 @@ export default function EdgePage() {
       const r = calcRisk(b);
       const odds = Number(b.kvota1) > 0 ? Number(b.kvota1) : Number(b.lay_kvota);
 
-      // Prematch vs Live
       if (b.cas_stave === "PREMATCH") { prematch.profit += p; prematch.risk += r; prematch.count++; }
       else if (b.cas_stave === "LIVE") { live.profit += p; live.risk += r; live.count++; }
 
-      // Odds Sweet spot
       if (odds > 0) {
         const br = oddsBrackets.find(br => odds >= br.min && odds <= br.max);
         if (br) { br.profit += p; br.count++; br.bets.push(b); }
       }
 
-      // Stake Brackets
       const stBr = stakeBrackets.find(br => r >= br.min && r <= br.max);
       if (stBr) { stBr.profit += p; stBr.risk += r; stBr.count++; stBr.bets.push(b); }
 
-      // Days
       if (b.datum) {
         const dateObj = new Date(b.datum);
         if (!isNaN(dateObj.getTime())) {
@@ -174,7 +167,6 @@ export default function EdgePage() {
         }
       }
 
-      // Combos, Sports, Tipsters
       const sKey = b.sport || "OSTALO";
       const tKey = b.tipster || "NEZNANO";
       const cKey = `${tKey} • ${sKey}`;
@@ -188,11 +180,9 @@ export default function EdgePage() {
       comboMap.get(cKey).profit += p; comboMap.get(cKey).risk += r; comboMap.get(cKey).count++;
     });
     
-    // Shift sunday
     const sunday = daysData.shift();
     if(sunday) daysData.push(sunday);
 
-    // Calculate ROIs
     const calcRoi = (profit: number, risk: number) => risk > 0 ? (profit / risk) * 100 : 0;
     
     prematch.roi = calcRoi(prematch.profit, prematch.risk);
@@ -202,7 +192,6 @@ export default function EdgePage() {
     const combos = Array.from(comboMap.values()).map(c => ({...c, roi: calcRoi(c.profit, c.risk)}));
     combos.sort((a, b) => b.profit - a.profit); 
     
-    // Valid combos
     const validCombos = combos.filter(c => c.count >= 3);
     const topCombos = validCombos.slice(0, 4);
     const toxicCombos = validCombos.slice(-4).reverse();
@@ -219,7 +208,6 @@ export default function EdgePage() {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#050508]"><Loader2 className="w-8 h-8 text-violet-500 animate-spin" /></div>;
 
-  // Reusable Table Component for True ROI
   const TrueRoiTable = ({ title, data, icon: Icon }: any) => (
       <div className="bg-[#18181b]/50 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-6 shadow-2xl flex flex-col">
           <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
@@ -348,7 +336,7 @@ export default function EdgePage() {
                                 dataKey="profit" 
                                 radius={[8, 8, 0, 0]} 
                                 cursor="pointer"
-                                onClick={(data) => setModalData({ title: `Velikost vložka: ${data.name}`, bets: data.bets })}
+                                onClick={(data) => setModalData({ title: `Velikost vložka: ${data?.payload?.name || data?.name || ''}`, bets: data?.payload?.bets || data?.bets || [] })}
                             >
                                 {analytics.stakeBrackets.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#f59e0b" : "#f43f5e"} className="hover:opacity-80 transition-opacity" />
@@ -429,7 +417,7 @@ export default function EdgePage() {
                                 dataKey="profit" 
                                 radius={[8, 8, 0, 0]} 
                                 cursor="pointer"
-                                onClick={(data) => setModalData({ title: `Kvote: ${data.name}`, bets: data.bets })}
+                                onClick={(data) => setModalData({ title: `Kvote: ${data?.payload?.name || data?.name || ''}`, bets: data?.payload?.bets || data?.bets || [] })}
                             >
                                 {analytics.oddsBrackets.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#8b5cf6" : "#f43f5e"} className="hover:opacity-80 transition-opacity" />
@@ -458,7 +446,7 @@ export default function EdgePage() {
                                 dataKey="profit" 
                                 radius={[8, 8, 0, 0]}
                                 cursor="pointer"
-                                onClick={(data) => setModalData({ title: `Dan: ${data.name}`, bets: data.bets })}
+                                onClick={(data) => setModalData({ title: `Dan: ${data?.payload?.name || data?.name || ''}`, bets: data?.payload?.bets || data?.bets || [] })}
                             >
                                 {analytics.daysData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#06b6d4" : "#f43f5e"} className="hover:opacity-80 transition-opacity" />
@@ -493,7 +481,7 @@ export default function EdgePage() {
         >
             <div 
                 className="bg-[#18181b] border border-white/10 rounded-3xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden" 
-                onClick={e => e.stopPropagation()} // Prepreči zapiranje ob kliku na vsebino
+                onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
                 <div className="p-5 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
@@ -513,13 +501,13 @@ export default function EdgePage() {
 
                 {/* List of Bets */}
                 <div className="p-2 overflow-y-auto custom-scrollbar flex-1 bg-black/20">
-                    {modalData.bets.length === 0 ? (
+                    {(modalData.bets || []).length === 0 ? (
                         <div className="py-12 text-center text-zinc-500 uppercase tracking-widest text-xs font-bold">
                             Ni zadetkov v tej kategoriji.
                         </div>
                     ) : (
                         <div className="flex flex-col gap-1.5 p-2">
-                            {modalData.bets.sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime()).map(bet => {
+                            {(modalData.bets || []).sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime()).map(bet => {
                                 const p = calcProfit(bet);
                                 const isWin = ["WIN", "BACK WIN", "LAY WIN"].includes(bet.wl);
                                 const isLoss = bet.wl === "LOSS";

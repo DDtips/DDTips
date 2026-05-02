@@ -163,17 +163,19 @@ function SplitCard({ bettingStats, tradingStats, prematchStats, liveStats }: any
   const prePerc = totalTimeProfit === 0 ? 50 : (Math.abs(prematchStats.profit) / totalTimeProfit) * 100;
   const livePerc = totalTimeProfit === 0 ? 50 : (Math.abs(liveStats.profit) / totalTimeProfit) * 100;
 
-  const Row = ({ label, profit, n, perc, color, icon: Icon }: any) => (
+  // DODALI SVA `bgColor`, DA TAILWIND TOČNO VE, KAKŠNO BARVO MORA NARISATI
+  const Row = ({ label, profit, n, perc, roi, textColor, bgColor, icon: Icon }: any) => (
     <div className="mb-5 last:mb-0 group">
       <div className="flex justify-between items-center mb-2">
-        <span className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 ${color}`}><Icon className="w-3.5 h-3.5"/> {label}</span>
+        <span className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 ${textColor}`}><Icon className="w-3.5 h-3.5"/> {label}</span>
         <span className={`font-mono text-base font-black ${profit >= 0 ? "text-white" : "text-rose-400"}`}>{eur(profit)}</span>
       </div>
       <div className="w-full h-2 bg-[#09090b] rounded-full overflow-hidden border border-white/5 shadow-inner">
-        <div className={`h-full rounded-full transition-all duration-1000 ${color.replace('text', 'bg')}`} style={{ width: `${perc}%` }} />
+        {/* Tu sedaj uporabljamo eksplicitni bgColor namesto color.replace */}
+        <div className={`h-full rounded-full transition-all duration-1000 ${bgColor}`} style={{ width: `${perc}%` }} />
       </div>
       <div className="flex justify-between mt-2 text-[10px] text-zinc-500 font-bold uppercase tracking-wider opacity-60 group-hover:opacity-100 transition-opacity">
-        <span>ROI: {((profit / (profit === 0 ? 1 : Math.abs(profit))) * 5).toFixed(1)}%</span>
+        <span className={roi >= 0 ? 'text-emerald-500/80' : 'text-rose-500/80'}>ROI: {roi > 0 ? '+' : ''}{(roi || 0).toFixed(1)}%</span>
         <span>{n} Stav</span>
       </div>
     </div>
@@ -186,13 +188,13 @@ function SplitCard({ bettingStats, tradingStats, prematchStats, liveStats }: any
       <div className="space-y-8 relative z-10">
         <div>
           <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-5 border-b border-white/5 pb-2">Po Načinu</p>
-          <Row label="Betting" profit={bettingStats.profit} n={bettingStats.n} perc={betPerc} color="text-sky-400" icon={Target} />
-          <Row label="Trading" profit={tradingStats.profit} n={tradingStats.n} perc={tradePerc} color="text-violet-400" icon={Activity} />
+          <Row label="Betting" profit={bettingStats.profit} n={bettingStats.n} perc={betPerc} roi={bettingStats.roi} textColor="text-sky-400" bgColor="bg-sky-400" icon={Target} />
+          <Row label="Trading" profit={tradingStats.profit} n={tradingStats.n} perc={tradePerc} roi={tradingStats.roi} textColor="text-violet-400" bgColor="bg-violet-400" icon={Activity} />
         </div>
         <div>
           <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-5 border-b border-white/5 pb-2">Po Času</p>
-          <Row label="Prematch" profit={prematchStats.profit} n={prematchStats.n} perc={prePerc} color="text-amber-400" icon={Clock} />
-          <Row label="Live" profit={liveStats.profit} n={liveStats.n} perc={livePerc} color="text-rose-400" icon={Layers} />
+          <Row label="Prematch" profit={prematchStats.profit} n={prematchStats.n} perc={prePerc} roi={prematchStats.roi} textColor="text-amber-400" bgColor="bg-amber-400" icon={Clock} />
+          <Row label="Live" profit={liveStats.profit} n={liveStats.n} perc={livePerc} roi={liveStats.roi} textColor="text-rose-400" bgColor="bg-rose-400" icon={Layers} />
         </div>
       </div>
     </div>
