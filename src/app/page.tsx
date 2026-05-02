@@ -4,37 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  Cell,
-  PieChart,
-  Pie,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  LabelList,
-  Legend,
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell, PieChart, Pie,
+  XAxis, YAxis, Tooltip, CartesianGrid, LabelList, Legend, ReferenceLine
 } from "recharts";
 import {
-  TrendingUp,
-  DollarSign,
-  BarChart3,
-  Activity,
-  Zap,
-  Clock,
-  ArrowUpRight,
-  ArrowDownRight,
-  Wallet,
-  PieChart as PieIcon,
-  Hash,
-  Trophy,
-  CalendarDays,
-  Users,
-  Sparkles,
+  TrendingUp, Activity, Clock, ArrowUpRight, ArrowDownRight,
+  Wallet, PieChart as PieIcon, CalendarDays, Users, Sparkles, Target, Landmark
 } from "lucide-react";
 
 // --- TIPOVI IN KONSTANTE ---
@@ -53,18 +28,12 @@ const BOOK_START: Record<string, number> = {
 
 const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"];
 const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"];
-const PIE_COLORS = ["#22d3ee", "#a78bfa", "#fbbf24", "#34d399", "#f472b6", "#60a5fa", "#94a3b8"];
+const PIE_COLORS = ["#10b981", "#8b5cf6", "#f59e0b", "#3b82f6", "#ec4899", "#06b6d4", "#64748b"];
 
 // --- POMOŽNE FUNKCIJE ---
 function normBook(x: string) { return (x || "").toUpperCase().replace(/\s+/g, "").replace(/-/g, ""); }
-function eur(n: number | undefined | null) { 
-  const val = n ?? 0;
-  return val.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 }); 
-}
-function eurDec(n: number | undefined | null) { 
-  const val = n ?? 0;
-  return val.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 }); 
-}
+function eur(n: number | undefined | null) { return (n ?? 0).toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+function eurDec(n: number | undefined | null) { return (n ?? 0).toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function hasLay(b: Bet) { return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0; }
 function hasBack(b: Bet) { return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0; }
 
@@ -75,6 +44,7 @@ function calcProfit(b: Bet): number {
   const layLiability = b.vplacilo2 || 0; const layOdds = b.lay_kvota || 0;
   const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
   let brutoProfit = 0;
+  
   if (hasBack(b) && hasLay(b)) {
     const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
     const profitIfLayWins = layStake - backStake;
@@ -84,15 +54,12 @@ function calcProfit(b: Bet): number {
   } else if (hasBack(b) && !hasLay(b)) {
     if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1); else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
   }
-  if (brutoProfit > 0) return brutoProfit - komZnesek;
-  return brutoProfit;
+  return brutoProfit > 0 ? brutoProfit - komZnesek : brutoProfit;
 }
 
 function calcRisk(b: Bet): number {
-    const hasBackBet = hasBack(b);
-    const hasLayBet = hasLay(b);
-    const backStake = b.vplacilo1 || 0;
-    const layLiability = b.vplacilo2 || 0;
+    const hasBackBet = hasBack(b); const hasLayBet = hasLay(b);
+    const backStake = b.vplacilo1 || 0; const layLiability = b.vplacilo2 || 0;
     if (hasBackBet && !hasLayBet) return backStake;
     if (!hasBackBet && hasLayBet) return layLiability;
     if (hasBackBet && hasLayBet) return Math.max(backStake, layLiability);
@@ -102,35 +69,54 @@ function calcRisk(b: Bet): number {
 function buildStats(rows: Bet[]) {
   const settled = rows.filter((r) => r.wl !== "OPEN" && r.wl !== "VOID");
   const n = settled.length;
-  const wins = settled.filter((r) => r.wl === "WIN" || r.wl === "BACK WIN" || r.wl === "LAY WIN").length;
+  const wins = settled.filter((r) => ["WIN", "BACK WIN", "LAY WIN"].includes(r.wl)).length;
   const losses = settled.filter((r) => r.wl === "LOSS").length;
-  const profit = settled.reduce((acc, r) => acc + calcProfit(r), 0);
+  
+  let totalVolume = 0;
+  let profit = 0;
+
+  settled.forEach((r) => {
+    profit += calcProfit(r);
+    totalVolume += calcRisk(r);
+  });
+
   const bankroll = CAPITAL_TOTAL + profit;
   const donosNaKapital = ((bankroll - CAPITAL_TOTAL) / CAPITAL_TOTAL) * 100;
   const winRate = n > 0 ? (wins / n) * 100 : 0;
+  const yieldPercent = totalVolume > 0 ? (profit / totalVolume) * 100 : 0;
+
+  const recentForm = [...settled]
+    .sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime())
+    .slice(0, 5)
+    .map(r => r.wl.includes("WIN") ? "W" : "L")
+    .reverse();
 
   const profitByBook = new Map<string, number>();
   settled.forEach((r) => { const key = normBook(r.stavnica || "NEZNANO"); profitByBook.set(key, (profitByBook.get(key) ?? 0) + calcProfit(r)); });
   const balanceByBook: { name: string; start: number; profit: number; balance: number }[] = [];
-  Object.entries(BOOK_START).forEach(([name, start]) => { const normalizedName = normBook(name); const p = profitByBook.get(normalizedName) ?? 0; balanceByBook.push({ name, start, profit: p, balance: start + p }); });
+  Object.entries(BOOK_START).forEach(([name, start]) => { 
+      const p = profitByBook.get(normBook(name)) ?? 0; 
+      balanceByBook.push({ name, start, profit: p, balance: start + p }); 
+  });
   balanceByBook.sort((a, b) => b.balance - a.balance);
 
-  const profitBySport = new Map<string, number>();
-  SPORTI.forEach((sport) => profitBySport.set(sport, 0));
-  settled.forEach((r) => { const key = r.sport || "OSTALO"; profitBySport.set(key, (profitBySport.get(key) ?? 0) + calcProfit(r)); });
-  const profitByTipster = new Map<string, number>();
-  TIPSTERJI.forEach((tipster) => profitByTipster.set(tipster, 0));
-  settled.forEach((r) => { const key = r.tipster || "NEZNANO"; profitByTipster.set(key, (profitByTipster.get(key) ?? 0) + calcProfit(r)); });
+  const profitBySport = new Map<string, number>(); SPORTI.forEach(s => profitBySport.set(s, 0));
+  const profitByTipster = new Map<string, number>(); TIPSTERJI.forEach(t => profitByTipster.set(t, 0));
+  settled.forEach((r) => { 
+      profitBySport.set(r.sport || "OSTALO", (profitBySport.get(r.sport || "OSTALO") ?? 0) + calcProfit(r)); 
+      profitByTipster.set(r.tipster || "NEZNANO", (profitByTipster.get(r.tipster || "NEZNANO") ?? 0) + calcProfit(r)); 
+  });
   
   const prematch = settled.filter((r) => r.cas_stave === "PREMATCH");
   const live = settled.filter((r) => r.cas_stave === "LIVE");
-  
-  const prematchCount = prematch.length;
-  const liveCount = live.length;
-  const profitPrematch = prematch.reduce((acc, r) => acc + calcProfit(r), 0);
-  const profitLive = live.reduce((acc, r) => acc + calcProfit(r), 0);
 
-  return { profit, bankroll, donosNaKapital, n, wins, losses, winRate, balanceByBook, profitBySport, profitByTipster, prematchCount, liveCount, profitPrematch, profitLive };
+  return { 
+      profit, bankroll, donosNaKapital, n, wins, losses, winRate, yieldPercent, 
+      recentForm, balanceByBook, profitBySport, profitByTipster, 
+      prematchCount: prematch.length, liveCount: live.length, 
+      profitPrematch: prematch.reduce((acc, r) => acc + calcProfit(r), 0), 
+      profitLive: live.reduce((acc, r) => acc + calcProfit(r), 0) 
+  };
 }
 
 // --- KOMPONENTE UI ---
@@ -138,17 +124,13 @@ function buildStats(rows: Bet[]) {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const dataPoint = payload[0];
-    const value = dataPoint.value;
-    const title = dataPoint.name || label;
-    const isProfitChart = dataPoint.name === 'profit' || title === 'Profit';
-    
     return (
-      <div className="tooltip-glass">
-        <p className="tooltip-label">{title}</p>
-        <div className="tooltip-row">
-          <span className="tooltip-key">{isProfitChart ? "Profit:" : "Volume:"}</span>
-          <span className={`tooltip-value ${isProfitChart ? (value >= 0 ? 'positive' : 'negative') : ''}`}>
-            {isProfitChart && value > 0 ? "+" : ""}{eurDec(value)}
+      <div className="bg-black/90 border border-white/10 rounded-lg p-3 shadow-2xl backdrop-blur-md">
+        <p className="text-[10px] font-bold text-zinc-400 uppercase mb-1 tracking-wider">{label}</p>
+        <div className="flex gap-2 items-center">
+          <span className="text-[11px] text-zinc-500">Znesek:</span>
+          <span className={`font-mono font-black text-sm ${dataPoint.value >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {dataPoint.value > 0 ? "+" : ""}{eurDec(dataPoint.value)}
           </span>
         </div>
       </div>
@@ -157,74 +139,53 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-function MetricCard({ title, value, subtitle, trend, icon, variant = "default" }: any) {
-  const variants: Record<string, { border: string; glow: string; text: string }> = {
-    default: { border: "border-zinc-800/50", glow: "", text: "text-zinc-100" },
-    success: { border: "border-cyan-500/20", glow: "glow-cyan", text: "text-cyan-400" },
-    danger: { border: "border-rose-500/20", glow: "glow-rose", text: "text-rose-400" },
-    warning: { border: "border-amber-500/20", glow: "glow-amber", text: "text-amber-400" },
-    info: { border: "border-violet-500/20", glow: "glow-violet", text: "text-violet-400" },
-  };
-  
-  const v = variants[variant] || variants.default;
+function MetricCard({ title, value, subtitle, trend, icon, isPositive }: any) {
+  const colorClass = isPositive === undefined ? "text-zinc-100" : (isPositive ? "text-emerald-400" : "text-rose-400");
+  const glowClass = isPositive === undefined ? "border-white/10" : (isPositive ? "border-emerald-500/20" : "border-rose-500/20");
+  const bgClass = isPositive === undefined ? "bg-zinc-900/40" : (isPositive ? "bg-emerald-950/20" : "bg-rose-950/20");
+  const shadowClass = isPositive === undefined ? "" : (isPositive ? "shadow-[0_0_30px_-10px_rgba(16,185,129,0.15)]" : "shadow-[0_0_30px_-10px_rgba(244,63,94,0.15)]");
 
   return (
-    <div className={`metric-card ${v.border} ${v.glow}`}>
-      <div className="metric-header">
-        <div className={`metric-icon ${v.text}`}>{icon}</div>
-        <span className="metric-title">{title}</span>
+    <div className={`relative flex flex-col items-center justify-center text-center ${bgClass} backdrop-blur-md border ${glowClass} ${shadowClass} rounded-[2rem] p-6 overflow-hidden transition-all duration-300 hover:scale-[1.02] group`}>
+      <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-1/2 blur-2xl opacity-20 pointer-events-none transition-opacity group-hover:opacity-30 ${isPositive === undefined ? 'bg-white' : (isPositive ? 'bg-emerald-500' : 'bg-rose-500')}`} />
+      <div className={`p-2.5 rounded-2xl mb-3 transition-transform duration-300 group-hover:-translate-y-1 relative z-10 ${isPositive === undefined ? 'bg-white/5 text-zinc-400' : (isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400')}`}>
+        {icon}
       </div>
-      <div className="metric-body">
-        <span className={`metric-value ${v.text}`}>{value}</span>
-        {trend && trend !== "neutral" && (
-          <div className={`metric-trend ${trend === "up" ? "trend-up" : "trend-down"}`}>
-            {trend === "up" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-          </div>
-        )}
-      </div>
-      {subtitle && <p className="metric-subtitle">{subtitle}</p>}
-    </div>
-  );
-}
-
-function StatBadge({ label, value, icon, colorClass }: any) {
-  return (
-    <div className="stat-badge">
-      <div className={`stat-badge-icon ${colorClass}`}>{icon}</div>
-      <div className="stat-badge-content">
-        <span className="stat-badge-label">{label}</span>
-        <span className={`stat-badge-value ${colorClass}`}>{value}</span>
-      </div>
+      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1 z-10">{title}</span>
+      <span className={`font-mono text-3xl md:text-4xl font-black tracking-tighter drop-shadow-md z-10 ${colorClass}`}>
+        {value}
+      </span>
+      {subtitle && (
+        <div className="flex items-center gap-1.5 mt-2 z-10">
+          {trend && (
+            <div className={`flex items-center justify-center w-4 h-4 rounded-full ${trend === "up" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
+              {trend === "up" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+            </div>
+          )}
+          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{subtitle}</p>
+        </div>
+      )}
     </div>
   );
 }
 
 function DataTable({ title, data, icon }: any) {
   const maxProfit = Math.max(...(data || []).map((d:any) => Math.abs(d.profit)));
-  
   return (
-    <div className="data-table">
-      <div className="data-table-header">
-        <div className="data-table-icon">{icon}</div>
-        <h3 className="data-table-title">{title}</h3>
+    <div className="bg-zinc-900/40 border border-white/5 rounded-3xl overflow-hidden backdrop-blur-sm">
+      <div className="p-4 border-b border-white/5 flex items-center gap-2 bg-black/20">
+        <div className="opacity-80">{icon}</div>
+        <h3 className="text-[11px] font-black uppercase tracking-wider text-zinc-400">{title}</h3>
       </div>
-      <div className="data-table-body">
+      <div className="p-3 flex flex-col gap-1.5">
         {data.map((item:any, idx:number) => {
           const barWidth = maxProfit > 0 ? (Math.abs(item.profit) / maxProfit) * 100 : 0;
-          const isPositive = item.profit >= 0;
+          const isPos = item.profit >= 0;
           return (
-            <div key={idx} className="data-table-row">
-              <div 
-                className={`data-table-bar ${isPositive ? "bar-positive" : "bar-negative"}`} 
-                style={{ width: `${barWidth}%` }} 
-              />
-              
-              <div className="row-content">
-                  <span className="data-table-label">{item.label}</span>
-                  <span className={`data-table-value ${isPositive ? "text-cyan-400" : "text-rose-400"}`}>
-                    {item.value}
-                  </span>
-              </div>
+            <div key={idx} className="relative flex items-center justify-between p-2.5 rounded-2xl bg-white/[0.02] overflow-hidden">
+              <div className={`absolute left-0 top-0 bottom-0 opacity-15 ${isPos ? "bg-emerald-500" : "bg-rose-500"}`} style={{ width: `${barWidth}%` }} />
+              <span className="relative z-10 text-[11px] font-bold text-zinc-300 uppercase tracking-wide">{item.label}</span>
+              <span className={`relative z-10 font-mono text-[13px] font-black ${isPos ? "text-emerald-400" : "text-rose-400"}`}>{item.value}</span>
             </div>
           );
         })}
@@ -233,65 +194,35 @@ function DataTable({ title, data, icon }: any) {
   );
 }
 
-// --- GLAVNA STRAN ---
-
 export default function HomePage() {
   const router = useRouter();
   const [rows, setRows] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
-  
-  // Stanje za citat
-  const [quote, setQuote] = useState({ text: "Uspeh je v podrobnostih.", author: "Neznan" });
+  const [quote, setQuote] = useState({ text: "Disciplina je most med cilji in dosežki.", author: "Jim Rohn" });
 
   useEffect(() => {
-    setMounted(true);
-
     const fetchQuote = async () => {
       try {
         const res = await fetch('/api/quote', { cache: 'no-store' });
         if (!res.ok) throw new Error('Napaka API-ja');
-        
         const data = await res.json();
-        if (data && data.q) {
-          setQuote({ text: data.q, author: data.a });
-        }
-      } catch (err) {
-        console.error("Uporabljam privzet citat.");
-      }
+        if (data && data.q) setQuote({ text: data.q, author: data.a });
+      } catch (err) { /* silent */ }
     };
 
     const checkUserAndLoad = async () => {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.replace("/login");
-        return;
-      }
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('is_approved')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError || !profile || !profile.is_approved) {
-        router.replace("/pending");
-        return;
-      }
-      await loadRows();
+      if (!user) { router.replace("/login"); return; }
+      const { data: profile } = await supabase.from('profiles').select('is_approved').eq('id', user.id).single();
+      if (!profile || !profile.is_approved) { router.replace("/pending"); return; }
+      const { data, error } = await supabase.from("bets").select("*").order("datum", { ascending: true });
+      if (!error) setRows((data ?? []) as Bet[]);
       setLoading(false);
     };
 
-    fetchQuote();
-    checkUserAndLoad();
+    fetchQuote(); checkUserAndLoad();
   }, [router]);
-
-  async function loadRows() {
-    const { data, error } = await supabase.from("bets").select("*").order("datum", { ascending: true });
-    if (!error) {
-        setRows((data ?? []) as Bet[]);
-    }
-  }
 
   const stats = useMemo(() => buildStats(rows), [rows]);
 
@@ -301,534 +232,123 @@ export default function HomePage() {
     const map = new Map<number, number>();
     settled.forEach((r) => { const day = new Date(r.datum).getDate(); map.set(day, (map.get(day) ?? 0) + calcProfit(r)); });
     let cumulative = 0; const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate(); const arr: any[] = [];
-    for (let d = 1; d <= daysInMonth; d++) { const daily = map.get(d) ?? 0; cumulative += daily; if (d <= now.getDate() || now.getMonth() !== currentMonth) arr.push({ day: d, dayLabel: `${d}.`, profit: cumulative }); }
+    for (let d = 1; d <= daysInMonth; d++) { 
+        cumulative += (map.get(d) ?? 0); 
+        if (d <= now.getDate() || now.getMonth() !== currentMonth) arr.push({ dayLabel: `${d}.`, profit: cumulative }); 
+    }
     return arr;
   }, [rows]);
 
   const chartMonthly = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    const settled = rows.filter((r) => { if (r.wl === "OPEN" || r.wl === "VOID") return false; const d = new Date(r.datum); return d.getFullYear() === currentYear; });
+    const settled = rows.filter((r) => { if (r.wl === "OPEN" || r.wl === "VOID") return false; return new Date(r.datum).getFullYear() === currentYear; });
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Avg", "Sep", "Okt", "Nov", "Dec"];
-    const monthProfit = new Map<number, number>();
-    for(let i=0; i<12; i++) monthProfit.set(i, 0);
-    settled.forEach((r) => { const month = new Date(r.datum).getMonth(); monthProfit.set(month, (monthProfit.get(month) ?? 0) + calcProfit(r)); });
-    return monthNames.map((name, idx) => { return { monthName: name, profit: monthProfit.get(idx) ?? 0 }; });
+    const map = new Map<number, number>();
+    settled.forEach((r) => { const m = new Date(r.datum).getMonth(); map.set(m, (map.get(m) ?? 0) + calcProfit(r)); });
+    return monthNames.map((name, idx) => ({ monthName: name, profit: map.get(idx) ?? 0 }));
   }, [rows]);
 
   const pieData = useMemo(() => {
-    const sportVolume = new Map<string, number>();
-    let totalRisk = 0;
-    rows.forEach((r) => { 
-        const risk = calcRisk(r); 
-        totalRisk += risk;
-        const sport = r.sport || "OSTALO"; 
-        sportVolume.set(sport, (sportVolume.get(sport) || 0) + risk); 
-    });
-    
-    const data = Array.from(sportVolume.entries()).map(([name, value]) => ({ 
-        name, 
-        value,
-        percent: totalRisk > 0 ? (value / totalRisk) * 100 : 0
-    }));
-    data.sort((a, b) => b.value - a.value);
-    return data;
+    const map = new Map<string, number>();
+    rows.forEach(r => map.set(r.sport || "OSTALO", (map.get(r.sport || "OSTALO") || 0) + calcRisk(r)));
+    const data = Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+    return data.sort((a, b) => b.value - a.value);
   }, [rows]);
 
-  const currentMonthName = new Date().toLocaleDateString("sl-SI", { month: "long", year: "numeric" });
-  const sportData = useMemo(() => SPORTI.map((s) => ({ label: s, value: eur(stats.profitBySport.get(s) ?? 0), profit: stats.profitBySport.get(s) ?? 0 })).sort((a, b) => b.profit - a.profit), [stats]);
-  const tipsterData = useMemo(() => TIPSTERJI.map((t) => ({ label: t, value: eur(stats.profitByTipster.get(t) ?? 0), profit: stats.profitByTipster.get(t) ?? 0 })).sort((a, b) => b.profit - a.profit), [stats]);
+  const sportData = useMemo(() => SPORTI.map(s => ({ label: s, value: eur(stats.profitBySport.get(s)), profit: stats.profitBySport.get(s) ?? 0 })).sort((a,b) => b.profit - a.profit), [stats]);
+  const tipsterData = useMemo(() => TIPSTERJI.map(t => ({ label: t, value: eur(stats.profitByTipster.get(t)), profit: stats.profitByTipster.get(t) ?? 0 })).sort((a,b) => b.profit - a.profit), [stats]);
+  const timingData = useMemo(() => [{ label: `Prematch (${stats.prematchCount})`, value: eur(stats.profitPrematch), profit: stats.profitPrematch }, { label: `Live (${stats.liveCount})`, value: eur(stats.profitLive), profit: stats.profitLive }], [stats]);
   
-  const timingData = useMemo(() => [
-      { label: `Prematch (${stats.prematchCount})`, value: eur(stats.profitPrematch), profit: stats.profitPrematch }, 
-      { label: `Live (${stats.liveCount})`, value: eur(stats.profitLive), profit: stats.profitLive }
-  ], [stats]);
-  
-  const skupnaBanka = stats.balanceByBook.reduce((a, b) => a + b.balance, 0);
-  const diffFromStart = skupnaBanka - CAPITAL_TOTAL;
-  const isProfit = diffFromStart >= 0;
-
-  const maxBalance = Math.max(...stats.balanceByBook.map(b => b.balance), 1);
-
-  if (loading) return (
-    <div className="loading-screen">
-      <div className="loading-spinner" />
-      <p className="loading-text">Nalaganje podatkov...</p>
-    </div>
-  );
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0a0a0b]"><div className="w-8 h-8 border-2 border-zinc-800 border-t-emerald-400 rounded-full animate-spin" /></div>;
 
   return (
-    <main className="dashboard">
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+    <main className="min-h-screen bg-[#0a0a0b] text-zinc-100 font-sans pb-24 pt-44 px-4 md:px-8 lg:px-12 selection:bg-emerald-500/30">
+      <div className="max-w-[1600px] mx-auto">
         
-        :root {
-          --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-          --font-mono: 'DM Mono', 'SF Mono', monospace;
-          --bg-primary: #0a0a0b;
-          --bg-card: rgba(255, 255, 255, 0.02);
-          --bg-card-hover: rgba(255, 255, 255, 0.04);
-          --border-subtle: rgba(255, 255, 255, 0.06);
-          --border-medium: rgba(255, 255, 255, 0.1);
-          --text-primary: #fafafa;
-          --text-secondary: #a1a1aa;
-          --text-muted: #52525b;
-          --cyan: #22d3ee;
-          --rose: #fb7185;
-          --amber: #fbbf24;
-          --violet: #a78bfa;
-          --emerald: #34d399;
-        }
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-          font-family: var(--font-display);
-          background: var(--bg-primary);
-          color: var(--text-primary);
-          -webkit-font-smoothing: antialiased;
-        }
-        
-        .dashboard {
-          min-height: 100vh;
-          background: var(--bg-primary);
-          position: relative;
-          overflow-x: hidden;
-        }
-        
-        .dashboard::before {
-          content: '';
-          position: fixed;
-          top: -50%;
-          left: -50%;
-          width: 200%;
-          height: 200%;
-          background: 
-            radial-gradient(ellipse at 20% 20%, rgba(34, 211, 238, 0.03) 0%, transparent 50%),
-            radial-gradient(ellipse at 80% 80%, rgba(167, 139, 250, 0.03) 0%, transparent 50%);
-          pointer-events: none;
-        }
+        {/* TANEK, FULL-WIDTH CITAT */}
+        <div className="mb-10 w-full py-3 px-6 bg-zinc-900/40 border border-white/5 rounded-2xl shadow-lg backdrop-blur-md flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 text-center">
+          <Sparkles className="w-3.5 h-3.5 text-emerald-500/80 hidden md:block" />
+          <p className="text-xs md:text-[13px] font-medium text-zinc-300 italic tracking-wide">
+            "{quote.text}"
+          </p>
+          <span className="text-[9px] text-emerald-500 font-black uppercase tracking-[0.2em] md:ml-2">
+            — {quote.author}
+          </span>
+        </div>
 
-        .dashboard-content {
-          position: relative;
-          z-index: 1;
-          max-width: 1600px;
-          margin: 0 auto;
-          padding: 170px 24px 40px 24px;
-        }
+        {/* 4 GLAVNE INVESTICIJSKE METRIKE */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+          <MetricCard title="Trenutna Banka" value={eur(stats.bankroll)} trend={stats.bankroll >= CAPITAL_TOTAL ? "up" : "down"} icon={<Wallet className="w-5 h-5"/>} isPositive={stats.bankroll >= CAPITAL_TOTAL} subtitle={`Začetni kapital: ${eur(CAPITAL_TOTAL)}`} />
+          <MetricCard title="Skupni Profit" value={eur(stats.profit)} trend={stats.profit >= 0 ? "up" : "down"} icon={<TrendingUp className="w-5 h-5"/>} isPositive={stats.profit >= 0} subtitle="Ustvarjen čisti dobiček" />
+          <MetricCard title="Yield (ROI)" value={`${stats.yieldPercent.toFixed(2)}%`} trend={stats.yieldPercent >= 0 ? "up" : "down"} icon={<Target className="w-5 h-5"/>} isPositive={stats.yieldPercent >= 0} subtitle="Profit glede na obrnjen denar" />
+          <MetricCard title="Donos na Kapital" value={`${stats.donosNaKapital.toFixed(2)}%`} trend={stats.donosNaKapital >= 0 ? "up" : "down"} icon={<Landmark className="w-5 h-5"/>} isPositive={stats.donosNaKapital >= 0} subtitle="Rast osnovne investicije (8.500€)" />
+        </div>
 
-        @media (min-width: 768px) {
-          .dashboard-content { padding: 180px 40px 60px 40px; }
-        }
+        {/* 3 SEKUNDARNE METRIKE IN FORMA */}
+        <div className="grid grid-cols-3 gap-5 mb-10 max-w-4xl mx-auto">
+          <div className="bg-zinc-900/40 border border-white/5 rounded-3xl p-5 flex flex-col justify-center items-center text-center gap-1.5 shadow-lg backdrop-blur-sm transition-all hover:bg-zinc-900/60">
+            <span className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">Skupaj Stav</span>
+            <span className="font-mono text-xl md:text-2xl font-black">{stats.n}</span>
+          </div>
+          <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-3xl p-5 flex flex-col justify-center items-center text-center gap-1.5 shadow-[0_0_20px_-10px_rgba(16,185,129,0.2)] backdrop-blur-sm transition-all hover:bg-emerald-900/20">
+            <span className="text-[10px] text-emerald-500/70 uppercase font-black tracking-widest">Win Rate</span>
+            <span className="font-mono text-xl md:text-2xl font-black text-emerald-400">{stats.winRate.toFixed(1)}%</span>
+          </div>
+          <div className="bg-zinc-900/40 border border-white/5 rounded-3xl p-5 flex flex-col justify-center items-center text-center gap-2.5 shadow-lg backdrop-blur-sm transition-all hover:bg-zinc-900/60">
+            <span className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">Forma (Zadnjih 5)</span>
+            <div className="flex gap-1.5">
+              {stats.recentForm.length > 0 ? stats.recentForm.map((result, i) => (
+                <div key={i} className={`flex items-center justify-center w-6 h-6 md:w-7 md:h-7 rounded-full text-[10px] font-black ${result === 'W' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                  {result}
+               </div>
+              )) : <span className="text-xs text-zinc-600">Ni podatkov</span>}
+            </div>
+          </div>
+        </div>
 
-/* --- ANIMIRAN CITAT (MARQUEE) --- */
-@keyframes marquee {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-
-.quote-header {
-  margin-bottom: 32px;
-  padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.015);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  position: relative;
-  width: 100%;
-  overflow: hidden;
-}
-
-.quote-marquee-wrapper {
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  animation: marquee 20s linear infinite;
-  width: fit-content;
-}
-
-.quote-marquee-wrapper:hover {
-  animation-play-state: paused;
-}
-
-.quote-content {
-  display: flex;
-  align-items: center;
-  padding-right: 100px;
-}
-
-        .quote-tag {
-          font-size: 10px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.12em;
-          color: var(--cyan);
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          margin-right: 6px;
-          flex-shrink: 0;
-        }
-
-        .quote-text {
-          font-size: 15px;
-          font-weight: 400;
-          color: var(--text-primary);
-          font-style: italic;
-          opacity: 0.95;
-          margin: 0;
-          display: inline;
-          flex-shrink: 0;
-        }
-
-        .quote-author {
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--text-muted);
-          margin-left: 6px;
-          flex-shrink: 0;
-        }
-        
-        /* Metric Cards */
-        .metrics-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 12px;
-          margin-bottom: 24px;
-        }
-        
-        @media (min-width: 768px) {
-          .metrics-grid {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-          }
-        }
-        
-        .metric-card {
-          background: var(--bg-card);
-          border: 1px solid var(--border-subtle);
-          border-radius: 14px;
-          padding: 16px;
-          transition: all 0.25s ease;
-          position: relative;
-          overflow: hidden;
-        }
-        
-        .metric-card:hover {
-          background: var(--bg-card-hover);
-          border-color: var(--border-medium);
-          transform: translateY(-2px);
-        }
-        
-        .metric-card.glow-cyan::before {
-          content: '';
-          position: absolute; top: 0; left: 0; right: 0; height: 1px;
-          background: linear-gradient(90deg, transparent, var(--cyan), transparent);
-          opacity: 0.5;
-        }
-        
-        .metric-card.glow-rose::before {
-          content: '';
-          position: absolute; top: 0; left: 0; right: 0; height: 1px;
-          background: linear-gradient(90deg, transparent, var(--rose), transparent);
-          opacity: 0.5;
-        }
-
-        .metric-card.glow-amber::before {
-          content: '';
-          position: absolute; top: 0; left: 0; right: 0; height: 1px;
-          background: linear-gradient(90deg, transparent, var(--amber), transparent);
-          opacity: 0.5;
-        }
-        
-        .metric-card.glow-violet::before {
-          content: '';
-          position: absolute; top: 0; left: 0; right: 0; height: 1px;
-          background: linear-gradient(90deg, transparent, var(--violet), transparent);
-          opacity: 0.5;
-        }
-        
-        .metric-header {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 10px;
-        }
-        
-        .metric-icon svg { width: 14px; height: 14px; opacity: 0.7; }
-        
-        .metric-title {
-          font-size: 10px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: var(--text-muted);
-        }
-        
-        .metric-body { display: flex; align-items: center; gap: 8px; }
-        
-        .metric-value {
-          font-family: var(--font-mono);
-          font-size: 22px;
-          font-weight: 500;
-          letter-spacing: -0.02em;
-        }
-        
-        @media (min-width: 768px) { .metric-value { font-size: 26px; } }
-        
-        .metric-trend {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 20px;
-          height: 20px;
-          border-radius: 5px;
-        }
-        
-        .metric-trend.trend-up { background: rgba(34, 211, 238, 0.15); color: var(--cyan); }
-        .metric-trend.trend-down { background: rgba(251, 113, 133, 0.15); color: var(--rose); }
-        
-        .metric-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-        
-        .stats-row {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 10px;
-          margin-bottom: 24px;
-        }
-        
-        @media (min-width: 768px) { .stats-row { grid-template-columns: repeat(4, 1fr); gap: 12px; } }
-        
-        .stat-badge {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          background: var(--bg-card);
-          border: 1px solid var(--border-subtle);
-          border-radius: 10px;
-          padding: 12px 14px;
-        }
-        
-        .stat-badge-content { display: flex; flex-direction: column; gap: 2px; }
-        .stat-badge-label { font-size: 9px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
-        .stat-badge-value { font-family: var(--font-mono); font-size: 15px; font-weight: 500; }
-        
-        .main-grid { display: grid; gap: 16px; margin-bottom: 24px; }
-        @media (min-width: 1200px) { .main-grid { grid-template-columns: 1fr 340px; gap: 20px; } }
-        
-        .chart-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 20px; }
-        .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-        .chart-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
-        .chart-value { font-family: var(--font-mono); font-size: 14px; font-weight: 500; padding: 5px 10px; background: rgba(255, 255, 255, 0.03); border-radius: 6px; }
-        .chart-container { height: 220px; width: 100%; }
-
-        /* Wallet */
-        .wallet-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; overflow: hidden; height: 100%; display: flex; flex-direction: column; }
-        .wallet-header { padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); background: rgba(0, 0, 0, 0.2); }
-        .wallet-amount { font-family: var(--font-mono); font-size: 26px; font-weight: 500; }
-        
-        .wallet-list { padding: 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; overflow-y: auto; }
-        
-        .wallet-item { 
-          display: flex; 
-          align-items: center; 
-          position: relative; 
-          padding: 8px 12px;
-          border-radius: 8px;
-          overflow: hidden;
-          background: rgba(255,255,255,0.01);
-          min-height: 42px;
-        }
-
-        .wallet-bar {
-          position: absolute; 
-          left: 0; 
-          top: 0; 
-          bottom: 0; 
-          opacity: 0.15;
-          z-index: 0;
-          transition: width 0.5s ease;
-        }
-        
-        .wallet-content-row {
-          display: flex; 
-          justify-content: space-between; 
-          width: 100%; 
-          z-index: 1;
-          align-items: center;
-          font-size: 11px; 
-          font-weight: 500; 
-          color: var(--text-secondary);
-        }
-
-        .bg-cyan { background: var(--cyan); border-right: 1px solid var(--cyan); }
-        .bg-rose { background: var(--rose); border-right: 1px solid var(--rose); }
-
-        /* Data Tables */
-        .tables-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-        @media (min-width: 768px) { .tables-grid { grid-template-columns: repeat(3, 1fr); } }
-
-        .data-table { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px; }
-        .data-table-header { padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; gap: 8px; }
-        .data-table-body { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
-        
-        .data-table-row { 
-          display: flex; 
-          align-items: center; 
-          position: relative; 
-          padding: 8px 12px;
-          border-radius: 8px;
-          overflow: hidden;
-          background: rgba(255,255,255,0.01);
-        }
-        
-        .data-table-bar { 
-          position: absolute; 
-          left: 0; 
-          top: 0; 
-          bottom: 0; 
-          opacity: 0.15; 
-          z-index: 0;
-          transition: width 0.5s ease;
-        }
-        .bar-positive { background: var(--cyan); border-right: 1px solid var(--cyan); }
-        .bar-negative { background: var(--rose); border-right: 1px solid var(--rose); }
-
-        .row-content {
-          display: flex; 
-          justify-content: space-between; 
-          width: 100%; 
-          z-index: 1;
-          align-items: center;
-        }
-
-        .data-table-label { font-size: 11px; font-weight: 500; color: var(--text-secondary); }
-        .data-table-value { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
-
-        .tooltip-glass { background: rgba(10, 10, 11, 0.95); border: 1px solid var(--border-medium); border-radius: 8px; padding: 10px 14px; }
-        .tooltip-value.positive { color: var(--cyan); }
-        .tooltip-value.negative { color: var(--rose); }
-
-        .loading-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-primary); gap: 16px; }
-        .loading-spinner { width: 32px; height: 32px; border: 2px solid var(--border-subtle); border-top-color: var(--cyan); border-radius: 50%; animation: spin 0.8s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .text-cyan-400 { color: var(--cyan); }
-        .text-rose-400 { color: var(--rose); }
-      `}</style>
-
-      <div className="dashboard-content">
-        
-        {/* AVTOMATSKI MOTIVACIJSKI CITAT - ANIMIRAN VODORAVNO */}
-<header className="quote-header">
-  <div className="quote-marquee-wrapper">
-    <div className="quote-content">
-      <div className="quote-tag">
-        <Sparkles className="w-3 h-3" /> Misel dneva :
-      </div>
-      <p className="quote-text">
-        "{quote.text}"
-      </p>
-      <div className="quote-author">
-        — {quote.author}
-      </div>
-    </div>
-    <div className="quote-content">
-      <div className="quote-tag">
-        <Sparkles className="w-3 h-3" /> Misel dneva :
-      </div>
-      <p className="quote-text">
-        "{quote.text}"
-      </p>
-      <div className="quote-author">
-        — {quote.author}
-      </div>
-    </div>
-  </div>
-</header>
-
-        {/* KPI Kartice */}
-        <section className="metrics-grid">
-          <MetricCard 
-            title="Začetni kapital" 
-            value={eur(CAPITAL_TOTAL)} 
-            icon={<DollarSign />} 
-            variant="info"
-          />
-          <MetricCard 
-            title="Trenutno stanje" 
-            value={eur(stats.bankroll)} 
-            trend={stats.bankroll >= CAPITAL_TOTAL ? "up" : "down"} 
-            icon={<Wallet />} 
-            variant={stats.bankroll >= CAPITAL_TOTAL ? "success" : "danger"}
-          />
-          <MetricCard 
-            title="Celoten profit" 
-            value={eur(stats.profit)} 
-            trend={stats.profit >= 0 ? "up" : "down"} 
-            icon={<TrendingUp />} 
-            variant={stats.profit >= 0 ? "success" : "danger"}
-          />
-          <MetricCard 
-            title="Donos" 
-            value={`${stats.donosNaKapital.toFixed(1)}%`} 
-            trend={stats.donosNaKapital >= 0 ? "up" : "down"} 
-            icon={<BarChart3 />} 
-            variant="warning"
-          />
-        </section>
-
-        {/* Stat Badges */}
-        <section className="stats-row">
-          <StatBadge label="Stave" value={stats.n} icon={<Hash />} colorClass="text-zinc-100" />
-          <StatBadge label="Zmage" value={stats.wins} icon={<Trophy />} colorClass="text-cyan-400" />
-          <StatBadge label="Porazi" value={stats.losses} icon={<ArrowDownRight />} colorClass="text-rose-400" />
-          <StatBadge label="Win Rate" value={`${stats.winRate.toFixed(1)}%`} icon={<Zap />} colorClass="text-violet-400" />
-        </section>
-
-        {/* Glavni Grid */}
-        <section className="main-grid">
-          <div className="charts-column" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div className="chart-card">
-              <div className="chart-header">
-                <h3 className="chart-title"><Clock /> Dnevni Profit</h3>
-                <span className={`chart-value ${stats.profit >= 0 ? "text-cyan-400" : "text-rose-400"}`}>{eur(stats.profit)}</span>
+        {/* GRAFI IN BANKA */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+          <div className="lg:col-span-2 flex flex-col gap-6">
+            <div className="bg-zinc-900/40 border border-white/5 rounded-[2.5rem] p-6 md:p-8 shadow-xl backdrop-blur-sm">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-[11px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+                   <Clock className="w-4 h-4 text-emerald-500"/> Dnevno Gibanje (Ta Mesec)
+                </h3>
               </div>
-              <div className="chart-container">
+              <div className="h-[260px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartDaily}>
+                  <AreaChart data={chartDaily} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
+                      <linearGradient id="colorProfitLine" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="dayLabel" stroke="#52525b" fontSize={9} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#52525b" fontSize={9} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} width={45} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area type="monotone" dataKey="profit" stroke="#22d3ee" strokeWidth={2} fill="url(#colorProfit)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                    <XAxis dataKey="dayLabel" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} dy={10} />
+                    <YAxis stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} tickFormatter={v => `€${v}`} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
+                    <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" strokeDasharray="3 3" />
+                    <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fill="url(#colorProfitLine)" activeDot={{ r: 6, fill: '#10b981', stroke: '#000', strokeWidth: 2 }} dot={{ r: 3, fill: '#10b981', strokeWidth: 0 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
-              <div className="chart-card">
-                <h3 className="chart-title" style={{ marginBottom: '16px' }}><CalendarDays /> Mesečni Profit</h3>
-                <div style={{ height: '160px' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-zinc-900/40 border border-white/5 rounded-[2rem] p-6 md:p-8 shadow-xl backdrop-blur-sm">
+                <h3 className="text-[11px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2 mb-6"><CalendarDays className="w-4 h-4 text-emerald-500"/> Mesečni Profit</h3>
+                <div className="h-[200px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartMonthly}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                      <XAxis dataKey="monthName" stroke="#52525b" fontSize={9} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#52525b" fontSize={9} tickLine={false} axisLine={false} width={40} />
-                      <Bar dataKey="profit">
-                        <LabelList 
-                          dataKey="profit" 
-                          position="top" 
-                          style={{ fill: '#a1a1aa', fontSize: '10px', fontWeight: 500 }} 
-                          formatter={(val: number) => eur(val)} 
-                        />
+                    <BarChart data={chartMonthly} margin={{ top: 15, right: 0, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                      <XAxis dataKey="monthName" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} dy={10} />
+                      <YAxis hide />
+                      <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                      <Bar dataKey="profit" radius={[6, 6, 0, 0]}>
+                        <LabelList dataKey="profit" position="top" fill="#a1a1aa" fontSize={10} fontWeight="bold" formatter={(v:number) => eur(v)} />
                         {chartMonthly.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#22d3ee" : "#fb7185"} />
+                          <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? "#10b981" : "#f43f5e"} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -836,26 +356,16 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="chart-card">
-                <h3 className="chart-title" style={{ marginBottom: '16px' }}><PieIcon /> Porazdelitev</h3>
-                <div style={{ height: '160px' }}>
+              <div className="bg-zinc-900/40 border border-white/5 rounded-[2rem] p-6 md:p-8 shadow-xl backdrop-blur-sm">
+                <h3 className="text-[11px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2 mb-4"><PieIcon className="w-4 h-4 text-emerald-500"/> Vložek po Športih</h3>
+                <div className="h-[200px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      {/* SPREMENJENO: Povečan notranji in zunanji radij za večji krog in luknjo */}
-                      <Pie data={pieData} innerRadius={55} outerRadius={75} paddingAngle={4} dataKey="value" stroke="none">
-                        {pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                        ))}
+                      <Pie data={pieData} innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value" stroke="none">
+                        {pieData.map((_, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
                       </Pie>
-                      <Tooltip />
-                      {/* SPREMENJENO: Še večja legenda */}
-                      <Legend 
-                        layout="vertical" 
-                        verticalAlign="middle" 
-                        align="right"
-                        iconSize={16}
-                        wrapperStyle={{ fontSize: '14px', color: '#a1a1aa' }}
-                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend layout="vertical" verticalAlign="middle" align="right" iconSize={12} wrapperStyle={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 'bold' }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -863,52 +373,37 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="wallet-card">
-            <div className="wallet-header">
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Skupna banka</div>
-              <div className="wallet-amount" style={{ color: isProfit ? 'var(--cyan)' : 'var(--rose)' }}>{eur(skupnaBanka)}</div>
+          <div className="bg-zinc-900/40 border border-white/5 rounded-[2.5rem] overflow-hidden flex flex-col h-full shadow-xl backdrop-blur-sm">
+            <div className="p-8 border-b border-white/5 bg-black/40 text-center flex flex-col items-center">
+              <span className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">Stanje po Stavnicah</span>
+              <div className="font-mono text-4xl font-black mt-3 text-zinc-100">{eur(stats.balanceByBook.reduce((a,b) => a+b.balance, 0))}</div>
             </div>
-            
-            <div className="wallet-list">
+            <div className="p-5 flex flex-col gap-2.5 flex-1 overflow-y-auto">
               {stats.balanceByBook.map((book) => {
-                 const width = (book.balance / maxBalance) * 100;
-                 const isProfit = book.balance >= book.start;
+                 const width = (book.balance / Math.max(...stats.balanceByBook.map(b => b.balance))) * 100;
+                 const isPos = book.balance >= book.start;
                  return (
-                   <div key={book.name} className="wallet-item">
-                     {/* Background Bar */}
-                     <div 
-                        className={`wallet-bar ${isProfit ? 'bg-cyan' : 'bg-rose'}`} 
-                        style={{ width: `${width}%` }} 
-                     />
-                     
-                     <div className="wallet-content-row">
-                        <span style={{ fontWeight: 500 }}>{book.name}</span>
-                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: '#fafafa' }}>
-                             {eur(book.balance)}
-                           </span>
-                           <span style={{ fontSize: '10px', color: isProfit ? 'var(--cyan)' : 'var(--rose)' }}>
-                             {isProfit ? '+' : ''}{eur(book.profit)}
-                           </span>
-                        </div>
+                   <div key={book.name} className="relative flex items-center justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/[0.02] overflow-hidden group hover:bg-white/[0.04] transition-colors">
+                     <div className={`absolute left-0 top-0 bottom-0 opacity-[0.15] transition-all duration-500 ${isPos ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${width}%` }} />
+                     <span className="relative z-10 text-[11px] font-black text-zinc-300 tracking-widest uppercase">{book.name}</span>
+                     <div className="relative z-10 text-right flex flex-col items-end">
+                       <span className="font-mono text-[16px] font-black text-white">{eur(book.balance)}</span>
+                       <span className={`text-[10px] font-bold ${isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
+                         {isPos ? '+' : ''}{eur(book.profit)}
+                       </span>
                      </div>
                    </div>
                  );
               })}
             </div>
           </div>
-        </section>
+        </div>
 
-        <section className="tables-grid">
-          <DataTable title="Po športih" data={sportData} icon={<Activity className="text-cyan-400" />} />
-          <DataTable title="Po tipsterjih" data={tipsterData} icon={<Users className="text-violet-400" />} />
-          <DataTable title="Po času" data={timingData} icon={<Clock className="text-amber-400" />} />
-        </section>
-
-        <footer style={{ marginTop: '32px', padding: '20px 0', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}>
-          <span>© 2026 DDTips Analytics</span>
-          <span style={{ fontFamily: "var(--font-mono)" }}>API Integrated Quote System</span>
-        </footer>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <DataTable title="Po športih" data={sportData} icon={<Activity className="w-4 h-4 text-emerald-400" />} />
+          <DataTable title="Po tipsterjih" data={tipsterData} icon={<Users className="w-4 h-4 text-violet-400" />} />
+          <DataTable title="Po času" data={timingData} icon={<Clock className="w-4 h-4 text-amber-400" />} />
+        </div>
       </div>
     </main>
   );
