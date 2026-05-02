@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, BarChart3, TrendingUp, Home, ArrowUpRight, ArrowDownRight, FileText, LineChart } from "lucide-react";
+import { LogOut, BarChart3, TrendingUp, Home, ArrowUpRight, ArrowDownRight, FileText, LineChart, Radar } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -199,19 +199,25 @@ export default function Header() {
                   </div>
               </div>
 
-              {/* DESNA STRAN: Poročila, Forex, Odjava */}
-              <div className="flex items-center gap-2 md:gap-3 ml-auto lg:ml-0 z-30">
+              {/* DESNA STRAN: Edge, Poročila, Forex, Odjava */}
+              <div className="flex items-center gap-1.5 md:gap-2 ml-auto lg:ml-0 z-30">
                   
+                  {/* Edge Analytics (Nov gumb) */}
+                  <Link href="/edge" className={`group relative flex items-center justify-center gap-2 px-2.5 py-2.5 md:px-4 md:py-2.5 rounded-xl border overflow-hidden transition-all duration-300 ${pathname === "/edge" ? "bg-violet-500/20 border-violet-500/40" : "bg-black/40 border-white/5 hover:border-violet-500/40"}`}>
+                      <Radar className={`relative z-10 w-4 h-4 ${pathname === "/edge" ? "text-violet-400" : "text-zinc-400 group-hover:text-violet-400"}`} />
+                      <span className="relative z-10 text-[11px] font-black uppercase tracking-[0.1em] text-zinc-300 hidden xl:block">Edge</span>
+                  </Link>
+
                   {/* Poročila */}
-                  <Link href="/porocila" className={`group relative flex items-center justify-center gap-2 px-3 py-2.5 md:px-5 md:py-2.5 rounded-xl border overflow-hidden transition-all duration-300 ${pathname === "/porocila" ? "bg-emerald-500/20 border-emerald-500/40" : "bg-black/40 border-white/5 hover:border-emerald-500/40"}`}>
+                  <Link href="/porocila" className={`group relative flex items-center justify-center gap-2 px-2.5 py-2.5 md:px-4 md:py-2.5 rounded-xl border overflow-hidden transition-all duration-300 ${pathname === "/porocila" ? "bg-emerald-500/20 border-emerald-500/40" : "bg-black/40 border-white/5 hover:border-emerald-500/40"}`}>
                       <FileText className={`relative z-10 w-4 h-4 ${pathname === "/porocila" ? "text-emerald-400" : "text-zinc-400 group-hover:text-emerald-400"}`} />
-                      <span className="relative z-10 text-[11px] font-black uppercase tracking-[0.1em] text-zinc-300 hidden md:block">Poročila</span>
+                      <span className="relative z-10 text-[11px] font-black uppercase tracking-[0.1em] text-zinc-300 hidden xl:block">Poročila</span>
                   </Link>
 
                   {/* Forex */}
-                  <Link href="/forex" className={`group relative flex items-center justify-center gap-2 px-3 py-2.5 md:px-5 md:py-2.5 rounded-xl border overflow-hidden transition-all duration-300 ${pathname === "/forex" ? "bg-emerald-500/20 border-emerald-500/40" : "bg-black/40 border-white/5 hover:border-emerald-500/40"}`}>
+                  <Link href="/forex" className={`group relative flex items-center justify-center gap-2 px-2.5 py-2.5 md:px-4 md:py-2.5 rounded-xl border overflow-hidden transition-all duration-300 ${pathname === "/forex" ? "bg-emerald-500/20 border-emerald-500/40" : "bg-black/40 border-white/5 hover:border-emerald-500/40"}`}>
                       <LineChart className={`relative z-10 w-4 h-4 ${pathname === "/forex" ? "text-emerald-400" : "text-zinc-400 group-hover:text-emerald-400"}`} />
-                      <span className="relative z-10 text-[11px] font-black uppercase tracking-[0.1em] text-zinc-300 hidden md:block">Forex</span>
+                      <span className="relative z-10 text-[11px] font-black uppercase tracking-[0.1em] text-zinc-300 hidden xl:block">Forex</span>
                   </Link>
 
                   {/* Odjava (Samo Ikona) */}
@@ -247,11 +253,12 @@ export default function Header() {
       </header>
 
       {/* MOBILE NAV (Spodaj na telefonih) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[150] bg-black/80 backdrop-blur-xl border-t border-white/10 h-16 shadow-[0_-10px_40px_-15px_rgba(0,0,0,1)]">
-        <div className="flex justify-around items-center h-full px-2">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[150] bg-black/90 backdrop-blur-xl border-t border-white/10 h-16 shadow-[0_-10px_40px_-15px_rgba(0,0,0,1)]">
+        <div className="flex justify-between items-center h-full px-4">
            <Link href="/" className={`flex flex-col items-center gap-1 ${pathname === "/" ? "text-emerald-400" : "text-zinc-500"}`}><Home className="w-5 h-5" /><span className="text-[9px] font-bold uppercase">Domov</span></Link>
            <Link href="/bets" className={`flex flex-col items-center gap-1 ${pathname === "/bets" ? "text-emerald-400" : "text-zinc-500"}`}><TrendingUp className="w-5 h-5" /><span className="text-[9px] font-bold uppercase">Stave</span></Link>
            <Link href="/forex" className={`flex flex-col items-center gap-1 ${pathname === "/forex" ? "text-emerald-400" : "text-zinc-500"}`}><LineChart className="w-5 h-5" /><span className="text-[9px] font-bold uppercase">Forex</span></Link>
+           <Link href="/edge" className={`flex flex-col items-center gap-1 ${pathname === "/edge" ? "text-violet-400" : "text-zinc-500"}`}><Radar className="w-5 h-5" /><span className="text-[9px] font-bold uppercase">Edge</span></Link>
            <Link href="/porocila" className={`flex flex-col items-center gap-1 ${pathname === "/porocila" ? "text-emerald-400" : "text-zinc-500"}`}><FileText className="w-5 h-5" /><span className="text-[9px] font-bold uppercase">Poročila</span></Link>
            <Link href="/stats" className={`flex flex-col items-center gap-1 ${pathname === "/stats" ? "text-emerald-400" : "text-zinc-500"}`}><BarChart3 className="w-5 h-5" /><span className="text-[9px] font-bold uppercase">Stats</span></Link>
         </div>
