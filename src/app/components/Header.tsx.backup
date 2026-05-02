@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, BarChart3, TrendingUp, Home, ArrowUpRight, ArrowDownRight, FileText, LineChart } from "lucide-react";
+import { LogOut, BarChart3, TrendingUp, Home, ArrowUpRight, ArrowDownRight, FileText, Bot } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -158,7 +158,8 @@ export default function Header() {
 
   const isPositive = todayStats.profit > 0;
   const isPositiveOrZero = todayStats.profit >= 0;
-  const isOnForexPage = pathname === "/forex";
+  const isOnDDBotPage = pathname === "/predictions";
+  const isOnDDBot1Page = pathname === "/ddbot1";
 
   return (
     <>
@@ -238,24 +239,43 @@ export default function Header() {
                   </div>
               </div>
 
-              {/* DESNO: FOREX + ODJAVA (Responsive) */}
+              {/* DESNO: DD BOT + ODJAVA (Responsive) */}
               <div className="flex items-center gap-3 ml-auto md:ml-0">
                   
-                  {/* Forex gumb */}
+                  {/* DD Bot gumb */}
                   <Link 
-                    href="/forex" 
+                    href="/predictions" 
                     className={`group relative flex items-center justify-center gap-2 w-10 h-10 md:w-auto md:h-auto md:px-5 md:py-2.5 rounded-xl border overflow-hidden transition-all duration-300 active:scale-95 ${
-                      isOnForexPage 
+                      isOnDDBotPage 
                         ? "bg-emerald-500/20 border-emerald-500/40 shadow-[0_0_25px_-5px_rgba(16,185,129,0.4)]" 
                         : "bg-black/40 border-white/5 hover:border-emerald-500/40 hover:shadow-[0_0_25px_-5px_rgba(16,185,129,0.3)]"
                     }`}
                   >
-                      <div className={`absolute inset-0 transition-colors duration-300 ${isOnForexPage ? "bg-emerald-500/10" : "bg-emerald-500/0 group-hover:bg-emerald-500/5"}`} />
-                      <LineChart className={`relative z-10 w-4 h-4 transition-colors duration-300 ${isOnForexPage ? "text-emerald-400" : "text-zinc-400 group-hover:text-emerald-400"}`} />
-                      <span className={`relative z-10 text-[11px] font-black uppercase tracking-[0.1em] transition-colors duration-300 hidden md:block ${isOnForexPage ? "text-emerald-400" : "text-zinc-500 group-hover:text-emerald-400"}`}>
-                          Forex
+                      <div className={`absolute inset-0 transition-colors duration-300 ${isOnDDBotPage ? "bg-emerald-500/10" : "bg-emerald-500/0 group-hover:bg-emerald-500/5"}`} />
+                      <Bot className={`relative z-10 w-4 h-4 transition-colors duration-300 ${isOnDDBotPage ? "text-emerald-400" : "text-zinc-400 group-hover:text-emerald-400"}`} />
+                      <span className={`relative z-10 text-[11px] font-black uppercase tracking-[0.1em] transition-colors duration-300 hidden md:block ${isOnDDBotPage ? "text-emerald-400" : "text-zinc-500 group-hover:text-emerald-400"}`}>
+                          DDBot
                       </span>
-                      {isOnForexPage && (
+                      {isOnDDBotPage && (
+                        <div className="absolute bottom-0 left-0 h-[2px] w-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
+                      )}
+                  </Link>
+
+                  {/* DDBot1 gumb */}
+                  <Link 
+                    href="/ddbot1" 
+                    className={`group relative flex items-center justify-center gap-2 w-10 h-10 md:w-auto md:h-auto md:px-5 md:py-2.5 rounded-xl border overflow-hidden transition-all duration-300 active:scale-95 ${
+                      isOnDDBot1Page
+                        ? "bg-emerald-500/20 border-emerald-500/40 shadow-[0_0_25px_-5px_rgba(16,185,129,0.4)]" 
+                        : "bg-black/40 border-white/5 hover:border-emerald-500/40 hover:shadow-[0_0_25px_-5px_rgba(16,185,129,0.3)]"
+                    }`}
+                  >
+                      <div className={`absolute inset-0 transition-colors duration-300 ${isOnDDBot1Page ? "bg-emerald-500/10" : "bg-emerald-500/0 group-hover:bg-emerald-500/5"}`} />
+                      <Bot className={`relative z-10 w-4 h-4 transition-colors duration-300 ${isOnDDBot1Page ? "text-emerald-400" : "text-zinc-400 group-hover:text-emerald-400"}`} />
+                      <span className={`relative z-10 text-[11px] font-black uppercase tracking-[0.1em] transition-colors duration-300 hidden md:block ${isOnDDBot1Page ? "text-emerald-400" : "text-zinc-500 group-hover:text-emerald-400"}`}>
+                          DDBot1
+                      </span>
+                      {isOnDDBot1Page && (
                         <div className="absolute bottom-0 left-0 h-[2px] w-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
                       )}
                   </Link>
@@ -305,7 +325,8 @@ export default function Header() {
         <div className="flex justify-around items-center h-16">
            <MobileNavItem href="/" icon={Home} label="Domov" />
            <MobileNavItem href="/bets" icon={TrendingUp} label="Stave" />
-           <MobileNavItem href="/forex" icon={LineChart} label="Forex" />
+           <MobileNavItem href="/predictions" icon={Bot} label="DDBot" />
+           <MobileNavItem href="/ddbot1" icon={Bot} label="DDBot1" />
            <MobileNavItem href="/stats" icon={BarChart3} label="Statistika" />
            <MobileNavItem href="/porocila" icon={FileText} label="Poročila" />
         </div>
