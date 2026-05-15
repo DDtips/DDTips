@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -28,7 +28,8 @@ import {
   Minus,
   AlertTriangle,
   Loader2,
-  Inbox
+  Inbox,
+  Upload
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -56,6 +57,8 @@ type BetRow = {
   stavnica: string;
   mode?: Mode | null;
 };
+
+type ParsedBet = Omit<BetRow, 'id' | 'created_at'>;
 
 const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"] as const;
 const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"] as const;
@@ -390,6 +393,13 @@ export default function BetsPage() {
   const [editVplacilo2, setEditVplacilo2] = useState("");
   const [editKomisija, setEditKomisija] = useState("");
 
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [parsedBets, setParsedBets] = useState<ParsedBet[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [uploadTipster, setUploadTipster] = useState("DAVID");
+  const [uploadSport, setUploadSport] = useState("OSTALO");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     setMounted(true);
     const checkAccess = async () => {
@@ -418,6 +428,123 @@ export default function BetsPage() {
 
   function resetForm() {
     setWl("OPEN"); setDogodek(""); setTip(""); setMode("BET"); setBetSide("BACK"); setKvota1(""); setVplacilo1(""); setLayKvota(""); setVplacilo2(""); setKomisija("0");
+  }
+
+  function parseExcelDateStr(value: any): string {
+    if (!value) return new Date().toISOString().slice(0, 10);
+    if (value instanceof Date) {
+      const d = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+      return d.toISOString().slice(0, 10);
+    }
+    const str = value.toString().trim();
+    const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (match) return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+    try { const d = new Date(str); if (!isNaN(d.getTime())) return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); } catch {}
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const XLSX = await import('xlsx');
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+      const allBets: ParsedBet[] = [];
+      for (const sheetName of workbook.SheetNames) {
+        const ws = workbook.Sheets[sheetName];
+        const raw = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: false, defval: '' });
+        let headerIdx = -1;
+        for (let i = 0; i < Math.min(raw.length, 10); i++) {
+          const row = raw[i] as any[];
+          if (row && row.some((c: any) => typeof c === 'string' && c.toLowerCase().includes('ref'))) { headerIdx = i; break; }
+        }
+        if (headerIdx === -1) continue;
+        const headers = (raw[headerIdx] as any[]).map((h: any) => (h || '').toString().trim());
+        const isSettled = headers.some((h: string) => h === 'Settled' || h === 'Avg. Odds');
+        for (let i = headerIdx + 1; i < raw.length; i++) {
+          const row = raw[i] as any[];
+          if (!row || !row[0]) continue;
+          const get = (name: string) => { const idx = headers.indexOf(name); return idx !== -1 ? (row[idx] ?? '') : ''; };
+          const rawDesc = get('Description').toString().trim();
+          if (!rawDesc) continue;
+          const type = get('Type').toString().trim();
+
+          // Parse Betfair description: "Competition / Match / Market / Selection / Back"
+          // or "Match / Selection / Market / Competition / Bet ID: ... / Placed: ..."
+          const descParts = rawDesc.split(' / ')
+            .map((p: string) => p.trim())
+            .filter((p: string) => p && !p.startsWith('Bet ID:') && !p.startsWith('Placed:'));
+          let description = rawDesc;
+          let parsedTip = type;
+          if (descParts.length >= 2) {
+            const matchIdx = descParts.findIndex((p: string) => / v /i.test(p));
+            if (matchIdx !== -1) {
+              description = descParts[matchIdx];
+              const lastPart = descParts[descParts.length - 1].toLowerCase();
+              if (lastPart === 'back' || lastPart === 'lay') {
+                parsedTip = descParts[descParts.length - 2] || type;
+              } else {
+                parsedTip = descParts[matchIdx + 1] || type;
+              }
+            } else {
+              description = descParts[0];
+              parsedTip = descParts[1] || type;
+            }
+          }
+          const status = get('Status').toString().trim().toLowerCase();
+          const datum = parseExcelDateStr(get('Placed') || get('Settled'));
+          const isBack = type.toLowerCase() === 'back';
+          const isLay = type.toLowerCase() === 'lay';
+          let wl: WL = 'OPEN';
+          if (isSettled) {
+            if (status === 'won') wl = 'WIN';
+            else if (status === 'lost') wl = 'LOSS';
+            else wl = 'VOID';
+          }
+          let kvota1 = 0, vplacilo1 = 0, lay_kvota = 0, vplacilo2 = 0;
+          if (isSettled) {
+            const odds = parseNum(get('Avg. Odds'));
+            const stake = parseNum(get('Stake'));
+            if (isBack) { kvota1 = odds; vplacilo1 = stake; }
+            else if (isLay) { lay_kvota = odds; vplacilo2 = stake; }
+          } else {
+            const odds = parseNum(get('Odds'));
+            const stake = parseNum(get('Stake'));
+            const liability = parseNum(get('Liability'));
+            if (isBack) { kvota1 = odds; vplacilo1 = stake; }
+            else if (isLay) { lay_kvota = odds; vplacilo2 = liability; }
+          }
+          allBets.push({ datum, wl, dogodek: description, tip: parsedTip, kvota1, vplacilo1, lay_kvota, vplacilo2, komisija: 0, sport: 'OSTALO', cas_stave: 'PREMATCH', tipster: 'DAVID', stavnica: 'SHARP', mode: 'BET' });
+        }
+      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (allBets.length === 0) { toast.error('V datoteki ni bilo najdenih stav.'); return; }
+      setParsedBets(allBets);
+      setShowUploadModal(true);
+    } catch (err: any) {
+      toast.error('Napaka pri branju datoteke: ' + err.message);
+    }
+  }
+
+  async function importParsedBets() {
+    if (!user || parsedBets.length === 0) return;
+    setImporting(true);
+    try {
+      const payload = parsedBets.map(b => ({ ...b, tipster: uploadTipster, sport: uploadSport, created_by: user.id }));
+      const { error } = await supabase.from('bets').insert(payload);
+      if (error) throw error;
+      await loadBets();
+      setShowUploadModal(false);
+      setParsedBets([]);
+      toast.success(`Uspešno uvoženih ${parsedBets.length} stav!`);
+      window.dispatchEvent(new Event('bets-updated'));
+    } catch (err: any) {
+      toast.error('Napaka pri uvozu: ' + err.message);
+    } finally {
+      setImporting(false);
+    }
   }
 
   async function addBet() {
@@ -761,13 +888,22 @@ export default function BetsPage() {
             </div>
           </div>
           
-          {/* Add New Bet Button */}
-          <div className="flex items-center">
-            <button 
-              onClick={() => setShowAddForm(!showAddForm)} 
+          {/* Buttons */}
+          <div className="flex items-center gap-2">
+            <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileUpload} />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="h-full md:h-auto px-4 py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all shadow-lg active:scale-95 glass-card text-zinc-300 hover:text-emerald-400 border border-white/10 hover:border-emerald-500/30"
+              title="Uvozi stave iz Excel datoteke"
+            >
+              <Upload className="w-5 h-5" />
+              <span className="uppercase tracking-wider text-xs hidden md:inline">Excel</span>
+            </button>
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
               className={`h-full md:h-auto w-full md:w-auto px-6 py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all shadow-lg active:scale-95 ${
-                showAddForm 
-                  ? 'glass-card text-zinc-300' 
+                showAddForm
+                  ? 'glass-card text-zinc-300'
                   : 'glass-button text-black'
               }`}
             >
@@ -1018,6 +1154,91 @@ export default function BetsPage() {
                 <button onClick={() => setFullEditOpen(false)} className="px-6 py-2.5 glass-input text-zinc-300 font-bold rounded-xl hover:bg-white/10 transition-all">Prekliči</button>
                 <button onClick={saveFullEdit} className="px-6 py-2.5 glass-button text-black font-bold rounded-xl flex items-center gap-2"><Save className="w-4 h-4" /> Shrani</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Excel Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div onClick={(e) => e.stopPropagation()} className="glass-modal rounded-2xl p-6 max-w-3xl w-full animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Upload className="w-5 h-5 text-emerald-500" /> Uvoz iz Excel
+              </h3>
+              <button onClick={() => { setShowUploadModal(false); setParsedBets([]); }} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                <X className="w-4 h-4 text-zinc-400" />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="glass-card p-3 text-center">
+                <div className="text-2xl font-bold text-amber-400">{parsedBets.filter(b => b.wl === 'OPEN').length}</div>
+                <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1">Odprte</div>
+              </div>
+              <div className="glass-card p-3 text-center">
+                <div className="text-2xl font-bold text-zinc-300">{parsedBets.filter(b => b.wl !== 'OPEN').length}</div>
+                <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1">Zaključene</div>
+              </div>
+              <div className="glass-card p-3 text-center">
+                <div className="text-2xl font-bold text-emerald-400">{parsedBets.length}</div>
+                <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1">Skupaj</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 flex items-center gap-1.5"><Users className="w-3 h-3" />Tipster</label>
+                <div className="relative">
+                  <select value={uploadTipster} onChange={e => setUploadTipster(e.target.value)} className="glass-input w-full px-3 py-2.5 rounded-lg text-white text-sm appearance-none focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer pr-8">
+                    {TIPSTERJI.map(t => <option key={t} value={t} className="bg-zinc-900">{t}</option>)}
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500"><ChevronDown className="w-4 h-4" /></div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 flex items-center gap-1.5"><Target className="w-3 h-3" />Šport</label>
+                <div className="relative">
+                  <select value={uploadSport} onChange={e => setUploadSport(e.target.value)} className="glass-input w-full px-3 py-2.5 rounded-lg text-white text-sm appearance-none focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer pr-8">
+                    {SPORTI.map(s => <option key={s} value={s} className="bg-zinc-900">{s}</option>)}
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500"><ChevronDown className="w-4 h-4" /></div>
+                </div>
+              </div>
+            </div>
+            <div className="overflow-auto custom-scrollbar flex-1 rounded-xl border border-white/5 mb-4">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-zinc-950">
+                  <tr>
+                    <th className="text-left py-2.5 px-3 text-zinc-500 font-bold uppercase tracking-wider border-b border-white/5">Datum</th>
+                    <th className="text-left py-2.5 px-3 text-zinc-500 font-bold uppercase tracking-wider border-b border-white/5">Status</th>
+                    <th className="text-left py-2.5 px-3 text-zinc-500 font-bold uppercase tracking-wider border-b border-white/5">Dogodek</th>
+                    <th className="text-left py-2.5 px-3 text-zinc-500 font-bold uppercase tracking-wider border-b border-white/5">Tip</th>
+                    <th className="text-left py-2.5 px-3 text-zinc-500 font-bold uppercase tracking-wider border-b border-white/5">Kvota</th>
+                    <th className="text-left py-2.5 px-3 text-zinc-500 font-bold uppercase tracking-wider border-b border-white/5">Vplačilo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedBets.map((b, idx) => (
+                    <tr key={idx} className={`border-b border-white/5 ${idx % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                      <td className="py-2 px-3 text-zinc-400 whitespace-nowrap">{formatDateSlovenian(b.datum)}</td>
+                      <td className="py-2 px-3"><StatusBadge wl={b.wl} /></td>
+                      <td className="py-2 px-3 text-white max-w-[200px]"><span className="block truncate">{b.dogodek}</span></td>
+                      <td className="py-2 px-3 text-zinc-400">{b.tip}</td>
+                      <td className="py-2 px-3 text-zinc-300 font-mono">{b.kvota1 > 0 ? b.kvota1.toFixed(2) : (b.lay_kvota ?? 0) > 0 ? (b.lay_kvota ?? 0).toFixed(2) : '-'}</td>
+                      <td className="py-2 px-3 text-zinc-400 font-mono whitespace-nowrap">{b.vplacilo1 > 0 ? eurCompact(b.vplacilo1) : (b.vplacilo2 ?? 0) > 0 ? eurCompact(b.vplacilo2 ?? 0) : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowUploadModal(false); setParsedBets([]); }} className="flex-1 px-6 py-3 glass-input text-zinc-300 font-bold rounded-xl hover:bg-white/10 transition-all">
+                Prekliči
+              </button>
+              <button onClick={importParsedBets} disabled={importing} className="flex-1 flex items-center justify-center gap-2 px-6 py-3 glass-button text-black font-bold rounded-xl disabled:opacity-50">
+                {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {importing ? 'Uvažam...' : `Uvozi ${parsedBets.length} stav`}
+              </button>
             </div>
           </div>
         </div>
