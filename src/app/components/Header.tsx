@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { LogOut, BarChart3, TrendingUp, Home, ArrowUpRight, ArrowDownRight, FileText, LineChart, Radar } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { calcProfit, hasBack, hasLay } from "@/lib/utils";
+import type { BetRow } from "@/lib/utils";
 
 // --- TIP ZA KAPLJICE DENARJA ---
 type MoneyDrop = {
@@ -15,37 +17,6 @@ type MoneyDrop = {
   size: number;
   opacity: number;
 };
-
-// --- LOGIKA ZA PROFIT ---
-function calcProfit(b: any): number {
-  if (b.wl === "OPEN" || b.wl === "VOID") return 0;
-  const komZnesek = Number(b.komisija ?? 0);
-  const backStake = b.vplacilo1 || 0;
-  const backOdds = b.kvota1 || 0;
-  const layLiability = b.vplacilo2 || 0; 
-  const layOdds = b.lay_kvota || 0;
-  const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
-
-  let brutoProfit = 0;
-  const hasBack = (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0;
-  const hasLay = (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0;
-
-  if (hasBack && hasLay) {
-    const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
-    const profitIfLayWins = layStake - backStake;
-    if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
-    else if (b.wl === "LAY WIN") brutoProfit = layStake - backStake;
-    else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
-    else if (b.wl === "LOSS") brutoProfit = Math.min(profitIfBackWins, profitIfLayWins);
-  } else if (!hasBack && hasLay) {
-    if (b.wl === "WIN" || b.wl === "LAY WIN") brutoProfit = layStake;
-    else if (b.wl === "LOSS" || b.wl === "BACK WIN") brutoProfit = -layLiability;
-  } else if (hasBack && !hasLay) {
-    if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1);
-    else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
-  }
-  return brutoProfit > 0 ? brutoProfit - komZnesek : brutoProfit;
-}
 
 export default function Header() {
   const pathname = usePathname();
@@ -95,7 +66,9 @@ export default function Header() {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     
-    window.addEventListener("bets-updated", fetchStats);
+    let timer: ReturnType<typeof setTimeout>;
+    const handler = () => { clearTimeout(timer); timer = setTimeout(fetchStats, 300); };
+    window.addEventListener("bets-updated", handler);
 
     const channel = supabase.channel('header-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, fetchStats).subscribe();
 
@@ -107,7 +80,8 @@ export default function Header() {
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("bets-updated", fetchStats);
+      window.removeEventListener("bets-updated", handler);
+      clearTimeout(timer);
       supabase.removeChannel(channel);
     };
   }, [pathname]);

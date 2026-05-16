@@ -1,4 +1,5 @@
 "use client";
+import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -9,14 +10,19 @@ export default function PendingPage() {
   const checkStatus = async () => {
      const { data: { user } } = await supabase.auth.getUser();
      if(!user) return;
-     
+
      const { data } = await supabase.from('profiles').select('is_approved').eq('id', user.id).single();
      if (data?.is_approved) {
-        router.push('/'); // Če je potrjen, ga vrži nazaj na dashboard
+        router.push('/');
      } else {
         alert("Račun še vedno čaka na potrditev.");
      }
   };
+
+  useEffect(() => {
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 text-center">

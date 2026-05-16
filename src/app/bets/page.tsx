@@ -29,8 +29,13 @@ import {
   AlertTriangle,
   Loader2,
   Inbox,
-  Upload
+  Upload,
+  Search,
+  Copy
 } from "lucide-react";
+import { TIPSTERJI, SPORTI, STAVNICE, PRELIVE, MODES, BET_SIDES } from "@/lib/constants";
+import { calcProfit, eur, eurCompact, parseNum, formatDateSlovenian, hasBack, hasLay } from "@/lib/utils";
+import type { BetRow } from "@/lib/utils";
 
 // --- TIPOVI ---
 
@@ -39,104 +44,7 @@ type PreLive = "PREMATCH" | "LIVE";
 type Mode = "BET" | "TRADING";
 type BetSide = "BACK" | "LAY";
 
-type BetRow = {
-  id: string;
-  created_at?: string;
-  datum: string;
-  wl: WL;
-  dogodek: string;
-  tip: string;
-  kvota1: number;
-  vplacilo1: number;
-  lay_kvota: number | null;
-  vplacilo2: number | null;
-  komisija: number | null;
-  sport: string;
-  cas_stave: PreLive;
-  tipster: string;
-  stavnica: string;
-  mode?: Mode | null;
-};
-
 type ParsedBet = Omit<BetRow, 'id' | 'created_at'>;
-
-const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"] as const;
-const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"] as const;
-const STAVNICE = ["SHARP", "PINNACLE", "BET365", "WINAMAX", "WWIN", "E-STAVE", "BET AT HOME"] as const;
-const PRELIVE: PreLive[] = ["PREMATCH", "LIVE"];
-const MODES: Mode[] = ["BET", "TRADING"];
-const BET_SIDES: BetSide[] = ["BACK", "LAY"];
-
-// --- POMOŽNE FUNKCIJE ---
-
-function eur(n: number) {
-  const sign = n < 0 ? "-" : "";
-  const v = Math.abs(n);
-  return `${sign}${v.toLocaleString("sl-SI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-}
-
-function eurCompact(n: number) {
-  const sign = n < 0 ? "-" : "";
-  const v = Math.abs(n);
-  return `${sign}${v.toLocaleString("sl-SI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€`;
-}
-
-function parseNum(x: string | number) {
-  const s = (x ?? "").toString().trim().replace(/\s+/g, "").replace(",", ".");
-  const n = Number(s);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function formatDateSlovenian(dateStr: string) {
-  if (!dateStr) return "";
-  const [year, month, day] = dateStr.split("-");
-  return `${day}.${month}.${year}`;
-}
-
-function hasBack(b: BetRow): boolean {
-  return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0;
-}
-
-function hasLay(b: BetRow): boolean {
-  return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0;
-}
-
-function calcProfit(b: BetRow): number {
-  if (b.wl === "OPEN" || b.wl === "VOID") return 0;
-
-  const komZnesek = Number(b.komisija ?? 0);
-  const backStake = b.vplacilo1 || 0;
-  const backOdds = b.kvota1 || 0;
-  const layLiability = b.vplacilo2 || 0;
-  const layOdds = b.lay_kvota || 0;
-  
-  const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
-
-  let brutoProfit = 0;
-
-  if (hasBack(b) && hasLay(b)) {
-    const profitIfBackWins = (backStake * (backOdds - 1)) - layLiability;
-    const profitIfLayWins = layStake - backStake;
-
-    if (b.wl === "BACK WIN") brutoProfit = profitIfBackWins;
-    else if (b.wl === "LAY WIN") brutoProfit = profitIfLayWins;
-    else if (b.wl === "WIN") brutoProfit = Math.max(profitIfBackWins, profitIfLayWins);
-    else if (b.wl === "LOSS") brutoProfit = Math.min(profitIfBackWins, profitIfLayWins);
-  }
-  else if (!hasBack(b) && hasLay(b)) {
-    if (b.wl === "WIN" || b.wl === "LAY WIN") brutoProfit = layStake;
-    else if (b.wl === "LOSS" || b.wl === "BACK WIN") brutoProfit = -layLiability;
-  }
-  else if (hasBack(b) && !hasLay(b)) {
-    if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1);
-    else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
-  }
-
-  if (brutoProfit > 0) {
-    return brutoProfit - komZnesek;
-  }
-  return brutoProfit;
-}
 
 // --- FUNKCIJA ZA EMOJI ŠPORTA ---
 function getSportEmoji(sport: string): string {
@@ -152,14 +60,6 @@ function getSportEmoji(sport: string): string {
   return sportEmojis[sport] || "🏅";
 }
 
-// --- FUNKCIJA ZA EMOJI ŠTEVILKE ---
-function getNumberEmojis(num: number): string {
-  const digitEmojis: Record<string, string> = {
-    "0": "0️⃣", "1": "1️⃣", "2": "2️⃣", "3": "3️⃣", "4": "4️⃣",
-    "5": "5️⃣", "6": "6️⃣", "7": "7️⃣", "8": "8️⃣", "9": "9️⃣"
-  };
-  return num.toString().split("").map(d => digitEmojis[d] || d).join("");
-}
 
 // --- TELEGRAM HELPER FUNKCIJA ---
 function sendTelegramNotification(bet: BetRow, allBets: BetRow[]) {
@@ -381,6 +281,11 @@ export default function BetsPage() {
   const [tipster, setTipster] = useState<string>("DAVID");
   const [stavnica, setStavnica] = useState<string>("SHARP");
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | WL>("ALL");
+  const [sortCol, setSortCol] = useState<"datum" | "kvota1" | "vplacilo1" | "profit">("datum");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
   const [statusEditOpen, setStatusEditOpen] = useState(false);
   const [statusEditId, setStatusEditId] = useState<string | null>(null);
   const [statusEditWl, setStatusEditWl] = useState<WL>("OPEN");
@@ -398,6 +303,7 @@ export default function BetsPage() {
   const [importing, setImporting] = useState(false);
   const [uploadTipster, setUploadTipster] = useState("DAVID");
   const [uploadSport, setUploadSport] = useState("OSTALO");
+  const [uploadCasStave, setUploadCasStave] = useState<PreLive>("PREMATCH");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -406,7 +312,7 @@ export default function BetsPage() {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/login"); return; }
-      const { data: profile, error: profileError } = await supabase.from('profiles').select('is_approved').eq('id', user.id).single();
+      const { data: profile } = await supabase.from('profiles').select('is_approved').eq('id', user.id).single();
       if (user.email !== "skolnik.dejan40@gmail.com" && (!profile || !profile.is_approved)) { router.replace("/pending"); return; }
       setUser(user);
       await loadBets();
@@ -532,10 +438,22 @@ export default function BetsPage() {
     if (!user || parsedBets.length === 0) return;
     setImporting(true);
     try {
-      const payload = parsedBets.map(b => ({ ...b, tipster: uploadTipster, sport: uploadSport, created_by: user.id }));
+      const payload = parsedBets.map(b => ({ ...b, tipster: uploadTipster, sport: uploadSport, cas_stave: uploadCasStave, created_by: user.id }));
       const { error } = await supabase.from('bets').insert(payload);
       if (error) throw error;
       await loadBets();
+
+      const openCount = parsedBets.filter(b => b.wl === 'OPEN').length;
+      const winCount = parsedBets.filter(b => ['WIN', 'BACK WIN', 'LAY WIN'].includes(b.wl)).length;
+      const lossCount = parsedBets.filter(b => b.wl === 'LOSS').length;
+      const voidCount = parsedBets.filter(b => b.wl === 'VOID').length;
+      const msg = `📥 <b>UVOZ IZ EXCEL</b>\n\n📊 Uvoženih skupaj: <b>${parsedBets.length} stav</b>\n━━━━━━━━━━━━━━━\n🟡 Odprte: <b>${openCount}</b>\n✅ Zmage: <b>${winCount}</b>\n❌ Porazi: <b>${lossCount}</b>\n⚪ Void: <b>${voidCount}</b>\n━━━━━━━━━━━━━━━\n👤 Tipster: <b>${uploadTipster}</b>\n🏅 Šport: <b>${uploadSport}</b>`;
+      fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      }).catch(err => toast.error('Telegram: ' + err.message));
+
       setShowUploadModal(false);
       setParsedBets([]);
       toast.success(`Uspešno uvoženih ${parsedBets.length} stav!`);
@@ -548,6 +466,10 @@ export default function BetsPage() {
   }
 
   async function addBet() {
+    if (!dogodek.trim()) { toast.error("Vpiši dogodek."); return; }
+    if (mode === "BET" && betSide === "BACK" && (parseNum(kvota1) <= 1 || parseNum(vplacilo1) <= 0)) { toast.error("Vpiši veljavno kvoto in vplačilo."); return; }
+    if (mode === "BET" && betSide === "LAY" && (parseNum(layKvota) <= 1 || parseNum(vplacilo2) <= 0)) { toast.error("Vpiši veljavno lay kvoto in liability."); return; }
+
     const payload = {
       datum, wl, dogodek, tip, sport, cas_stave: casStave, tipster, stavnica, mode,
       kvota1: parseNum(kvota1), vplacilo1: parseNum(vplacilo1),
@@ -561,7 +483,7 @@ export default function BetsPage() {
       const updatedRows = [newBet, ...rows];
       setRows(updatedRows);
       sendTelegramNotification(newBet, updatedRows);
-    } catch (err) { console.error("Telegram error:", err); }
+    } catch (err: any) { toast.error('Telegram: ' + err.message); }
     window.dispatchEvent(new Event("bets-updated"));
     toast.success("Stava uspešno dodana!");
     setShowAddForm(false);
@@ -595,6 +517,26 @@ export default function BetsPage() {
     setEditVplacilo2(b.vplacilo2?.toString() ?? "");
     setEditKomisija(b.komisija?.toString() ?? "0");
     setFullEditOpen(true);
+  }
+
+  function duplicateBet(r: BetRow) {
+    setDatum(new Date().toISOString().slice(0, 10));
+    setWl("OPEN");
+    setSport(r.sport);
+    setCasStave(r.cas_stave);
+    setDogodek(r.dogodek);
+    setTip(r.tip);
+    setMode((r.mode as Mode) || "BET");
+    setKvota1(r.kvota1 > 0 ? r.kvota1.toString() : "");
+    setVplacilo1(r.vplacilo1 > 0 ? r.vplacilo1.toString() : "");
+    setLayKvota(r.lay_kvota && r.lay_kvota > 0 ? r.lay_kvota.toString() : "");
+    setVplacilo2(r.vplacilo2 && r.vplacilo2 > 0 ? r.vplacilo2.toString() : "");
+    setKomisija(r.komisija ? r.komisija.toString() : "0");
+    setTipster(r.tipster);
+    setStavnica(r.stavnica);
+    setBetSide(r.kvota1 > 0 ? "BACK" : "LAY");
+    setShowAddForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function saveStatusEdit() {
@@ -634,7 +576,7 @@ export default function BetsPage() {
       try {
         const updatedRows = rows.map((r) => (r.id === updatedBet.id ? updatedBet : r));
         sendTelegramNotification(updatedBet, updatedRows);
-      } catch (err) { console.error("Telegram error:", err); }
+      } catch (err: any) { toast.error('Telegram: ' + err.message); }
     }
     setFullEditOpen(false);
     setEditingBet(null);
@@ -643,15 +585,24 @@ export default function BetsPage() {
   }
 
   const filteredRows = useMemo(() => {
-    const filtered = rows.filter((r) => r.datum.startsWith(selectedMonth));
-    return filtered.sort((a, b) => {
-      if (b.datum > a.datum) return 1;
-      if (b.datum < a.datum) return -1;
-      const tA = a.created_at || "";
-      const tB = b.created_at || "";
-      return tB > tA ? 1 : tB < tA ? -1 : 0;
+    let result = searchQuery.trim() ? rows : rows.filter((r) => r.datum.startsWith(selectedMonth));
+    if (searchQuery.trim()) result = result.filter((r) => r.dogodek.toLowerCase().includes(searchQuery.toLowerCase()) || r.tip.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (statusFilter !== "ALL") result = result.filter((r) => r.wl === statusFilter);
+    return result.sort((a, b) => {
+      const dir = sortDir === "desc" ? -1 : 1;
+      if (sortCol === "datum") {
+        if (b.datum > a.datum) return -dir;
+        if (b.datum < a.datum) return dir;
+        const tA = a.created_at || "";
+        const tB = b.created_at || "";
+        return tB > tA ? -dir : tB < tA ? dir : 0;
+      }
+      if (sortCol === "kvota1") return (a.kvota1 - b.kvota1) * dir;
+      if (sortCol === "vplacilo1") return (a.vplacilo1 - b.vplacilo1) * dir;
+      if (sortCol === "profit") return (calcProfit(a) - calcProfit(b)) * dir;
+      return 0;
     });
-  }, [rows, selectedMonth]);
+  }, [rows, selectedMonth, searchQuery, statusFilter, sortCol, sortDir]);
 
   const computed = useMemo(() => ({ withProfit: filteredRows.map((r) => ({ ...r, profit: calcProfit(r) })) }), [filteredRows]);
   const availableMonths = useMemo(() => {
@@ -984,16 +935,25 @@ export default function BetsPage() {
 
         {/* Bets Table */}
         <section className="glass-table overflow-hidden relative z-0 flex flex-col h-[calc(100vh-350px)] min-h-[500px]">
-          <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3">
+          <div className="px-6 py-4 border-b border-white/5 flex flex-wrap items-center gap-3 shrink-0">
+            <div className="flex items-center gap-3 mr-auto">
               <Activity className="w-4 h-4 text-zinc-400" />
               <h2 className="text-sm font-bold tracking-widest uppercase text-zinc-300">Seznam Stav</h2>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
+              <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Iskanje..." className="glass-input pl-8 pr-3 py-1.5 rounded-lg text-sm w-48 text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-all duration-200" />
+            </div>
+            <div className="flex items-center gap-1">
+              {(["ALL", "OPEN", "WIN", "LOSS", "VOID"] as const).map((s) => (
+                <button key={s} onClick={() => setStatusFilter(s)} className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors ${statusFilter === s ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-white/5 text-zinc-500 border-white/10 hover:text-zinc-300"}`}>{s}</button>
+              ))}
             </div>
             <div className="flex items-center gap-3">
               <button onClick={() => loadBets()} className="p-1.5 rounded-lg bg-white/5 hover:bg-emerald-500/20 text-zinc-400 hover:text-emerald-400 transition-colors border border-white/10" title="Ročno osveži podatke">
                 <RefreshCw className="w-4 h-4" />
               </button>
-              <span className="text-[10px] font-bold text-zinc-500 bg-white/5 border border-white/10 px-2 py-1 rounded-md">{computed.withProfit.length}</span>
+              <span className="text-[10px] font-bold text-zinc-500 bg-white/5 border border-white/10 px-2 py-1 rounded-md">{filteredRows.length}</span>
             </div>
           </div>
 
@@ -1001,16 +961,32 @@ export default function BetsPage() {
             <table className="w-full text-sm border-separate border-spacing-0">
               <thead className="sticky top-0 z-20">
                 <tr className="bg-black/80 backdrop-blur-sm">
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Datum</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">
+                    <button onClick={() => { if (sortCol === "datum") setSortDir(sortDir === "desc" ? "asc" : "desc"); else { setSortCol("datum"); setSortDir("desc"); } }} className="inline-flex items-center gap-1 hover:text-zinc-300 transition-colors">
+                      Datum{sortCol === "datum" && <ChevronDown className={`w-3 h-3 transition-transform ${sortDir === "asc" ? "rotate-180" : ""}`} />}
+                    </button>
+                  </th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Status</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Mode</th>
                   <th className="text-center py-4 px-4 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5" style={{ minWidth: "180px" }}>Dogodek</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Back</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Vplač.</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">
+                    <button onClick={() => { if (sortCol === "kvota1") setSortDir(sortDir === "desc" ? "asc" : "desc"); else { setSortCol("kvota1"); setSortDir("desc"); } }} className="inline-flex items-center gap-1 hover:text-zinc-300 transition-colors">
+                      Back{sortCol === "kvota1" && <ChevronDown className={`w-3 h-3 transition-transform ${sortDir === "asc" ? "rotate-180" : ""}`} />}
+                    </button>
+                  </th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">
+                    <button onClick={() => { if (sortCol === "vplacilo1") setSortDir(sortDir === "desc" ? "asc" : "desc"); else { setSortCol("vplacilo1"); setSortDir("desc"); } }} className="inline-flex items-center gap-1 hover:text-zinc-300 transition-colors">
+                      Vplač.{sortCol === "vplacilo1" && <ChevronDown className={`w-3 h-3 transition-transform ${sortDir === "asc" ? "rotate-180" : ""}`} />}
+                    </button>
+                  </th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Lay</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Liability</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Kom.</th>
-                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Profit</th>
+                  <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">
+                    <button onClick={() => { if (sortCol === "profit") setSortDir(sortDir === "desc" ? "asc" : "desc"); else { setSortCol("profit"); setSortDir("desc"); } }} className="inline-flex items-center gap-1 hover:text-zinc-300 transition-colors">
+                      Profit{sortCol === "profit" && <ChevronDown className={`w-3 h-3 transition-transform ${sortDir === "asc" ? "rotate-180" : ""}`} />}
+                    </button>
+                  </th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Tipster / Šport</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Stavnica</th>
                   <th className="text-center py-4 px-3 font-bold tracking-wider uppercase text-zinc-500 border-b border-white/5">Akcija</th>
@@ -1033,10 +1009,11 @@ export default function BetsPage() {
                     </td>
                   </tr>
                 ) : (
-                  computed.withProfit.map((r, idx) => {
+                  computed.withProfit.map((r) => {
                     const rowMode: Mode = (r.mode as Mode) || (hasBack(r) && hasLay(r) ? "TRADING" : "BET");
+                    const rowBg = r.wl === "OPEN" ? "bg-amber-500/[0.04]" : ["WIN", "BACK WIN", "LAY WIN"].includes(r.wl) ? "bg-emerald-500/[0.04]" : r.wl === "LOSS" ? "bg-rose-500/[0.04]" : "bg-white/[0.02]";
                     return (
-                      <tr key={r.id} className={`border-b border-white/5 hover:bg-white/5 transition-colors group ${idx % 2 === 0 ? "bg-white/[0.02]" : "bg-transparent"}`}>
+                      <tr key={r.id} className={`border-b border-white/5 hover:bg-white/5 transition-colors group ${rowBg}`}>
                         <td className="py-3 px-3 text-zinc-400 text-center whitespace-nowrap border-b border-white/5">{formatDateSlovenian(r.datum)}</td>
                         <td className="py-3 px-3 text-center border-b border-white/5"><StatusBadge wl={r.wl} onClick={() => openStatusEdit(r)} /></td>
                         <td className="py-3 px-3 text-center border-b border-white/5"><span className={`px-2 py-0.5 rounded text-xs font-bold border ${rowMode === "TRADING" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-sky-500/10 text-sky-400 border-sky-500/20"}`}>{rowMode}</span></td>
@@ -1060,6 +1037,7 @@ export default function BetsPage() {
                         <td className="py-3 px-2 text-center border-b border-white/5">
                           <div className="flex items-center justify-center gap-2">
                             <button onClick={() => openFullEdit(r)} className="p-1.5 rounded-lg bg-white/5 hover:bg-blue-500/20 text-zinc-400 hover:text-blue-400 transition-colors border border-white/10"><Pencil className="w-4 h-4" /></button>
+                            <button onClick={() => duplicateBet(r)} className="p-1.5 rounded-lg bg-white/5 hover:bg-violet-500/20 text-zinc-400 hover:text-violet-400 transition-colors border border-white/10" title="Kopiraj stavo"><Copy className="w-4 h-4" /></button>
                             <button onClick={() => openDeleteModal(r.id)} className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors border border-white/10"><Trash2 className="w-4 h-4" /></button>
                           </div>
                         </td>
@@ -1185,7 +1163,7 @@ export default function BetsPage() {
                 <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1">Skupaj</div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-3 gap-3 mb-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 flex items-center gap-1.5"><Users className="w-3 h-3" />Tipster</label>
                 <div className="relative">
@@ -1200,6 +1178,15 @@ export default function BetsPage() {
                 <div className="relative">
                   <select value={uploadSport} onChange={e => setUploadSport(e.target.value)} className="glass-input w-full px-3 py-2.5 rounded-lg text-white text-sm appearance-none focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer pr-8">
                     {SPORTI.map(s => <option key={s} value={s} className="bg-zinc-900">{s}</option>)}
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500"><ChevronDown className="w-4 h-4" /></div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 flex items-center gap-1.5"><Clock className="w-3 h-3" />Čas</label>
+                <div className="relative">
+                  <select value={uploadCasStave} onChange={e => setUploadCasStave(e.target.value as PreLive)} className="glass-input w-full px-3 py-2.5 rounded-lg text-white text-sm appearance-none focus:outline-none focus:border-emerald-500/50 transition-all cursor-pointer pr-8">
+                    {PRELIVE.map(p => <option key={p} value={p} className="bg-zinc-900">{p}</option>)}
                   </select>
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500"><ChevronDown className="w-4 h-4" /></div>
                 </div>

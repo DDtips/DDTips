@@ -11,59 +11,34 @@ import {
   Target, TrendingUp, ArrowRightLeft, Hash, Scale, ChevronDown, Check,
   BarChart3, Inbox, Trophy, Loader2, Landmark
 } from "lucide-react";
+import { TIPSTERJI, SPORTI, STAVNICE } from "@/lib/constants";
+import { calcProfit, hasBack, hasLay } from "@/lib/utils";
+import type { BetRow } from "@/lib/utils";
 
 // --- TIPOVI ---
 type WL = "OPEN" | "WIN" | "LOSS" | "VOID" | "BACK WIN" | "LAY WIN";
 type Cas = "PREMATCH" | "LIVE";
 type Mode = "BET" | "TRADING";
 
-type Bet = {
-  id: string; datum: string; wl: WL; kvota1: number; vplacilo1: number; lay_kvota: number;
-  vplacilo2: number; komisija: number; sport: string; cas_stave: Cas;
-  tipster: string; stavnica: string; dogodek?: string; tip?: string; mode?: Mode | null;
-};
+type Bet = BetRow & { tekma?: string };
 
 // --- KONSTANTE ---
 const BOOK_START: Record<string, number> = {
   SHARP: 2000, PINNACLE: 2000, BET365: 2000, WINAMAX: 1000, WWIN: 500, "E-STAVE": 500, "BET AT HOME": 1000,
 };
 const TOTAL_START_BANK = Object.values(BOOK_START).reduce((a, b) => a + b, 0);
-const TIPSTERJI = ["DAVID", "DEJAN", "KLEMEN", "MJ", "ZIMA", "DABSTER", "BALKAN"];
-const SPORTI = ["NOGOMET", "TENIS", "KOŠARKA", "SM. SKOKI", "SMUČANJE", "BIATLON", "OSTALO"];
-const STAVNICE = ["SHARP", "PINNACLE", "BET365", "WINAMAX", "WWIN", "BET AT HOME", "E-STAVE"];
 
 // --- POMOŽNE FUNKCIJE ---
 function eur(n: number) { return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
 function eurDec(n: number) { return n.toLocaleString("sl-SI", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function hasLay(b: Bet) { return (b.lay_kvota ?? 0) > 1 && (b.vplacilo2 ?? 0) > 0; }
-function hasBack(b: Bet) { return (b.kvota1 ?? 0) > 1 && (b.vplacilo1 ?? 0) > 0; }
 function getMode(b: Bet): Mode { if (b.mode) return b.mode; return hasBack(b) && hasLay(b) ? "TRADING" : "BET"; }
 
 function calcRisk(b: Bet): number {
   const hb = hasBack(b); const hl = hasLay(b);
   if (hb && !hl) return b.vplacilo1 || 0;
   if (!hb && hl) return b.vplacilo2 || 0;
-  if (hb && hl) return Math.max(b.vplacilo1 || 0, b.vplacilo2 || 0); 
+  if (hb && hl) return Math.max(b.vplacilo1 || 0, b.vplacilo2 || 0);
   return 0;
-}
-
-function calcProfit(b: Bet): number {
-  if (b.wl === "OPEN" || b.wl === "VOID") return 0;
-  const komZnesek = Number(b.komisija ?? 0);
-  const backStake = b.vplacilo1 || 0; const backOdds = b.kvota1 || 0;
-  const layLiability = b.vplacilo2 || 0; const layOdds = b.lay_kvota || 0;
-  const layStake = layOdds > 1 ? layLiability / (layOdds - 1) : 0;
-  let brutoProfit = 0;
-  if (hasBack(b) && hasLay(b)) {
-    const pBW = (backStake * (backOdds - 1)) - layLiability; const pLW = layStake - backStake;
-    if (b.wl === "BACK WIN") brutoProfit = pBW; else if (b.wl === "LAY WIN") brutoProfit = pLW;
-    else if (b.wl === "WIN") brutoProfit = Math.max(pBW, pLW); else if (b.wl === "LOSS") brutoProfit = Math.min(pBW, pLW);
-  } else if (!hasBack(b) && hasLay(b)) {
-    if (b.wl === "WIN" || b.wl === "LAY WIN") brutoProfit = layStake; else if (b.wl === "LOSS" || b.wl === "BACK WIN") brutoProfit = -layLiability;
-  } else if (hasBack(b) && !hasLay(b)) {
-    if (b.wl === "WIN" || b.wl === "BACK WIN") brutoProfit = backStake * (backOdds - 1); else if (b.wl === "LOSS" || b.wl === "LAY WIN") brutoProfit = -backStake;
-  }
-  return brutoProfit > 0 ? brutoProfit - komZnesek : brutoProfit;
 }
 
 function buildStats(rows: Bet[], filteredRows: Bet[], isFilteredByDate: boolean) {
@@ -104,8 +79,11 @@ function getBreakdown(rows: Bet[], key: 'tipster' | 'sport' | 'cas_stave') {
   const groups = new Set(rows.map(r => r[key]).filter(Boolean));
   return Array.from(groups).map(item => {
     const itemRows = rows.filter(r => r[key] === item);
+    const settled = itemRows.filter(r => r.wl !== "OPEN" && r.wl !== "VOID");
+    const wins = settled.filter(r => ["WIN", "BACK WIN", "LAY WIN"].includes(r.wl)).length;
     const totalProfit = itemRows.reduce((acc, r) => acc + calcProfit(r), 0);
-    return { name: item, totalProfit, count: itemRows.length };
+    const winRate = settled.length > 0 ? (wins / settled.length) * 100 : 0;
+    return { name: item, totalProfit, count: itemRows.length, wins, settledCount: settled.length, winRate };
   }).sort((a, b) => b.totalProfit - a.totalProfit);
 }
 
@@ -387,9 +365,9 @@ export default function StatsPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-6 mb-8">
                     <InputField label="Od" value={fromDate} onChange={setFromDate} type="date" icon={<Calendar className="w-4 h-4" />} />
                     <InputField label="Do" value={toDate} onChange={setToDate} type="date" icon={<Calendar className="w-4 h-4" />} />
-                    <MultiSelectField label="Športi" options={SPORTI} selected={selectedSports} onChange={setSelectedSports} icon={<Activity className="w-4 h-4" />} />
-                    <MultiSelectField label="Tipsterji" options={TIPSTERJI} selected={selectedTipsters} onChange={setSelectedTipsters} icon={<Users className="w-4 h-4" />} />
-                    <MultiSelectField label="Stavnice" options={STAVNICE} selected={selectedStavnice} onChange={setSelectedStavnice} icon={<Building2 className="w-4 h-4" />} />
+                    <MultiSelectField label="Športi" options={[...SPORTI]} selected={selectedSports} onChange={setSelectedSports} icon={<Activity className="w-4 h-4" />} />
+                    <MultiSelectField label="Tipsterji" options={[...TIPSTERJI]} selected={selectedTipsters} onChange={setSelectedTipsters} icon={<Users className="w-4 h-4" />} />
+                    <MultiSelectField label="Stavnice" options={[...STAVNICE]} selected={selectedStavnice} onChange={setSelectedStavnice} icon={<Building2 className="w-4 h-4" />} />
                     <SelectField label="Čas" value={cas} onChange={setCas} options={["ALL", "PREMATCH", "LIVE"]} icon={<Clock className="w-4 h-4" />} />
                     <InputField label="Min Kvota" value={minKvota} onChange={setMinKvota} placeholder="1.00" icon={<Scale className="w-4 h-4" />} />
                     <InputField label="Max Kvota" value={maxKvota} onChange={setMaxKvota} placeholder="10.00" icon={<Scale className="w-4 h-4" />} />
@@ -446,7 +424,15 @@ export default function StatsPage() {
                     {tipsterBreakdown.map(t => (
                         <div key={t.name} className="relative flex items-center justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/[0.03] group hover:bg-white/[0.05] transition-all overflow-hidden">
                           <div className={`absolute left-0 top-0 bottom-0 opacity-[0.08] transition-all duration-700 ${t.totalProfit >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${(Math.abs(t.totalProfit) / Math.max(...tipsterBreakdown.map(x=>Math.abs(x.totalProfit)))) * 100}%` }} />
-                          <span className="relative z-10 text-xs font-bold text-zinc-300 uppercase tracking-widest">{t.name} <span className="ml-2 text-[10px] text-zinc-600 font-medium">({t.count} stav)</span></span>
+                          <div className="relative z-10 flex items-center gap-2">
+                            <span className="text-xs font-bold text-zinc-300 uppercase tracking-widest">{t.name}</span>
+                            <span className="text-[10px] text-zinc-600 font-medium">({t.count} stav)</span>
+                            {t.settledCount > 0 && (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-white/5 text-zinc-500 border border-white/5 tabular-nums">
+                                {t.winRate.toFixed(0)}%W
+                              </span>
+                            )}
+                          </div>
                           <span className={`relative z-10 font-mono text-sm font-black ${t.totalProfit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{eurDec(t.totalProfit)}</span>
                         </div>
                     ))}
@@ -510,9 +496,9 @@ export default function StatsPage() {
                   else if(row.wl === "LOSS") statusBadge = <span className="px-3 py-1.5 rounded-lg text-[9px] font-black border text-rose-400 bg-rose-500/10 border-rose-500/20">LOSS</span>;
                   else statusBadge = <span className="px-3 py-1.5 rounded-lg text-[9px] font-black border text-zinc-400 bg-zinc-500/10 border-zinc-500/20">{row.wl}</span>;
 
-                  let displayKvota = row.kvota1;
-                  if (getMode(row) === "TRADING" && row.wl === "LAY WIN") displayKvota = row.lay_kvota;
-                  else if (hasLay(row) && !hasBack(row)) displayKvota = row.lay_kvota;
+                  let displayKvota: number = row.kvota1;
+                  if (getMode(row) === "TRADING" && row.wl === "LAY WIN") displayKvota = row.lay_kvota ?? 0;
+                  else if (hasLay(row) && !hasBack(row)) displayKvota = row.lay_kvota ?? 0;
 
                   return (
                     <tr key={row.id} className="bg-[#18181b]/60 hover:bg-[#27272a]/80 transition-colors group">
